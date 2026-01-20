@@ -7,7 +7,6 @@ import {
   endCallSchema,
   getCallSchema,
   getCallHistorySchema,
-  generateTokenSchema,
 } from '@/validations/voiceCall.validation';
 import { authenticate } from '@/middleware/auth.middleware';
 

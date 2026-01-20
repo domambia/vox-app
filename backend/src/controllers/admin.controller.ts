@@ -98,7 +98,7 @@ export class AdminController {
    * Get platform statistics
    * GET /api/v1/admin/stats
    */
-  async getPlatformStats(req: AuthRequest, res: Response): Promise<void> {
+  async getPlatformStats(_req: AuthRequest, res: Response): Promise<void> {
     try {
       const stats = await adminService.getPlatformStats();
       sendSuccess(res, stats);
@@ -111,7 +111,7 @@ export class AdminController {
    * Get moderation queue
    * GET /api/v1/admin/moderation/queue
    */
-  async getModerationQueue(req: AuthRequest, res: Response): Promise<void> {
+  async getModerationQueue(_req: AuthRequest, res: Response): Promise<void> {
     try {
       const queue = await adminService.getModerationQueue();
       sendSuccess(res, queue);

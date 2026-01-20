@@ -188,7 +188,6 @@ export class AdminService {
           email: true,
           is_active: true,
           role: true,
-          updated_at: true,
         },
       });
 
@@ -363,7 +362,7 @@ export class AdminService {
       // Get inactive users (potential issues)
       const inactiveUsers = await prisma.user.findMany({
         where: { is_active: false },
-        orderBy: { updated_at: 'desc' },
+        orderBy: { created_at: 'desc' },
         take: 10,
         select: {
           user_id: true,

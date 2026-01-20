@@ -22,6 +22,7 @@ import messagingRoutes from '@/routes/messaging.routes';
 import messagesRoutes from '@/routes/messages.routes';
 import voiceCallRoutes from '@/routes/voiceCall.routes';
 import adminRoutes from '@/routes/admin.routes';
+import swaggerRoutes from '@/routes/swagger.routes';
 
 const app: Application = express();
 
@@ -58,6 +59,10 @@ app.use(
 
 // API Routes
 const apiPrefix = `/api/${config.apiVersion}`;
+
+// Swagger Documentation (before other routes)
+app.use('/api-docs', swaggerRoutes);
+
 app.use(`${apiPrefix}/health`, healthRoutes);
 app.use(`${apiPrefix}/files`, filesRoutes);
 app.use(`${apiPrefix}/auth`, authRoutes);

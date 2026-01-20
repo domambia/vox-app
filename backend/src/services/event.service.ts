@@ -218,7 +218,7 @@ export class EventService {
 
       if (upcomingOnly) {
         where.date_time = {
-          ...where.date_time,
+          ...(where.date_time as Prisma.DateTimeFilter),
           gte: new Date(),
         };
       }

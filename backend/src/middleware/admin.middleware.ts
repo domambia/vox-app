@@ -2,7 +2,6 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '@/types';
 import { sendError } from '@/utils/response';
 import prisma from '@/config/database';
-import { UserRole } from '@prisma/client';
 
 /**
  * Middleware to require admin role

@@ -159,6 +159,15 @@ The database schema is defined in `prisma/schema.prisma` and includes:
 - Likes
 - Matches
 
+## API Documentation
+
+Swagger UI documentation is available at:
+
+- **Swagger UI**: `http://localhost:3000/api-docs`
+- **Swagger JSON**: `http://localhost:3000/api-docs/json`
+
+See [SWAGGER_SETUP.md](./SWAGGER_SETUP.md) for details on using and extending the documentation.
+
 ## Testing
 
 ```bash

@@ -8,7 +8,7 @@ export const generateToken = (payload: {
   verified: boolean;
 }): string => {
   return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.expiresIn,
+    expiresIn: config.jwt.expiresIn as unknown as number,
   });
 };
 
@@ -18,7 +18,7 @@ export const generateRefreshToken = (payload: {
   verified: boolean;
 }): string => {
   return jwt.sign(payload, config.jwt.refreshSecret, {
-    expiresIn: config.jwt.refreshExpiresIn,
+    expiresIn: config.jwt.refreshExpiresIn as unknown as number,
   });
 };
 
