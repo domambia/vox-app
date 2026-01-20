@@ -47,12 +47,17 @@ export const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
 
-  // Twilio (Voice Calls)
-  twilio: {
-    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
-    authToken: process.env.TWILIO_AUTH_TOKEN || '',
-    apiKey: process.env.TWILIO_API_KEY || '',
-    apiSecret: process.env.TWILIO_API_SECRET || '',
+  // WebRTC (Voice Calls)
+  webrtc: {
+    // STUN/TURN server configuration
+    // For production, configure your own TURN server
+    stunServers: [
+      'stun:stun.l.google.com:19302',
+      'stun:stun1.l.google.com:19302',
+    ],
+    turnServer: process.env.TURN_SERVER_URL || '',
+    turnUsername: process.env.TURN_USERNAME || '',
+    turnCredential: process.env.TURN_CREDENTIAL || '',
   },
 };
 

@@ -47,10 +47,5 @@ export const getCallHistorySchema = z.object({
   }),
 });
 
-// Generate token schema
-export const generateTokenSchema = z.object({
-  body: z.object({
-    roomName: z.string().optional(),
-  }),
-});
+// Get call room schema (reuses getCallSchema)
 

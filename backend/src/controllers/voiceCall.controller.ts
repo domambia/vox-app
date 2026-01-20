@@ -121,22 +121,39 @@ export class VoiceCallController {
   }
 
   /**
-   * Generate Twilio token
-   * POST /api/v1/calls/token
+   * Get WebRTC configuration
+   * GET /api/v1/calls/webrtc-config
    */
-  async generateToken(req: AuthRequest, res: Response): Promise<void> {
+  async getWebRTCConfig(_req: AuthRequest, res: Response): Promise<void> {
     try {
-      const userId = req.user!.userId;
-      const { roomName } = req.body;
+      const config = await voiceCallService.getWebRTCConfig();
+      sendSuccess(res, config);
+    } catch (error: any) {
+      sendError(res, 'WEBRTC_CONFIG_ERROR', error.message || 'Failed to get WebRTC config', 400);
+    }
+  }
 
-      const result = await voiceCallService.generateTwilioToken(userId, roomName || '');
+  /**
+   * Get call room for WebRTC signaling
+   * GET /api/v1/calls/:callId/room
+   */
+  async getCallRoom(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { callId } = req.params;
+      const userId = req.user!.userId;
+
+      const result = await voiceCallService.getCallRoom(callId, userId);
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Twilio not configured') {
-        sendError(res, 'SERVICE_UNAVAILABLE', error.message, 503);
+      if (error.message === 'Call not found') {
+        sendError(res, 'CALL_NOT_FOUND', error.message, 404);
         return;
       }
-      sendError(res, 'TOKEN_GENERATION_ERROR', error.message || 'Failed to generate token', 400);
+      if (error.message === 'Unauthorized access to call') {
+        sendError(res, 'FORBIDDEN', error.message, 403);
+        return;
+      }
+      sendError(res, 'CALL_ROOM_ERROR', error.message || 'Failed to get call room', 400);
     }
   }
 }
@@ -144,4 +161,5 @@ export class VoiceCallController {
 // Export singleton instance
 const voiceCallController = new VoiceCallController();
 export default voiceCallController;
+
 

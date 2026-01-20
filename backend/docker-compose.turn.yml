@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  coturn:
+    image: coturn/coturn:latest
+    container_name: vox-turn-server
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/turnserver.conf:ro
+    command: turnserver
+    environment:
+      - TZ=UTC
+    # For testing, we'll use host networking mode
+    # For production, expose specific ports:
+    # ports:
+    #   - "3478:3478/udp"
+    #   - "3478:3478/tcp"
+    #   - "49152-65535:49152-65535/udp"  # RTP port range

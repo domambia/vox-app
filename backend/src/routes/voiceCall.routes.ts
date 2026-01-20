@@ -74,15 +74,26 @@ router.get(
 );
 
 /**
- * @route   POST /api/v1/calls/token
- * @desc    Generate Twilio access token
+ * @route   GET /api/v1/calls/webrtc-config
+ * @desc    Get WebRTC configuration (STUN/TURN servers)
  * @access  Private (Authenticated)
  */
-router.post(
-  '/token',
+router.get(
+  '/webrtc-config',
   authenticate,
-  validate(generateTokenSchema),
-  voiceCallController.generateToken.bind(voiceCallController)
+  voiceCallController.getWebRTCConfig.bind(voiceCallController)
+);
+
+/**
+ * @route   GET /api/v1/calls/:callId/room
+ * @desc    Get call room name for WebRTC signaling
+ * @access  Private (Authenticated)
+ */
+router.get(
+  '/:callId/room',
+  authenticate,
+  validate(getCallSchema),
+  voiceCallController.getCallRoom.bind(voiceCallController)
 );
 
 export default router;

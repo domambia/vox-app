@@ -509,6 +509,82 @@ export function initializeWebSocket(server: HTTPServer): SocketIOServer {
         socket.emit('call:error', { error: error.message || 'Failed to update call status' });
       }
     });
+
+    // WebRTC Signaling Handlers
+    // Handle WebRTC offer (caller sends offer to receiver)
+    socket.on('webrtc:offer', async (data: { callId: string; offer: { type: string; sdp: string } }) => {
+      try {
+        const { callId, offer } = data;
+
+        const call = await voiceCallService.getCall(callId, userId);
+        const otherUserId = call.caller_id === userId ? call.receiver_id : call.caller_id;
+
+        // Forward offer to receiver
+        const receiverConnections = activeConnections.get(otherUserId);
+        if (receiverConnections && receiverConnections.size > 0) {
+          io.to(`user:${otherUserId}`).emit('webrtc:offer', {
+            call_id: callId,
+            offer,
+            caller_id: userId,
+          });
+        }
+
+        logger.info(`WebRTC offer forwarded for call ${callId} from ${userId} to ${otherUserId}`);
+      } catch (error: any) {
+        logger.error('Error handling WebRTC offer', error);
+        socket.emit('call:error', { error: error.message || 'Failed to send offer' });
+      }
+    });
+
+    // Handle WebRTC answer (receiver sends answer to caller)
+    socket.on('webrtc:answer', async (data: { callId: string; answer: { type: string; sdp: string } }) => {
+      try {
+        const { callId, answer } = data;
+
+        const call = await voiceCallService.getCall(callId, userId);
+        const otherUserId = call.caller_id === userId ? call.receiver_id : call.caller_id;
+
+        // Forward answer to caller
+        const callerConnections = activeConnections.get(otherUserId);
+        if (callerConnections && callerConnections.size > 0) {
+          io.to(`user:${otherUserId}`).emit('webrtc:answer', {
+            call_id: callId,
+            answer,
+            receiver_id: userId,
+          });
+        }
+
+        logger.info(`WebRTC answer forwarded for call ${callId} from ${userId} to ${otherUserId}`);
+      } catch (error: any) {
+        logger.error('Error handling WebRTC answer', error);
+        socket.emit('call:error', { error: error.message || 'Failed to send answer' });
+      }
+    });
+
+    // Handle ICE candidate exchange (both parties exchange ICE candidates)
+    socket.on('webrtc:ice-candidate', async (data: { callId: string; candidate: { candidate: string; sdpMLineIndex: number | null; sdpMid: string | null } }) => {
+      try {
+        const { callId, candidate } = data;
+
+        const call = await voiceCallService.getCall(callId, userId);
+        const otherUserId = call.caller_id === userId ? call.receiver_id : call.caller_id;
+
+        // Forward ICE candidate to other party
+        const otherUserConnections = activeConnections.get(otherUserId);
+        if (otherUserConnections && otherUserConnections.size > 0) {
+          io.to(`user:${otherUserId}`).emit('webrtc:ice-candidate', {
+            call_id: callId,
+            candidate,
+            from_user_id: userId,
+          });
+        }
+
+        logger.debug(`WebRTC ICE candidate forwarded for call ${callId}`);
+      } catch (error: any) {
+        logger.error('Error handling WebRTC ICE candidate', error);
+        socket.emit('call:error', { error: error.message || 'Failed to send ICE candidate' });
+      }
+    });
   });
 
   logger.info('WebSocket server initialized');

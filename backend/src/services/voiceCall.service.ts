@@ -1,17 +1,11 @@
 import prisma from '@/config/database';
 import { logger } from '@/utils/logger';
 import { CallStatus } from '@prisma/client';
-import { config } from '@/config/env';
-import twilio from 'twilio';
 import {
   normalizePagination,
   createPaginatedResponse,
   getPaginationMetadata,
 } from '@/utils/pagination';
-
-const twilioClient = config.twilio.accountSid && config.twilio.authToken
-  ? twilio(config.twilio.accountSid, config.twilio.authToken)
-  : null;
 
 export interface InitiateCallInput {
   receiverId: string;
@@ -52,12 +46,14 @@ export class VoiceCallService {
         throw new Error('Cannot call yourself');
       }
 
-      // Create call record
+      // Create call record with WebRTC room name
+      const roomName = `call-${callerId}-${data.receiverId}-${Date.now()}`;
       const call = await prisma.voiceCall.create({
         data: {
           caller_id: callerId,
           receiver_id: data.receiverId,
           status: 'INITIATED',
+          twilio_room_sid: roomName, // Reusing this field for WebRTC room name
         },
         include: {
           caller: {
@@ -278,70 +274,42 @@ export class VoiceCallService {
   }
 
   /**
-   * Generate Twilio access token for voice calls
+   * Get WebRTC configuration (STUN/TURN servers)
+   * For production, you should use your own TURN server for NAT traversal
    */
-  async generateTwilioToken(userId: string, roomName: string) {
+  async getWebRTCConfig() {
     try {
-      if (!twilioClient || !config.twilio.apiKey || !config.twilio.apiSecret) {
-        throw new Error('Twilio not configured');
+      const { config } = await import('@/config/env');
+      
+      // Public STUN servers (free, for development)
+      const iceServers: Array<{ urls: string; username?: string; credential?: string }> = 
+        config.webrtc.stunServers.map((url) => ({
+          urls: url,
+        }));
+
+      // Add TURN server if configured (required for production/NAT traversal)
+      if (config.webrtc.turnServer) {
+        iceServers.push({
+          urls: config.webrtc.turnServer,
+          username: config.webrtc.turnUsername,
+          credential: config.webrtc.turnCredential,
+        });
       }
-
-      // Verify user exists
-      const user = await prisma.user.findUnique({
-        where: { user_id: userId },
-        select: { user_id: true },
-      });
-
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      // Generate access token using Twilio
-      const AccessToken = twilio.jwt.AccessToken;
-      const VoiceGrant = AccessToken.VoiceGrant;
-
-      const token = new AccessToken(
-        config.twilio.accountSid,
-        config.twilio.apiKey,
-        config.twilio.apiSecret,
-        { identity: userId }
-      );
-
-      // Grant voice permissions
-      const voiceGrant = new VoiceGrant({
-        outgoingApplicationSid: process.env.TWILIO_OUTGOING_APP_SID,
-        incomingAllow: true,
-      });
-
-      token.addGrant(voiceGrant);
-
-      // Add room name if provided
-      if (roomName) {
-        token.identity = `${userId}-${roomName}`;
-      }
-
-      logger.info(`Twilio token generated for user ${userId}`);
 
       return {
-        token: token.toJwt(),
-        roomName,
+        iceServers,
       };
     } catch (error) {
-      logger.error('Error generating Twilio token', error);
+      logger.error('Error getting WebRTC config', error);
       throw error;
     }
   }
 
   /**
-   * Create Twilio room for a call
+   * Get call room name for WebRTC signaling
    */
-  async createTwilioRoom(callId: string) {
+  async getCallRoom(callId: string, userId: string) {
     try {
-      if (!twilioClient) {
-        throw new Error('Twilio not configured');
-      }
-
-      // Get call
       const call = await prisma.voiceCall.findUnique({
         where: { call_id: callId },
       });
@@ -350,26 +318,17 @@ export class VoiceCallService {
         throw new Error('Call not found');
       }
 
-      // Create room (if using Twilio Rooms API)
-      // For now, we'll use a unique room name based on call ID
-      const roomName = `call-${callId}`;
-
-      // Update call with room SID
-      const updatedCall = await prisma.voiceCall.update({
-        where: { call_id: callId },
-        data: {
-          twilio_room_sid: roomName,
-        },
-      });
-
-      logger.info(`Twilio room created for call ${callId}: ${roomName}`);
+      // Verify user is part of the call
+      if (call.caller_id !== userId && call.receiver_id !== userId) {
+        throw new Error('Unauthorized access to call');
+      }
 
       return {
-        roomName,
-        call: updatedCall,
+        roomName: call.twilio_room_sid || `call-${callId}`, // Reusing field for room name
+        callId: call.call_id,
       };
     } catch (error) {
-      logger.error('Error creating Twilio room', error);
+      logger.error('Error getting call room', error);
       throw error;
     }
   }

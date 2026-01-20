@@ -1,0 +1,127 @@
+version: "3.8"
+
+# Development docker-compose with hot reload
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: vox-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vox_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vox_password}
+      POSTGRES_DB: ${POSTGRES_DB:-vox_db}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vox_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vox-network-dev
+
+  # TURN Server
+  turn:
+    image: coturn/coturn:latest
+    container_name: vox-turn-server-dev
+    restart: unless-stopped
+    volumes:
+      - ./turnserver.conf:/etc/turnserver.conf:ro
+    command: turnserver
+    environment:
+      - TZ=UTC
+    ports:
+      - "${TURN_PORT:-3478}:3478/udp"
+      - "${TURN_PORT:-3478}:3478/tcp"
+      - "49152-65535:49152-65535/udp"
+    networks:
+      - vox-network-dev
+    healthcheck:
+      test:
+        ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/3478' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: vox-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data_dev:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - vox-network-dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend (Development with hot reload)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: vox-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: ${PORT:-3000}
+      API_VERSION: ${API_VERSION:-v1}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vox_user}:${POSTGRES_PASSWORD:-vox_password}@postgres:5432/${POSTGRES_DB:-vox_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-in-production}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      UPLOAD_DIR: /app/uploads
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      LOG_FILE: /app/logs/app.log
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      REDIS_URL: redis://redis:6379
+      TURN_SERVER_URL: ${TURN_SERVER_URL:-turn:turn:3478}
+      TURN_USERNAME: ${TURN_USERNAME:-testuser}
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL:-testpass123}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      turn:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vox-network-dev
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        npx prisma migrate dev --name init &&
+        echo 'Starting dev server...' &&
+        npm run dev
+      "
+
+volumes:
+  postgres_data_dev:
+    driver: local
+  redis_data_dev:
+    driver: local
+
+networks:
+  vox-network-dev:
+    driver: bridge
