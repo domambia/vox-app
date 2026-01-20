@@ -46,6 +46,14 @@ export const config = {
   redis: {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
+
+  // Twilio (Voice Calls)
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    authToken: process.env.TWILIO_AUTH_TOKEN || '',
+    apiKey: process.env.TWILIO_API_KEY || '',
+    apiSecret: process.env.TWILIO_API_SECRET || '',
+  },
 };
 
 // Validate required environment variables

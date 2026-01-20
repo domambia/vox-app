@@ -37,25 +37,32 @@ model User {
     verification_date DateTime?
     last_active       DateTime?
     is_active         Boolean   @default(true)
+    role              UserRole  @default(USER)
 
     // Relations
     country Country? @relation(fields: [country_code], references: [code])
 
     // Relations
-    profile           Profile?
-    friendships_as_a  Friendship[]         @relation("UserA")
-    friendships_as_b  Friendship[]         @relation("UserB")
-    groups_created    Group[]
-    group_members     GroupMember[]
-    events_created    Event[]
-    event_rsvps       EventRSVP[]
-    kyc_verifications KYCVerification[]
-    likes_given       Like[]               @relation("Liker")
-    likes_received    Like[]               @relation("Liked")
-    matches_as_a      Match[]              @relation("UserA")
-    matches_as_b      Match[]              @relation("UserB")
-    kyc_reviews       KYCVerification[]    @relation("ReviewedBy")
-    password_resets   PasswordResetToken[]
+    profile                 Profile?
+    friendships_as_a        Friendship[]         @relation("UserA")
+    friendships_as_b        Friendship[]         @relation("UserB")
+    groups_created          Group[]
+    group_members           GroupMember[]
+    events_created          Event[]
+    event_rsvps             EventRSVP[]
+    kyc_verifications       KYCVerification[]
+    likes_given             Like[]               @relation("Liker")
+    likes_received          Like[]               @relation("Liked")
+    matches_as_a            Match[]              @relation("UserA")
+    matches_as_b            Match[]              @relation("UserB")
+    kyc_reviews             KYCVerification[]    @relation("ReviewedBy")
+    password_resets         PasswordResetToken[]
+    conversations_as_user_a Conversation[]       @relation("UserA")
+    conversations_as_user_b Conversation[]       @relation("UserB")
+    messages_sent           Message[]
+    messageReactions        MessageReaction[]
+    calls_initiated         VoiceCall[]          @relation("Caller")
+    calls_received          VoiceCall[]          @relation("Receiver")
 
     @@index([phone_number])
     @@index([verified])
@@ -290,4 +297,132 @@ enum RSVPStatus {
     GOING
     MAYBE
     NOT_GOING
+}
+
+model Conversation {
+    conversation_id String    @id @default(uuid())
+    user_a_id       String
+    user_b_id       String
+    last_message_at DateTime?
+    created_at      DateTime  @default(now())
+    updated_at      DateTime  @updatedAt
+
+    // Relations
+    user_a   User      @relation("UserA", fields: [user_a_id], references: [user_id], onDelete: Cascade)
+    user_b   User      @relation("UserB", fields: [user_b_id], references: [user_id], onDelete: Cascade)
+    messages Message[]
+
+    @@unique([user_a_id, user_b_id])
+    @@index([user_a_id])
+    @@index([user_b_id])
+    @@index([last_message_at])
+    @@map("conversations")
+}
+
+model Message {
+    message_id      String      @id @default(uuid())
+    conversation_id String
+    sender_id       String
+    content         String
+    message_type    MessageType @default(TEXT)
+    read_at         DateTime?
+    delivered_at    DateTime?
+    edited_at       DateTime?
+    deleted_at      DateTime?
+    is_deleted      Boolean     @default(false)
+    created_at      DateTime    @default(now())
+    updated_at      DateTime    @updatedAt
+
+    // Relations
+    conversation Conversation        @relation(fields: [conversation_id], references: [conversation_id], onDelete: Cascade)
+    sender       User                @relation(fields: [sender_id], references: [user_id], onDelete: Cascade)
+    attachments  MessageAttachment[]
+    reactions    MessageReaction[]
+
+    @@index([conversation_id])
+    @@index([sender_id])
+    @@index([created_at])
+    @@index([is_deleted])
+    @@index([content])
+    @@map("messages")
+}
+
+enum MessageType {
+    TEXT
+    VOICE
+    SYSTEM
+    IMAGE
+    FILE
+}
+
+model MessageAttachment {
+    attachment_id String   @id @default(uuid())
+    message_id    String
+    file_url      String
+    file_type     String // e.g., 'image/jpeg', 'application/pdf'
+    file_name     String
+    file_size     Int // in bytes
+    created_at    DateTime @default(now())
+
+    // Relations
+    message Message @relation(fields: [message_id], references: [message_id], onDelete: Cascade)
+
+    @@index([message_id])
+    @@map("message_attachments")
+}
+
+model MessageReaction {
+    reaction_id String   @id @default(uuid())
+    message_id  String
+    user_id     String
+    emoji       String // e.g., '👍', '❤️', '😂'
+    created_at  DateTime @default(now())
+
+    // Relations
+    message Message @relation(fields: [message_id], references: [message_id], onDelete: Cascade)
+    user    User    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+    @@unique([message_id, user_id])
+    @@index([message_id])
+    @@index([user_id])
+    @@map("message_reactions")
+}
+
+enum UserRole {
+    USER
+    MODERATOR
+    ADMIN
+}
+
+enum CallStatus {
+    INITIATED
+    RINGING
+    ANSWERED
+    REJECTED
+    MISSED
+    ENDED
+    CANCELLED
+}
+
+model VoiceCall {
+    call_id         String     @id @default(uuid())
+    caller_id       String
+    receiver_id     String
+    status          CallStatus @default(INITIATED)
+    started_at      DateTime?
+    ended_at        DateTime?
+    duration        Int? // Duration in seconds
+    twilio_room_sid String?
+    created_at      DateTime   @default(now())
+    updated_at      DateTime   @updatedAt
+
+    // Relations
+    caller   User @relation("Caller", fields: [caller_id], references: [user_id], onDelete: Cascade)
+    receiver User @relation("Receiver", fields: [receiver_id], references: [user_id], onDelete: Cascade)
+
+    @@index([caller_id])
+    @@index([receiver_id])
+    @@index([status])
+    @@index([created_at])
+    @@map("voice_calls")
 }

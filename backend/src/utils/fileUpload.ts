@@ -12,6 +12,7 @@ const ensureUploadDirs = () => {
     path.join(config.upload.uploadDir, 'kyc'),
     path.join(config.upload.uploadDir, 'voice-bios'),
     path.join(config.upload.uploadDir, 'events'),
+    path.join(config.upload.uploadDir, 'messages'),
   ];
 
   dirs.forEach((dir) => {
@@ -25,7 +26,7 @@ ensureUploadDirs();
 
 // Storage configuration
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, file, cb) => {
     let uploadPath = config.upload.uploadDir;
 
     // Determine upload path based on field name or file type
@@ -37,11 +38,13 @@ const storage = multer.diskStorage({
       uploadPath = path.join(config.upload.uploadDir, 'voice-bios');
     } else if (file.fieldname === 'eventImage') {
       uploadPath = path.join(config.upload.uploadDir, 'events');
+    } else if (file.fieldname === 'messageAttachment') {
+      uploadPath = path.join(config.upload.uploadDir, 'messages');
     }
 
     cb(null, uploadPath);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     // Generate unique filename: uuid-originalname
     const uniqueName = `${uuidv4()}-${file.originalname}`;
     cb(null, uniqueName);
@@ -50,7 +53,7 @@ const storage = multer.diskStorage({
 
 // File filter
 const fileFilter = (
-  req: any,
+  _req: any,
   file: Express.Multer.File,
   cb: multer.FileFilterCallback
 ) => {
@@ -63,6 +66,11 @@ const fileFilter = (
     'audio/wav': ['.wav'],
     'audio/m4a': ['.m4a'],
     'audio/ogg': ['.ogg'],
+    'application/msword': ['.doc'],
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+    'text/plain': ['.txt'],
+    'video/mp4': ['.mp4'],
+    'video/quicktime': ['.mov'],
   };
 
   const allowedTypes = Object.keys(allowedMimes);
@@ -90,10 +98,26 @@ export const upload = multer({
 
 // Helper to get file URL
 export const getFileUrl = (filePath: string): string => {
-  // Remove leading ./ or / from path
-  const cleanPath = filePath.replace(/^\.?\//, '');
+  // Get the relative path from upload directory
+  // filePath might be: ./uploads/voice-bios/uuid-file.wav or uploads/voice-bios/uuid-file.wav
+  // We need: voice-bios/uuid-file.wav
+  const normalizedUploadDir = path.normalize(config.upload.uploadDir);
+  const normalizedFilePath = path.normalize(filePath);
+  
+  // Remove upload directory prefix
+  let relativePath = normalizedFilePath;
+  if (normalizedFilePath.startsWith(normalizedUploadDir)) {
+    relativePath = normalizedFilePath.substring(normalizedUploadDir.length);
+  }
+  
+  // Remove leading slashes
+  relativePath = relativePath.replace(/^[\\/]+/, '');
+  
+  // Convert backslashes to forward slashes for URL
+  relativePath = relativePath.replace(/\\/g, '/');
+  
   // Return relative URL that can be served by Express
-  return `/api/${config.apiVersion}/files/${cleanPath}`;
+  return `/api/${config.apiVersion}/files/${relativePath}`;
 };
 
 // Helper to delete file
@@ -124,7 +148,8 @@ export const uploadProfilePicture = upload.single('profilePicture');
 export const uploadKYCDocument = upload.single('kycDocument');
 export const uploadVoiceBio = upload.single('voiceBio');
 export const uploadEventImage = upload.single('eventImage');
+export const uploadMessageAttachment = upload.single('messageAttachment');
 
-// Multiple files upload (for future use)
-export const uploadMultiple = upload.array('files', 10);
+// Multiple files upload (for message attachments)
+export const uploadMessageAttachments = upload.array('attachments', 5);
 

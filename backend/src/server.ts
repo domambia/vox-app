@@ -2,11 +2,13 @@ import app from './app';
 import { config } from './config/env';
 import { logger } from './utils/logger';
 import prisma from './config/database';
+import { initializeWebSocket } from './utils/websocket';
+import { Server as HTTPServer } from 'http';
 
 const PORT = config.port;
 
-// Start server
-const server = app.listen(PORT, async () => {
+// Start HTTP server
+const server: HTTPServer = app.listen(PORT, async () => {
   logger.info(`🚀 VOX API Server running on port ${PORT}`);
   logger.info(`📝 Environment: ${config.nodeEnv}`);
   logger.info(`🔗 API Version: ${config.apiVersion}`);
@@ -19,6 +21,10 @@ const server = app.listen(PORT, async () => {
     logger.error('❌ Database connection failed', error);
     process.exit(1);
   }
+
+  // Initialize WebSocket server
+  initializeWebSocket(server);
+  logger.info('✅ WebSocket server initialized');
 });
 
 // Graceful shutdown

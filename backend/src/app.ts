@@ -12,6 +12,16 @@ import healthRoutes from '@/routes/health.routes';
 import filesRoutes from '@/routes/files.routes';
 import authRoutes from '@/routes/auth.routes';
 import countryRoutes from '@/routes/country.routes';
+import profileRoutes from '@/routes/profile.routes';
+import discoveryRoutes from '@/routes/discovery.routes';
+import kycRoutes from '@/routes/kyc.routes';
+import groupRoutes from '@/routes/group.routes';
+import eventRoutes from '@/routes/event.routes';
+import userRoutes from '@/routes/user.routes';
+import messagingRoutes from '@/routes/messaging.routes';
+import messagesRoutes from '@/routes/messages.routes';
+import voiceCallRoutes from '@/routes/voiceCall.routes';
+import adminRoutes from '@/routes/admin.routes';
 
 const app: Application = express();
 
@@ -52,8 +62,16 @@ app.use(`${apiPrefix}/health`, healthRoutes);
 app.use(`${apiPrefix}/files`, filesRoutes);
 app.use(`${apiPrefix}/auth`, authRoutes);
 app.use(`${apiPrefix}/countries`, countryRoutes);
-// app.use(`${apiPrefix}/auth`, authRoutes);
-// app.use(`${apiPrefix}/profile`, profileRoutes);
+app.use(`${apiPrefix}/profile`, profileRoutes);
+app.use(`${apiPrefix}/profiles`, discoveryRoutes);
+app.use(`${apiPrefix}/kyc`, kycRoutes);
+app.use(`${apiPrefix}/groups`, groupRoutes);
+app.use(`${apiPrefix}/events`, eventRoutes);
+app.use(`${apiPrefix}/users`, userRoutes);
+app.use(`${apiPrefix}/conversations`, messagingRoutes);
+app.use(`${apiPrefix}/messages`, messagesRoutes);
+app.use(`${apiPrefix}/calls`, voiceCallRoutes);
+app.use(`${apiPrefix}/admin`, adminRoutes);
 // ... other routes
 
 // Error handling (must be last)
