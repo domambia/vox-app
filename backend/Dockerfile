@@ -12,6 +12,8 @@ RUN npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -28,6 +30,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install OpenSSL and other required libraries for Prisma
+RUN apk add --no-cache openssl libc6-compat
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
@@ -37,6 +42,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
+# Copy source files for Swagger documentation (swagger-jsdoc needs source files with JSDoc comments)
+COPY --from=builder /app/src ./src
 
 # Create directories for uploads and logs
 RUN mkdir -p uploads/profiles uploads/kyc uploads/voice-bios uploads/events uploads/messages && \

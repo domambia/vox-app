@@ -1,4 +1,5 @@
 import swaggerJsdoc from 'swagger-jsdoc';
+import path from 'path';
 import { config } from './env';
 
 const options: swaggerJsdoc.Options = {
@@ -211,6 +212,15 @@ const options: swaggerJsdoc.Options = {
     ],
   },
   apis: [
+    // Absolute paths from dist/config (when running compiled code)
+    path.join(__dirname, '../routes/*.ts'),
+    path.join(__dirname, '../controllers/*.ts'),
+    path.join(__dirname, '../app.ts'),
+    // Also try from project root (relative to process.cwd())
+    path.join(process.cwd(), 'src/routes/*.ts'),
+    path.join(process.cwd(), 'src/controllers/*.ts'),
+    path.join(process.cwd(), 'src/app.ts'),
+    // Relative paths as fallback
     './src/routes/*.ts',
     './src/controllers/*.ts',
     './src/app.ts',

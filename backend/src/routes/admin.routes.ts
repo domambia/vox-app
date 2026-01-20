@@ -16,6 +16,38 @@ const router = Router();
 router.use(authenticate);
 
 /**
+ * @swagger
+ * /admin/users:
+ *   get:
+ *     summary: List all users
+ *     description: Get a paginated list of all users (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (admin access required)
+ */
+/**
  * @route   GET /api/v1/admin/users
  * @desc    List all users (admin only)
  * @access  Private (Admin)

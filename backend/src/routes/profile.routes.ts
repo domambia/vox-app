@@ -19,6 +19,56 @@ import { uploadVoiceBio } from '@/utils/fileUpload';
 const router = Router();
 
 /**
+ * @swagger
+ * /profile:
+ *   post:
+ *     summary: Create a new profile
+ *     description: Create a user profile with personal information
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - display_name
+ *             properties:
+ *               display_name:
+ *                 type: string
+ *                 example: "John Doe"
+ *               bio:
+ *                 type: string
+ *                 example: "A brief bio about me"
+ *               date_of_birth:
+ *                 type: string
+ *                 format: date
+ *                 example: "1990-01-01"
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female, other, prefer_not_to_say]
+ *               location:
+ *                 type: string
+ *                 example: "New York, NY"
+ *     responses:
+ *       201:
+ *         description: Profile created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ */
+/**
  * @route   POST /api/v1/profile
  * @desc    Create a new profile
  * @access  Private (Authenticated)
@@ -30,6 +80,25 @@ router.post(
   profileController.createProfile.bind(profileController)
 );
 
+/**
+ * @swagger
+ * /profile/me:
+ *   get:
+ *     summary: Get current user's profile
+ *     description: Retrieve the authenticated user's own profile
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       401:
+ *         description: Unauthorized
+ */
 /**
  * @route   GET /api/v1/profile/me
  * @desc    Get current user's profile
