@@ -1,0 +1,293 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model Country {
+    country_id String   @id @default(uuid())
+    code       String   @unique // ISO 3166-1 alpha-2 code (e.g., MT, US, GB)
+    name       String
+    is_allowed Boolean  @default(false) // Only allowed countries can register
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+    users      User[]
+
+    @@index([code])
+    @@index([is_allowed])
+    @@map("countries")
+}
+
+model User {
+    user_id           String    @id @default(uuid())
+    phone_number      String    @unique
+    password_hash     String
+    first_name        String
+    last_name         String
+    email             String?   @unique
+    country_code      String // ISO 3166-1 alpha-2 code
+    created_at        DateTime  @default(now())
+    verified          Boolean   @default(false)
+    verification_date DateTime?
+    last_active       DateTime?
+    is_active         Boolean   @default(true)
+
+    // Relations
+    country Country? @relation(fields: [country_code], references: [code])
+
+    // Relations
+    profile           Profile?
+    friendships_as_a  Friendship[]         @relation("UserA")
+    friendships_as_b  Friendship[]         @relation("UserB")
+    groups_created    Group[]
+    group_members     GroupMember[]
+    events_created    Event[]
+    event_rsvps       EventRSVP[]
+    kyc_verifications KYCVerification[]
+    likes_given       Like[]               @relation("Liker")
+    likes_received    Like[]               @relation("Liked")
+    matches_as_a      Match[]              @relation("UserA")
+    matches_as_b      Match[]              @relation("UserB")
+    kyc_reviews       KYCVerification[]    @relation("ReviewedBy")
+    password_resets   PasswordResetToken[]
+
+    @@index([phone_number])
+    @@index([verified])
+    @@index([is_active])
+    @@index([country_code])
+    @@map("users")
+}
+
+model PasswordResetToken {
+    token_id   String    @id @default(uuid())
+    user_id    String
+    token      String    @unique
+    expires_at DateTime
+    used       Boolean   @default(false)
+    created_at DateTime  @default(now())
+    used_at    DateTime?
+
+    // Relations
+    user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+    @@index([user_id])
+    @@index([token])
+    @@index([expires_at])
+    @@map("password_reset_tokens")
+}
+
+model Profile {
+    profile_id    String     @id @default(uuid())
+    user_id       String     @unique
+    bio           String?
+    interests     Json       @default("[]")
+    location      String?
+    looking_for   LookingFor @default(ALL)
+    voice_bio_url String?
+    created_at    DateTime   @default(now())
+    updated_at    DateTime   @updatedAt
+
+    // Relations
+    user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+    @@index([location])
+    @@index([looking_for])
+    @@index([interests(path: "$[*]")])
+    @@map("profiles")
+}
+
+model Group {
+    group_id     String   @id @default(uuid())
+    name         String
+    description  String?
+    creator_id   String
+    category     String
+    member_count Int      @default(0)
+    is_public    Boolean  @default(true)
+    created_at   DateTime @default(now())
+
+    // Relations
+    creator User          @relation(fields: [creator_id], references: [user_id])
+    members GroupMember[]
+    events  Event[]
+
+    @@index([category])
+    @@index([creator_id])
+    @@index([is_public])
+    @@map("groups")
+}
+
+model GroupMember {
+    membership_id String    @id @default(uuid())
+    group_id      String
+    user_id       String
+    role          GroupRole @default(MEMBER)
+    joined_at     DateTime  @default(now())
+
+    // Relations
+    group Group @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
+    user  User  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+    @@unique([group_id, user_id])
+    @@index([group_id])
+    @@index([user_id])
+    @@map("group_members")
+}
+
+model Friendship {
+    friendship_id String           @id @default(uuid())
+    user_a_id     String
+    user_b_id     String
+    status        FriendshipStatus @default(PENDING)
+    created_at    DateTime         @default(now())
+    updated_at    DateTime         @updatedAt
+
+    // Relations
+    user_a User @relation("UserA", fields: [user_a_id], references: [user_id], onDelete: Cascade)
+    user_b User @relation("UserB", fields: [user_b_id], references: [user_id], onDelete: Cascade)
+
+    @@unique([user_a_id, user_b_id])
+    @@index([user_a_id])
+    @@index([user_b_id])
+    @@index([status])
+    @@map("friendships")
+}
+
+model Event {
+    event_id            String   @id @default(uuid())
+    group_id            String?
+    creator_id          String
+    title               String
+    description         String?
+    date_time           DateTime
+    location            String
+    accessibility_notes String?
+    attendee_count      Int      @default(0)
+    created_at          DateTime @default(now())
+
+    // Relations
+    group   Group?      @relation(fields: [group_id], references: [group_id], onDelete: SetNull)
+    creator User        @relation(fields: [creator_id], references: [user_id])
+    rsvps   EventRSVP[]
+
+    @@index([group_id])
+    @@index([creator_id])
+    @@index([date_time])
+    @@map("events")
+}
+
+model EventRSVP {
+    rsvp_id    String     @id @default(uuid())
+    event_id   String
+    user_id    String
+    status     RSVPStatus @default(GOING)
+    created_at DateTime   @default(now())
+
+    // Relations
+    event Event @relation(fields: [event_id], references: [event_id], onDelete: Cascade)
+    user  User  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+    @@unique([event_id, user_id])
+    @@index([event_id])
+    @@index([user_id])
+    @@map("event_rsvps")
+}
+
+model KYCVerification {
+    verification_id  String    @id @default(uuid())
+    user_id          String
+    method           KYCMethod
+    document_type    String?
+    document_url     String?
+    status           KYCStatus @default(PENDING)
+    reviewed_by      String?
+    rejection_reason String?
+    created_at       DateTime  @default(now())
+    reviewed_at      DateTime?
+
+    // Relations
+    user     User  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+    reviewer User? @relation("ReviewedBy", fields: [reviewed_by], references: [user_id], onDelete: SetNull)
+
+    @@index([user_id])
+    @@index([status])
+    @@index([method])
+    @@map("kyc_verifications")
+}
+
+model Like {
+    like_id    String   @id @default(uuid())
+    liker_id   String
+    liked_id   String
+    created_at DateTime @default(now())
+
+    // Relations
+    liker User @relation("Liker", fields: [liker_id], references: [user_id], onDelete: Cascade)
+    liked User @relation("Liked", fields: [liked_id], references: [user_id], onDelete: Cascade)
+
+    @@unique([liker_id, liked_id])
+    @@index([liker_id])
+    @@index([liked_id])
+    @@map("likes")
+}
+
+model Match {
+    match_id   String   @id @default(uuid())
+    user_a_id  String
+    user_b_id  String
+    matched_at DateTime @default(now())
+    is_active  Boolean  @default(true)
+
+    // Relations
+    user_a User @relation("UserA", fields: [user_a_id], references: [user_id], onDelete: Cascade)
+    user_b User @relation("UserB", fields: [user_b_id], references: [user_id], onDelete: Cascade)
+
+    @@unique([user_a_id, user_b_id])
+    @@index([user_a_id])
+    @@index([user_b_id])
+    @@index([is_active])
+    @@map("matches")
+}
+
+enum LookingFor {
+    DATING
+    FRIENDSHIP
+    HOBBY
+    ALL
+}
+
+enum FriendshipStatus {
+    PENDING
+    ACCEPTED
+    BLOCKED
+}
+
+enum GroupRole {
+    MEMBER
+    MODERATOR
+    ADMIN
+}
+
+enum KYCStatus {
+    PENDING
+    APPROVED
+    REJECTED
+}
+
+enum KYCMethod {
+    DOCUMENT
+    VIDEO_CALL
+    REFERRAL
+}
+
+enum RSVPStatus {
+    GOING
+    MAYBE
+    NOT_GOING
+}
