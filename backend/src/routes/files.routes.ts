@@ -7,6 +7,66 @@ import { sendError } from '@/utils/response';
 
 const router = Router();
 
+/**
+ * @swagger
+ * /files/{fileType}/{filename}:
+ *   get:
+ *     summary: Serve uploaded files
+ *     description: Retrieve uploaded files (profiles, KYC documents, voice bios, events). Protected route requiring authentication.
+ *     tags: [Files]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: fileType
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [profiles, kyc, voice-bios, events]
+ *         description: Type of file to retrieve
+ *         example: "profiles"
+ *       - in: path
+ *         name: filename
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Name of the file
+ *         example: "image.jpg"
+ *     responses:
+ *       200:
+ *         description: File retrieved successfully
+ *         content:
+ *           image/jpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           image/png:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *           audio/mpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: Invalid file type
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: File not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Serve files (protected route)
 router.get('/:fileType/:filename', authenticate, (req: Request, res: Response) => {
   const { fileType, filename } = req.params;
@@ -31,4 +91,3 @@ router.get('/:fileType/:filename', authenticate, (req: Request, res: Response) =
 });
 
 export default router;
-

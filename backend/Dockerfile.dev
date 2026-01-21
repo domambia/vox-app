@@ -18,7 +18,8 @@ RUN npx prisma generate
 
 # Create directories
 RUN mkdir -p uploads/profiles uploads/kyc uploads/voice-bios uploads/events uploads/messages && \
-    mkdir -p logs
+    mkdir -p logs && \
+    chmod +x /app/scripts/docker-entrypoint.sh 2>/dev/null || true
 
 EXPOSE 3000
 

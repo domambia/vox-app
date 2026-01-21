@@ -108,13 +108,8 @@ services:
         condition: service_healthy
     networks:
       - vox-network-dev
-    command: >
-      sh -c "
-        echo 'Waiting for database...' &&
-        npx prisma migrate dev --name init &&
-        echo 'Starting dev server...' &&
-        npm run dev
-      "
+    entrypoint: ["/app/scripts/docker-entrypoint.sh"]
+    command: ["npm", "run", "dev"]
 
 volumes:
   postgres_data_dev:

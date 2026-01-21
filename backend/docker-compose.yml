@@ -129,15 +129,8 @@ services:
       TURN_SERVER_URL: ${TURN_SERVER_URL:-turn:turn:3478}
       TURN_USERNAME: ${TURN_USERNAME:-testuser}
       TURN_CREDENTIAL: ${TURN_CREDENTIAL:-testpass123}
-    command: >
-      sh -c "
-        echo 'Waiting for database...' &&
-        sleep 10 &&
-        echo 'Running migrations...' &&
-        npx prisma migrate deploy || (echo 'Migration failed, retrying...' && sleep 5 && npx prisma migrate deploy) &&
-        echo 'Starting server...' &&
-        node dist/server.js
-      "
+    entrypoint: ["/app/scripts/docker-entrypoint.sh"]
+    command: ["node", "dist/server.js"]
     ports:
       - "3000:3000"
     volumes:

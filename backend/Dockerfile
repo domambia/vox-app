@@ -44,10 +44,13 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 # Copy source files for Swagger documentation (swagger-jsdoc needs source files with JSDoc comments)
 COPY --from=builder /app/src ./src
+# Copy scripts directory
+COPY --from=builder /app/scripts ./scripts
 
 # Create directories for uploads and logs
 RUN mkdir -p uploads/profiles uploads/kyc uploads/voice-bios uploads/events uploads/messages && \
     mkdir -p logs && \
+    chmod +x /app/scripts/docker-entrypoint.sh && \
     chown -R nodejs:nodejs /app
 
 USER nodejs
