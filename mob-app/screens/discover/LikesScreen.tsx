@@ -225,6 +225,25 @@ export const LikesScreen: React.FC = () => {
                     : 'When someone likes you, they\'ll appear here. Start discovering to find matches!'
                 }
             </Text>
+            {activeTab === 'received' && (
+                <View style={styles.emptyTips}>
+                    <Text style={styles.tipTitle} accessibilityRole="header">
+                        Tips to get more likes:
+                    </Text>
+                    <Text style={styles.tipItem} accessibilityRole="text">
+                        • Complete your profile with a detailed bio
+                    </Text>
+                    <Text style={styles.tipItem} accessibilityRole="text">
+                        • Add a voice introduction to stand out
+                    </Text>
+                    <Text style={styles.tipItem} accessibilityRole="text">
+                        • Share your interests and hobbies
+                    </Text>
+                    <Text style={styles.tipItem} accessibilityRole="text">
+                        • Be active in the community
+                    </Text>
+                </View>
+            )}
             <AccessibleButton
                 title="Start Discovering"
                 onPress={() => {
@@ -466,5 +485,23 @@ const styles = StyleSheet.create({
     },
     discoverButtonText: {
         fontSize: 16,
+    },
+    emptyTips: {
+        marginTop: 16,
+        marginBottom: 24,
+        paddingHorizontal: 16,
+        alignItems: 'flex-start',
+    },
+    tipTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#000000',
+        marginBottom: 8,
+    },
+    tipItem: {
+        fontSize: 14,
+        color: '#6C757D',
+        lineHeight: 20,
+        marginBottom: 4,
     },
 });

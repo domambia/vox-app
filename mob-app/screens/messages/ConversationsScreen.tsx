@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
     View,
     Text,
@@ -14,6 +14,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppSelector } from '../../hooks';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
+import { AccessibleSearchInput } from '../../components/accessible/AccessibleSearchInput';
+import { LoadingSkeleton } from '../../components/accessible/LoadingSkeleton';
+import { ErrorView } from '../../components/accessible/ErrorView';
+import { Ionicons } from '@expo/vector-icons';
 
 type ConversationsScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').MessagesStackParamList>;
 
@@ -72,6 +76,9 @@ export const ConversationsScreen: React.FC = () => {
     const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
     const [refreshing, setRefreshing] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Announce screen on load
     useEffect(() => {
@@ -107,9 +114,38 @@ export const ConversationsScreen: React.FC = () => {
     };
 
     const handleSearch = () => {
-        setSearchMode(!searchMode);
-        announceToScreenReader(searchMode ? 'Search mode closed' : 'Search mode opened');
+        const newSearchMode = !searchMode;
+        setSearchMode(newSearchMode);
+        if (!newSearchMode) {
+            setSearchQuery('');
+        }
+        announceToScreenReader(newSearchMode ? 'Search mode opened' : 'Search mode closed');
     };
+
+    // Filter conversations based on search query
+    const filteredConversations = useMemo(() => {
+        if (!searchQuery.trim()) {
+            return conversations;
+        }
+        const query = searchQuery.toLowerCase();
+        return conversations.filter(
+            (conv) =>
+                conv.participantName.toLowerCase().includes(query) ||
+                conv.lastMessage.toLowerCase().includes(query)
+        );
+    }, [conversations, searchQuery]);
+
+    // Announce search results
+    useEffect(() => {
+        if (searchMode && searchQuery.trim()) {
+            const count = filteredConversations.length;
+            announceToScreenReader(
+                count > 0
+                    ? `Found ${count} ${count === 1 ? 'conversation' : 'conversations'}`
+                    : 'No conversations found'
+            );
+        }
+    }, [filteredConversations.length, searchQuery, searchMode]);
 
     const renderConversationItem = ({ item }: { item: Conversation }) => (
         <TouchableOpacity
@@ -156,6 +192,7 @@ export const ConversationsScreen: React.FC = () => {
 
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
+            <Ionicons name="chatbubbles-outline" size={64} color="#CCCCCC" />
             <Text style={styles.emptyTitle} accessibilityRole="header">
                 No conversations yet
             </Text>
@@ -163,6 +200,37 @@ export const ConversationsScreen: React.FC = () => {
                 Start connecting with people in your community.
                 {'\n'}Find matches in the Discover tab.
             </Text>
+            <View style={styles.emptyTips}>
+                <Text style={styles.tipTitle} accessibilityRole="header">
+                    How to start conversations:
+                </Text>
+                <Text style={styles.tipItem} accessibilityRole="text">
+                    • Like profiles in Discover to get matches
+                </Text>
+                <Text style={styles.tipItem} accessibilityRole="text">
+                    • Send a message to your matches
+                </Text>
+                <Text style={styles.tipItem} accessibilityRole="text">
+                    • Join groups to meet new people
+                </Text>
+                <Text style={styles.tipItem} accessibilityRole="text">
+                    • Attend events to connect with others
+                </Text>
+            </View>
+            <AccessibleButton
+                title="Go to Discover"
+                onPress={() => {
+                    announceToScreenReader('Navigating to discover');
+                    const rootNavigation = navigation.getParent()?.getParent();
+                    if (rootNavigation) {
+                        rootNavigation.navigate('Discover');
+                    }
+                }}
+                variant="primary"
+                style={styles.discoverButton}
+                textStyle={styles.discoverButtonText}
+                accessibilityHint="Go to discover screen to find matches"
+            />
         </View>
     );
 
@@ -184,30 +252,56 @@ export const ConversationsScreen: React.FC = () => {
             </View>
 
             {searchMode && (
-                <View style={styles.searchContainer}>
-                    <Text style={styles.searchPlaceholder} accessibilityRole="text">
-                        Search conversations...
-                    </Text>
-                    {/* TODO: Add search input */}
-                </View>
+                <AccessibleSearchInput
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search conversations..."
+                    onClear={() => setSearchQuery('')}
+                    accessibilityLabel="Search conversations"
+                    accessibilityHint="Type to search conversations by name or message"
+                />
             )}
 
-            <FlatList
-                data={conversations}
-                keyExtractor={(item) => item.id}
-                renderItem={renderConversationItem}
-                ListEmptyComponent={renderEmptyState}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        accessibilityLabel="Pull to refresh conversations"
-                    />
-                }
-                style={styles.conversationsList}
-                showsVerticalScrollIndicator={false}
-                accessibilityLabel="Conversations list"
-            />
+            {isLoading ? (
+                <LoadingSkeleton type="list" />
+            ) : error ? (
+                <ErrorView message={error} onRetry={() => setError(null)} />
+            ) : (
+                <FlatList
+                    data={filteredConversations}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderConversationItem}
+                    ListEmptyComponent={
+                        searchQuery.trim()
+                            ? () => (
+                                <View style={styles.emptyState}>
+                                    <Text style={styles.emptyTitle} accessibilityRole="header">
+                                        No conversations found
+                                    </Text>
+                                    <Text style={styles.emptyDescription} accessibilityRole="text">
+                                        No conversations match "{searchQuery}".{'\n'}
+                                        Try a different search term.
+                                    </Text>
+                                </View>
+                            )
+                            : renderEmptyState
+                    }
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            accessibilityLabel="Pull to refresh conversations"
+                        />
+                    }
+                    style={styles.conversationsList}
+                    showsVerticalScrollIndicator={false}
+                    accessibilityLabel={
+                        searchQuery.trim()
+                            ? `Search results: ${filteredConversations.length} conversations`
+                            : 'Conversations list'
+                    }
+                />
+            )}
         </SafeAreaView>
     );
 };
@@ -236,18 +330,6 @@ const styles = StyleSheet.create({
     },
     headerButtonText: {
         fontSize: 14,
-    },
-    searchContainer: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
-        backgroundColor: '#F8F9FA',
-    },
-    searchPlaceholder: {
-        fontSize: 16,
-        color: '#6C757D',
-        fontStyle: 'italic',
     },
     conversationsList: {
         flex: 1,
@@ -356,5 +438,32 @@ const styles = StyleSheet.create({
         color: '#6C757D',
         textAlign: 'center',
         lineHeight: 22,
+        marginBottom: 16,
+    },
+    emptyTips: {
+        marginTop: 16,
+        marginBottom: 24,
+        paddingHorizontal: 16,
+        alignItems: 'flex-start',
+        width: '100%',
+    },
+    tipTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#000000',
+        marginBottom: 8,
+    },
+    tipItem: {
+        fontSize: 14,
+        color: '#6C757D',
+        lineHeight: 20,
+        marginBottom: 4,
+    },
+    discoverButton: {
+        minWidth: 160,
+        marginTop: 8,
+    },
+    discoverButtonText: {
+        fontSize: 16,
     },
 });

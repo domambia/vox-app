@@ -8,7 +8,7 @@ import {
     TouchableOpacity,
     Alert,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
@@ -88,12 +88,22 @@ export const ProfileDetailScreen: React.FC = () => {
 
     const handleMessage = async () => {
         await announceToScreenReader(`Starting conversation with ${profile.firstName}`);
-        // TODO: Navigate to chat - may need to use root navigator
-        // navigation.navigate('Chat', {
-        //   conversationId: profile.userId,
-        //   participantName: `${profile.firstName} ${profile.lastName}`,
-        // });
-        console.log('Navigate to chat:', profile.userId);
+        // Navigate to Messages tab and then to Chat screen
+        const rootNavigation = navigation.getParent()?.getParent();
+        if (rootNavigation) {
+            rootNavigation.dispatch(
+                CommonActions.navigate({
+                    name: 'Messages',
+                    params: {
+                        screen: 'Chat',
+                        params: {
+                            conversationId: profile.userId,
+                            participantName: `${profile.firstName} ${profile.lastName}`,
+                        },
+                    },
+                })
+            );
+        }
     };
 
     const handlePlayVoiceBio = async () => {

@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
@@ -104,12 +104,22 @@ export const MatchesScreen: React.FC = () => {
 
   const handleMatchPress = async (match: Match) => {
     await announceToScreenReader(`Opening chat with ${match.firstName} ${match.lastName}`);
-    // TODO: Navigate to chat - may need to use root navigator
-    // navigation.navigate('Chat', {
-    //   conversationId: match.userId,
-    //   participantName: `${match.firstName} ${match.lastName}`,
-    // });
-    console.log('Navigate to chat:', match.userId);
+    // Navigate to Messages tab and then to Chat screen
+    const rootNavigation = navigation.getParent()?.getParent();
+    if (rootNavigation) {
+      rootNavigation.dispatch(
+        CommonActions.navigate({
+          name: 'Messages',
+          params: {
+            screen: 'Chat',
+            params: {
+              conversationId: match.userId,
+              participantName: `${match.firstName} ${match.lastName}`,
+            },
+          },
+        })
+      );
+    }
   };
 
   const handleViewProfile = async (match: Match) => {
@@ -207,6 +217,23 @@ export const MatchesScreen: React.FC = () => {
         Start discovering profiles and like people you're interested in.{'\n'}
         When they like you back, it's a match!
       </Text>
+      <View style={styles.emptyTips}>
+        <Text style={styles.tipTitle} accessibilityRole="header">
+          Tips to get more matches:
+        </Text>
+        <Text style={styles.tipItem} accessibilityRole="text">
+          • Complete your profile with a bio and interests
+        </Text>
+        <Text style={styles.tipItem} accessibilityRole="text">
+          • Add a voice introduction
+        </Text>
+        <Text style={styles.tipItem} accessibilityRole="text">
+          • Like profiles that interest you
+        </Text>
+        <Text style={styles.tipItem} accessibilityRole="text">
+          • Be active in groups and events
+        </Text>
+      </View>
       <AccessibleButton
         title="Start Discovering"
         onPress={() => {
@@ -401,5 +428,23 @@ const styles = StyleSheet.create({
   },
   discoverButtonText: {
     fontSize: 16,
+  },
+  emptyTips: {
+    marginTop: 16,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+    alignItems: 'flex-start',
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 8,
+  },
+  tipItem: {
+    fontSize: 14,
+    color: '#6C757D',
+    lineHeight: 20,
+    marginBottom: 4,
   },
 });
