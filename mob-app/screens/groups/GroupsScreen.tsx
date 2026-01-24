@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
+import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 import type { GroupsStackParamList } from '../../navigation/MainNavigator';
 
@@ -245,6 +246,7 @@ export const GroupsScreen: React.FC = () => {
 
     return (
         <SafeAreaView style={styles.container}>
+            <OfflineBanner />
             <View style={styles.header}>
                 <Text style={styles.title} accessibilityRole="header">
                     Groups

@@ -13,6 +13,8 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
+import { VoiceBioPlayer } from '../../components/accessible/VoiceBioPlayer';
+import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
 type MainTabParamList = {
@@ -59,7 +61,7 @@ const mockProfile: Profile = {
 export const ProfileScreen: React.FC = () => {
     const navigation = useNavigation<ProfileScreenNavigationProp>();
     const [profile, setProfile] = useState<Profile>(mockProfile);
-    const [isPlayingVoiceBio, setIsPlayingVoiceBio] = useState(false);
+    const [voiceBioUri, setVoiceBioUri] = useState<string | undefined>(profile.voiceBioUrl);
 
     // Announce screen on load
     useEffect(() => {
@@ -79,19 +81,17 @@ export const ProfileScreen: React.FC = () => {
         navigation.navigate('EditProfile' as any);
     };
 
-    const handlePlayVoiceBio = async () => {
-        if (isPlayingVoiceBio) {
-            setIsPlayingVoiceBio(false);
-            await announceToScreenReader('Voice bio stopped');
-        } else {
-            setIsPlayingVoiceBio(true);
-            await announceToScreenReader('Playing voice bio');
-            // Simulate playback
-            setTimeout(() => {
-                setIsPlayingVoiceBio(false);
-                announceToScreenReader('Voice bio finished playing');
-            }, 3000);
-        }
+    const handleVoiceBioRecorded = async (uri: string) => {
+        setVoiceBioUri(uri);
+        setProfile(prev => ({ ...prev, voiceBioUrl: uri }));
+        // TODO: Upload to backend
+        await announceToScreenReader('Voice bio saved');
+    };
+
+    const handleVoiceBioDelete = async () => {
+        setVoiceBioUri(undefined);
+        setProfile(prev => ({ ...prev, voiceBioUrl: undefined }));
+        // TODO: Delete from backend
     };
 
     const handleInterestPress = (interest: string) => {
@@ -118,6 +118,7 @@ export const ProfileScreen: React.FC = () => {
 
     return (
         <SafeAreaView style={styles.container}>
+            <OfflineBanner />
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContainer}
@@ -171,30 +172,17 @@ export const ProfileScreen: React.FC = () => {
                     )}
 
                     {/* Voice Bio */}
-                    {profile.voiceBioUrl && (
-                        <View style={styles.voiceBioSection}>
-                            <Text style={styles.sectionTitle} accessibilityRole="header">
-                                Voice Introduction
-                            </Text>
-                            <TouchableOpacity
-                                style={[styles.voiceBioButton, isPlayingVoiceBio && styles.playingButton]}
-                                onPress={handlePlayVoiceBio}
-                                accessibilityRole="button"
-                                accessibilityLabel={isPlayingVoiceBio ? "Stop voice bio" : "Play voice bio"}
-                                accessibilityHint="Listen to my voice introduction"
-                                accessibilityState={{ selected: isPlayingVoiceBio }}
-                            >
-                                <Ionicons
-                                    name={isPlayingVoiceBio ? "pause" : "play"}
-                                    size={20}
-                                    color="#007AFF"
-                                />
-                                <Text style={styles.voiceBioText}>
-                                    {isPlayingVoiceBio ? 'Playing...' : 'Listen to my voice'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
+                    <View style={styles.voiceBioSection}>
+                        <Text style={styles.sectionTitle} accessibilityRole="header">
+                            Voice Introduction
+                        </Text>
+                        <VoiceBioPlayer
+                            existingUri={voiceBioUri}
+                            onRecordingComplete={handleVoiceBioRecorded}
+                            onDelete={handleVoiceBioDelete}
+                            maxDuration={60000}
+                        />
+                    </View>
 
                     {/* Looking For */}
                     <View style={styles.lookingForSection}>

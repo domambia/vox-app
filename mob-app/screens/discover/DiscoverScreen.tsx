@@ -14,6 +14,9 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
+import { FilterPanel, FilterGroup } from '../../components/accessible/FilterPanel';
+import { OfflineBanner } from '../../components/accessible/OfflineBanner';
+import { useVoiceCommands } from '../../hooks/useVoiceCommands';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
 type DiscoverScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').DiscoverStackParamList>;
@@ -97,10 +100,28 @@ export const DiscoverScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({
-    location: '',
-    lookingFor: 'all' as 'all' | 'dating' | 'friendship' | 'hobby',
+
+  // Voice commands integration
+  const { registerCommand } = useVoiceCommands('Discover');
+  const [activeFilters, setActiveFilters] = useState<Record<string, any[]>>({
+    lookingFor: [],
+    location: [],
   });
+
+  // Filter configuration
+  const filterGroups: FilterGroup[] = [
+    {
+      id: 'lookingFor',
+      label: 'Looking For',
+      multiSelect: false,
+      options: [
+        { id: 'all', label: 'All', value: 'all' },
+        { id: 'dating', label: 'Dating', value: 'dating' },
+        { id: 'friendship', label: 'Friendship', value: 'friendship' },
+        { id: 'hobby', label: 'Hobbies & Interests', value: 'hobby' },
+      ],
+    },
+  ];
 
   // Announce screen on load
   useEffect(() => {
@@ -182,7 +203,69 @@ export const DiscoverScreen: React.FC = () => {
     announceToScreenReader(`Switched to ${newMode} view`);
   };
 
-  const currentProfile = profiles[currentIndex];
+  // Filter profiles based on active filters
+  const filteredProfiles = React.useMemo(() => {
+    let filtered = profiles;
+
+    // Filter by lookingFor
+    const lookingForFilter = activeFilters.lookingFor[0];
+    if (lookingForFilter && lookingForFilter !== 'all') {
+      filtered = filtered.filter((p) => p.lookingFor === lookingForFilter);
+    }
+
+    return filtered;
+  }, [profiles, activeFilters]);
+
+  const currentProfile = filteredProfiles[currentIndex];
+
+  // Register screen-specific voice commands
+  useEffect(() => {
+    const unsubscribes: (() => void)[] = [];
+
+    // Like command
+    unsubscribes.push(
+      registerCommand('like_profile', () => {
+        if (currentProfile) {
+          handleLike(currentProfile);
+        }
+      })
+    );
+
+    // Pass command
+    unsubscribes.push(
+      registerCommand('pass_profile', () => {
+        if (currentProfile) {
+          handlePass(currentProfile);
+        }
+      })
+    );
+
+    // Filter command
+    unsubscribes.push(
+      registerCommand('filter', () => {
+        setShowFilters(!showFilters);
+        announceToScreenReader(showFilters ? 'Filters closed' : 'Filters opened');
+      })
+    );
+
+    // Search command
+    unsubscribes.push(
+      registerCommand('search', () => {
+        announceToScreenReader('Search activated');
+      })
+    );
+
+    // Refresh command
+    unsubscribes.push(
+      registerCommand('refresh', () => {
+        handleRefresh();
+      })
+    );
+
+    return () => {
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [currentProfile, showFilters, registerCommand]);
 
   const renderProfileCard = (profile: DiscoverProfile) => (
     <View style={styles.profileCard}>
@@ -368,6 +451,7 @@ export const DiscoverScreen: React.FC = () => {
   if (viewMode === 'list') {
     return (
       <SafeAreaView style={styles.container}>
+        <OfflineBanner />
         <View style={styles.header}>
           <Text style={styles.title} accessibilityRole="header">
             Discover
@@ -437,6 +521,7 @@ export const DiscoverScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <OfflineBanner />
       <View style={styles.header}>
         <Text style={styles.title} accessibilityRole="header">
           Discover
@@ -467,15 +552,23 @@ export const DiscoverScreen: React.FC = () => {
       </View>
 
       {showFilters && (
-        <View style={styles.filtersContainer}>
-          <Text style={styles.filterTitle} accessibilityRole="header">
-            Filters
-          </Text>
-          {/* TODO: Add filter inputs */}
-          <Text style={styles.filterPlaceholder} accessibilityRole="text">
-            Filter options coming soon
-          </Text>
-        </View>
+        <FilterPanel
+          filters={filterGroups}
+          activeFilters={activeFilters}
+          onFilterChange={(filterId, values) => {
+            setActiveFilters((prev) => ({ ...prev, [filterId]: values }));
+          }}
+          onClearAll={() => {
+            setActiveFilters({ lookingFor: [], location: [] });
+            announceToScreenReader('All filters cleared');
+          }}
+          onApply={() => {
+            setShowFilters(false);
+            setCurrentIndex(0);
+            const filterCount = Object.values(activeFilters).reduce((sum, values) => sum + values.length, 0);
+            announceToScreenReader(`Filters applied. ${filteredProfiles.length} profiles found.`);
+          }}
+        />
       )}
 
       <ScrollView
@@ -496,10 +589,10 @@ export const DiscoverScreen: React.FC = () => {
           renderEmptyState()
         )}
 
-        {currentIndex < profiles.length - 1 && (
+        {currentIndex < filteredProfiles.length - 1 && (
           <View style={styles.navigationHint}>
             <Text style={styles.navigationHintText} accessibilityRole="text">
-              Profile {currentIndex + 1} of {profiles.length}
+              Profile {currentIndex + 1} of {filteredProfiles.length}
             </Text>
             <Text style={styles.navigationHintSubtext} accessibilityRole="text">
               Use buttons below to like or pass, or swipe to navigate

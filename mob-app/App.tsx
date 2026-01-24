@@ -15,6 +15,8 @@ import { useAppSelector } from './hooks/useAppSelector';
 import { useAppDispatch } from './hooks/useAppDispatch';
 import { initializeAuth } from './store/slices/authSlice';
 import { announceToScreenReader } from './services/accessibility/accessibilityUtils';
+import { offlineService } from './services/network/offlineService';
+import { VoiceCommandOverlay } from './components/accessible/VoiceCommandOverlay';
 import type { RootStackParamList } from './navigation/types';
 
 // App Navigator Component (inside Redux Provider)
@@ -31,6 +33,8 @@ function AppNavigator({ navigationRef }: { navigationRef: ReturnType<typeof useN
     console.log('AppNavigator mounted, dispatching initializeAuth');
     // Initialize auth state on app launch
     dispatch(initializeAuth());
+    // Initialize offline service
+    offlineService.initialize();
   }, [dispatch]);
 
   useEffect(() => {
@@ -102,6 +106,7 @@ export default function RootLayout() {
           }}
         >
           <AppNavigator navigationRef={navigationRef} />
+          <VoiceCommandOverlay />
           <StatusBar style="auto" />
         </NavigationContainer>
       </ThemeProvider>

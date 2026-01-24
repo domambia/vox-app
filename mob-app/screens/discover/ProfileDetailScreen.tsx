@@ -12,6 +12,7 @@ import { useNavigation, useRoute, RouteProp, CommonActions } from '@react-naviga
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
+import { VoiceBioPlayer } from '../../components/accessible/VoiceBioPlayer';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
 type ProfileDetailScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').DiscoverStackParamList, 'ProfileDetail'>;
@@ -58,7 +59,6 @@ export const ProfileDetailScreen: React.FC = () => {
     const { userId } = route.params;
 
     const [profile, setProfile] = useState<Profile>(mockProfile);
-    const [isPlayingVoiceBio, setIsPlayingVoiceBio] = useState(false);
 
     // Announce screen on load
     useEffect(() => {
@@ -106,20 +106,6 @@ export const ProfileDetailScreen: React.FC = () => {
         }
     };
 
-    const handlePlayVoiceBio = async () => {
-        if (isPlayingVoiceBio) {
-            setIsPlayingVoiceBio(false);
-            await announceToScreenReader('Voice bio stopped');
-        } else {
-            setIsPlayingVoiceBio(true);
-            await announceToScreenReader('Playing voice bio');
-            // Simulate playback
-            setTimeout(() => {
-                setIsPlayingVoiceBio(false);
-                announceToScreenReader('Voice bio finished playing');
-            }, 3000);
-        }
-    };
 
     const handleBack = () => {
         announceToScreenReader('Going back to discover');
@@ -196,23 +182,10 @@ export const ProfileDetailScreen: React.FC = () => {
                             <Text style={styles.sectionTitle} accessibilityRole="header">
                                 Voice Introduction
                             </Text>
-                            <TouchableOpacity
-                                style={[styles.voiceBioButton, isPlayingVoiceBio && styles.playingButton]}
-                                onPress={handlePlayVoiceBio}
-                                accessibilityRole="button"
-                                accessibilityLabel={isPlayingVoiceBio ? "Stop voice bio" : "Play voice bio"}
-                                accessibilityHint="Listen to voice introduction"
-                                accessibilityState={{ selected: isPlayingVoiceBio }}
-                            >
-                                <Ionicons
-                                    name={isPlayingVoiceBio ? "pause" : "play"}
-                                    size={20}
-                                    color="#007AFF"
-                                />
-                                <Text style={styles.voiceBioText}>
-                                    {isPlayingVoiceBio ? 'Playing...' : 'Listen to voice'}
-                                </Text>
-                            </TouchableOpacity>
+                            <VoiceBioPlayer
+                                existingUri={profile.voiceBioUrl}
+                                maxDuration={60000}
+                            />
                         </View>
                     )}
 

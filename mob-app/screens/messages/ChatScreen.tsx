@@ -15,6 +15,10 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
+import { OfflineBanner } from '../../components/accessible/OfflineBanner';
+import { websocketService, MessageEvent, TypingEvent } from '../../services/websocket/websocketService';
+import { voiceRecordingService } from '../../services/audio/voiceRecordingService';
+import { useVoiceCommands } from '../../hooks/useVoiceCommands';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
 type MainTabParamList = {
@@ -88,7 +92,67 @@ export const ChatScreen: React.FC = () => {
     const [newMessage, setNewMessage] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
+    const [recordingDuration, setRecordingDuration] = useState(0);
     const flatListRef = useRef<FlatList>(null);
+
+    // Voice commands integration
+    const { registerCommand } = useVoiceCommands('Chat');
+
+    // Register screen-specific voice commands
+    useEffect(() => {
+        const unsubscribes: (() => void)[] = [];
+
+        // Send message command
+        unsubscribes.push(
+            registerCommand('send_message', () => {
+                if (newMessage.trim()) {
+                    handleSendMessage();
+                } else {
+                    announceToScreenReader('No message to send. Type a message first.');
+                }
+            })
+        );
+
+        return () => {
+            unsubscribes.forEach((unsubscribe) => unsubscribe());
+        };
+    }, [newMessage, registerCommand]);
+
+    // WebSocket integration
+    useEffect(() => {
+        // Subscribe to new messages
+        const unsubscribeMessage = websocketService.onMessage((event: MessageEvent) => {
+            if (event.conversationId === conversationId) {
+                const newMsg: Message = {
+                    id: event.messageId,
+                    content: event.content,
+                    senderId: event.senderId,
+                    timestamp: new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    messageType: event.messageType,
+                    isMine: event.senderId === 'me', // TODO: Get actual user ID
+                    status: 'read',
+                };
+                setMessages((prev) => [...prev, newMsg]);
+                announceToScreenReader(`New message from ${participantName}`);
+            }
+        });
+
+        // Subscribe to typing indicators
+        const unsubscribeTyping = websocketService.onTyping((event: TypingEvent) => {
+            if (event.conversationId === conversationId && event.userId !== 'me') {
+                setIsTyping(event.isTyping);
+                if (event.isTyping) {
+                    announceToScreenReader(`${participantName} is typing`);
+                }
+            }
+        });
+
+        // Cleanup on unmount
+        return () => {
+            unsubscribeMessage();
+            unsubscribeTyping();
+        };
+    }, [conversationId, participantName]);
 
     // Announce screen on load
     useEffect(() => {
@@ -126,11 +190,15 @@ export const ChatScreen: React.FC = () => {
         };
 
         setMessages(prev => [...prev, message]);
+        const messageContent = newMessage.trim();
         setNewMessage('');
+
+        // Send via WebSocket
+        websocketService.sendMessage(conversationId, messageContent, 'text');
 
         await announceToScreenReader('Message sent');
 
-        // Simulate message being delivered
+        // Update status when delivered
         setTimeout(() => {
             setMessages(prev =>
                 prev.map(msg =>
@@ -142,12 +210,24 @@ export const ChatScreen: React.FC = () => {
 
     const handleVoiceRecord = async () => {
         if (isRecording) {
+            const uri = await voiceRecordingService.stopRecording();
             setIsRecording(false);
-            await announceToScreenReader('Voice recording stopped. Sending voice message.');
-            // TODO: Send voice message
+            setRecordingDuration(0);
+
+            if (uri) {
+                await announceToScreenReader('Voice recording stopped. Sending voice message.');
+                // TODO: Upload voice file and send via WebSocket
+                // websocketService.sendMessage(conversationId, uri, 'voice');
+            }
         } else {
-            setIsRecording(true);
-            await announceToScreenReader('Voice recording started. Hold to record, release to send.');
+            const started = await voiceRecordingService.startRecording((status) => {
+                setRecordingDuration(status.duration);
+            });
+
+            if (started) {
+                setIsRecording(true);
+                await announceToScreenReader('Voice recording started. Tap stop to finish recording.');
+            }
         }
     };
 
@@ -205,8 +285,18 @@ export const ChatScreen: React.FC = () => {
         );
     };
 
+    // Handle typing indicator
+    useEffect(() => {
+        if (newMessage.trim()) {
+            websocketService.sendTyping(conversationId, true);
+        } else {
+            websocketService.sendTyping(conversationId, false);
+        }
+    }, [newMessage, conversationId]);
+
     return (
         <SafeAreaView style={styles.container}>
+            <OfflineBanner />
             {/* Header */}
             <View style={styles.header}>
                 <AccessibleButton
@@ -491,5 +581,11 @@ const styles = StyleSheet.create({
     },
     recordingButton: {
         backgroundColor: '#FF3B30',
+    },
+    recordingDuration: {
+        fontSize: 10,
+        color: '#FFFFFF',
+        marginLeft: 4,
+        fontWeight: '600',
     },
 });

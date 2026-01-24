@@ -17,6 +17,7 @@ import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { AccessibleSearchInput } from '../../components/accessible/AccessibleSearchInput';
 import { LoadingSkeleton } from '../../components/accessible/LoadingSkeleton';
 import { ErrorView } from '../../components/accessible/ErrorView';
+import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { Ionicons } from '@expo/vector-icons';
 
 type ConversationsScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').MessagesStackParamList>;
@@ -236,6 +237,7 @@ export const ConversationsScreen: React.FC = () => {
 
     return (
         <SafeAreaView style={styles.container}>
+            <OfflineBanner />
             <View style={styles.header}>
                 <Text style={styles.title} accessibilityRole="header">
                     Messages

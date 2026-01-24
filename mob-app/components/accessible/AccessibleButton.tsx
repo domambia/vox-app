@@ -8,6 +8,7 @@ import {
   TouchableOpacityProps,
 } from 'react-native';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { hapticService } from '../../services/accessibility/hapticService';
 
 interface AccessibleButtonProps extends TouchableOpacityProps {
   title: string;
@@ -48,26 +49,31 @@ export const AccessibleButton: React.FC<AccessibleButtonProps> = ({
     ? 'Please wait'
     : accessibilityHint || `Double tap to ${title.toLowerCase()}`;
 
-  // Handle press with voice feedback
+  // Handle press with voice feedback and haptics
   const handlePress = async () => {
     if (loading || disabled) return;
 
     try {
+      // Haptic feedback on press
+      await hapticService.light();
+
       // Announce action before executing
       await announceToScreenReader(`${title} activated`);
 
       // Execute the action
       onPress();
 
-      // Announce completion for critical actions
+      // Haptic and announcement for critical actions
       if (title.toLowerCase().includes('submit') ||
-          title.toLowerCase().includes('save') ||
-          title.toLowerCase().includes('send')) {
+        title.toLowerCase().includes('save') ||
+        title.toLowerCase().includes('send')) {
+        await hapticService.success();
         setTimeout(() => {
           announceToScreenReader(`${title} completed`);
         }, 500);
       }
     } catch (error) {
+      await hapticService.error();
       await announceToScreenReader(`Error: ${title} failed`);
     }
   };
