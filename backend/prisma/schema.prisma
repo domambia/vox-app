@@ -27,11 +27,11 @@ model Country {
 model User {
     user_id           String    @id @default(uuid())
     phone_number      String    @unique
-    password_hash     String
-    first_name        String
-    last_name         String
+    password_hash     String? // Made optional for OTP-only authentication
+    first_name        String? // Made optional - can be set in profile
+    last_name         String? // Made optional - can be set in profile
     email             String?   @unique
-    country_code      String // ISO 3166-1 alpha-2 code
+    country_code      String? // Made optional - can be set in profile
     created_at        DateTime  @default(now())
     verified          Boolean   @default(false)
     verification_date DateTime?
@@ -57,6 +57,7 @@ model User {
     matches_as_b            Match[]              @relation("UserB")
     kyc_reviews             KYCVerification[]    @relation("ReviewedBy")
     password_resets         PasswordResetToken[]
+    otp_tokens              OTPToken[]
     conversations_as_user_a Conversation[]       @relation("UserA")
     conversations_as_user_b Conversation[]       @relation("UserB")
     messages_sent           Message[]
@@ -87,6 +88,29 @@ model PasswordResetToken {
     @@index([token])
     @@index([expires_at])
     @@map("password_reset_tokens")
+}
+
+model OTPToken {
+    otp_id       String     @id @default(uuid())
+    phone_number String
+    otp_code     String
+    expires_at   DateTime
+    used         Boolean    @default(false)
+    purpose      OTPPurpose
+    created_at   DateTime   @default(now())
+    used_at      DateTime?
+    user         User?      @relation(fields: [phone_number], references: [phone_number])
+
+    @@index([phone_number])
+    @@index([otp_code])
+    @@index([expires_at])
+    @@index([purpose])
+    @@map("otp_tokens")
+}
+
+enum OTPPurpose {
+    REGISTRATION
+    LOGIN
 }
 
 model Profile {

@@ -6,6 +6,8 @@ import {
   loginSchema,
   refreshTokenSchema,
   logoutSchema,
+  sendOTPSchema,
+  verifyOTPSchema,
   passwordResetRequestSchema,
   passwordResetVerifySchema,
   passwordResetCompleteSchema,
@@ -15,6 +17,141 @@ import { authenticate } from '@/middleware/auth.middleware';
 import { authLimiter } from '@/middleware/rateLimit.middleware';
 
 const router = Router();
+
+/**
+ * @swagger
+ * /auth/send-otp:
+ *   post:
+ *     summary: Send OTP for phone verification
+ *     description: Send a 6-digit OTP to the provided phone number for registration or login
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone_number
+ *               - purpose
+ *             properties:
+ *               phone_number:
+ *                 type: string
+ *                 example: "+1234567890"
+ *               purpose:
+ *                 type: string
+ *                 enum: [REGISTRATION, LOGIN]
+ *                 example: "REGISTRATION"
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: "OTP sent successfully"
+ *                     expires_in:
+ *                       type: integer
+ *                       example: 600
+ *       400:
+ *         description: Invalid phone number or purpose
+ *       429:
+ *         description: Too many requests
+ */
+/**
+ * @route   POST /api/v1/auth/send-otp
+ * @desc    Send OTP for phone verification
+ * @access  Public
+ */
+router.post(
+  '/send-otp',
+  authLimiter,
+  validate(sendOTPSchema),
+  authController.sendOTP.bind(authController)
+);
+
+/**
+ * @swagger
+ * /auth/verify-otp:
+ *   post:
+ *     summary: Verify OTP and complete authentication
+ *     description: Verify the OTP code and complete registration or login
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone_number
+ *               - otp_code
+ *               - purpose
+ *             properties:
+ *               phone_number:
+ *                 type: string
+ *                 example: "+1234567890"
+ *               otp_code:
+ *                 type: string
+ *                 minLength: 6
+ *                 maxLength: 6
+ *                 example: "123456"
+ *               purpose:
+ *                 type: string
+ *                 enum: [REGISTRATION, LOGIN]
+ *                 example: "REGISTRATION"
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                     refresh_token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                     expires_in:
+ *                       type: integer
+ *                       example: 3600
+ *       400:
+ *         description: Invalid OTP or phone number
+ *       404:
+ *         description: Account not found (for login)
+ *       429:
+ *         description: Too many requests
+ */
+/**
+ * @route   POST /api/v1/auth/verify-otp
+ * @desc    Verify OTP and complete authentication
+ * @access  Public
+ */
+router.post(
+  '/verify-otp',
+  authLimiter,
+  validate(verifyOTPSchema),
+  authController.verifyOTP.bind(authController)
+);
 
 /**
  * @swagger

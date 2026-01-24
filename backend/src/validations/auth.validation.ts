@@ -94,6 +94,36 @@ export const passwordResetCompleteSchema = z.object({
   }),
 });
 
+// OTP send schema
+export const sendOTPSchema = z.object({
+  body: z.object({
+    phoneNumber: z
+      .string()
+      .min(1, 'Phone number is required')
+      .regex(phoneRegex, 'Phone number must be in international format (e.g., +35612345678)'),
+    purpose: z.enum(['REGISTRATION', 'LOGIN'], {
+      errorMap: () => ({ message: 'Purpose must be either REGISTRATION or LOGIN' }),
+    }),
+  }),
+});
+
+// OTP verify schema
+export const verifyOTPSchema = z.object({
+  body: z.object({
+    phoneNumber: z
+      .string()
+      .min(1, 'Phone number is required')
+      .regex(phoneRegex, 'Phone number must be in international format'),
+    otpCode: z
+      .string()
+      .length(6, 'OTP code must be 6 digits')
+      .regex(/^\d{6}$/, 'OTP code must contain only digits'),
+    purpose: z.enum(['REGISTRATION', 'LOGIN'], {
+      errorMap: () => ({ message: 'Purpose must be either REGISTRATION or LOGIN' }),
+    }),
+  }),
+});
+
 // Change password schema
 export const changePasswordSchema = z.object({
   body: z.object({
@@ -110,6 +140,8 @@ export const changePasswordSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];
+export type SendOTPInput = z.infer<typeof sendOTPSchema>['body'];
+export type VerifyOTPInput = z.infer<typeof verifyOTPSchema>['body'];
 export type PasswordResetRequestInput = z.infer<typeof passwordResetRequestSchema>['body'];
 export type PasswordResetCompleteInput = z.infer<typeof passwordResetCompleteSchema>['body'];
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>['body'];

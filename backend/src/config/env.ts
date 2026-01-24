@@ -47,6 +47,12 @@ export const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
 
+  // SMS (OTP delivery)
+  sms: {
+    webhookUrl: process.env.SMS_WEBHOOK_URL || '',
+    senderId: process.env.SMS_SENDER_ID || 'VOX',
+  },
+
   // WebRTC (Voice Calls)
   webrtc: {
     // STUN/TURN server configuration

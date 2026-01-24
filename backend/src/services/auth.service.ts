@@ -8,11 +8,175 @@ import {
   PasswordResetRequestInput,
   PasswordResetCompleteInput,
   ChangePasswordInput,
+  SendOTPInput,
+  VerifyOTPInput,
 } from '@/validations/auth.validation';
 import { Prisma } from '@prisma/client';
 import { generateSecureToken, hashToken } from '@/utils/token';
+import { config } from '@/config/env';
+import { sendSms } from '@/utils/sms';
 
 export class AuthService {
+  /**
+   * Send OTP for phone number verification
+   */
+  async sendOTP(data: SendOTPInput) {
+    try {
+      const { phoneNumber, purpose } = data;
+
+      // Generate 6-digit OTP
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      // Set expiration time (10 minutes from now)
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+      // Save OTP to database
+      await prisma.oTPToken.create({
+        data: {
+          phone_number: phoneNumber,
+          otp_code: otpCode,
+          expires_at: expiresAt,
+          purpose: purpose,
+        },
+      });
+
+      const otpMessage = `Your VOX verification code is ${otpCode}. It expires in 10 minutes.`;
+
+      if (config.nodeEnv === 'production') {
+        await sendSms({ to: phoneNumber, message: otpMessage });
+      } else {
+        logger.info(`OTP for ${phoneNumber}: ${otpCode} (expires: ${expiresAt.toISOString()})`);
+      }
+
+      return {
+        message: 'OTP sent successfully',
+        expiresIn: 600, // 10 minutes in seconds
+      };
+    } catch (error) {
+      logger.error('Error sending OTP', error);
+      throw new Error('Failed to send OTP');
+    }
+  }
+
+  /**
+   * Verify OTP and complete authentication
+   */
+  async verifyOTP(data: VerifyOTPInput) {
+    try {
+      const { phoneNumber, otpCode, purpose } = data;
+
+      // Find valid OTP
+      const otpToken = await prisma.oTPToken.findFirst({
+        where: {
+          phone_number: phoneNumber,
+          otp_code: otpCode,
+          purpose: purpose,
+          used: false,
+          expires_at: {
+            gt: new Date(),
+          },
+        },
+      });
+
+      if (!otpToken) {
+        throw new Error('Invalid or expired OTP');
+      }
+
+      // Mark OTP as used
+      await prisma.oTPToken.update({
+        where: { otp_id: otpToken.otp_id },
+        data: {
+          used: true,
+          used_at: new Date(),
+        },
+      });
+
+      // Handle different purposes
+      if (purpose === 'REGISTRATION') {
+        // Create new user account
+        let user = await prisma.user.findUnique({
+          where: { phone_number: phoneNumber },
+        });
+
+        if (!user) {
+          // Create new user with minimal information
+          user = await prisma.user.create({
+            data: {
+              phone_number: phoneNumber,
+              verified: true,
+              verification_date: new Date(),
+              is_active: true,
+            },
+          });
+        } else {
+          // User exists, just mark as verified
+          user = await prisma.user.update({
+            where: { user_id: user.user_id },
+            data: {
+              verified: true,
+              verification_date: new Date(),
+              is_active: true,
+            },
+          });
+        }
+
+        // Generate tokens
+        const token = generateToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+        const refreshToken = generateRefreshToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+
+        return {
+          user: {
+            userId: user.user_id,
+            phoneNumber: user.phone_number,
+            verified: user.verified,
+          },
+          token,
+          refreshToken,
+          expiresIn: 3600, // 1 hour
+        };
+      } else if (purpose === 'LOGIN') {
+        // Find existing user
+        const user = await prisma.user.findUnique({
+          where: { phone_number: phoneNumber },
+        });
+
+        if (!user || !user.is_active) {
+          throw new Error('Account not found or inactive');
+        }
+
+        // Generate tokens
+        const token = generateToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+        const refreshToken = generateRefreshToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+
+        // Update last active
+        await prisma.user.update({
+          where: { user_id: user.user_id },
+          data: { last_active: new Date() },
+        });
+
+        return {
+          user: {
+            userId: user.user_id,
+            phoneNumber: user.phone_number,
+            verified: user.verified,
+            firstName: user.first_name,
+            lastName: user.last_name,
+            email: user.email,
+          },
+          token,
+          refreshToken,
+          expiresIn: 3600, // 1 hour
+        };
+      }
+
+      throw new Error('Invalid OTP purpose');
+    } catch (error) {
+      logger.error('Error verifying OTP', error);
+      throw error;
+    }
+  }
+
   /**
    * Get allowed countries for registration
    * This can be used by frontend to show available countries
@@ -164,7 +328,7 @@ export class AuthService {
       }
 
       // Verify password
-      const isPasswordValid = await comparePassword(data.password, user.password_hash);
+      const isPasswordValid = await comparePassword(data.password, user.password_hash || '');
 
       if (!isPasswordValid) {
         throw new Error('Invalid phone number or password');
@@ -462,7 +626,7 @@ export class AuthService {
       // Verify current password
       const isCurrentPasswordValid = await comparePassword(
         data.currentPassword,
-        user.password_hash
+        user.password_hash || '' as string
       );
 
       if (!isCurrentPasswordValid) {

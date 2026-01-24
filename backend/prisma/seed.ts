@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient, UserRole, User } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -286,11 +286,11 @@ async function main() {
   console.log(`✅ Seeded ${countries.length} countries`);
   console.log('✅ Malta (MT) is set as the only allowed country');
 
-  // Seed test users for all roles
+  // Seed test users for all roles and auth scenarios
   console.log('\n👤 Seeding test users...');
 
-  const testPassword = 'password123';
-  const passwordHash = await hashPassword(testPassword);
+  const defaultPassword = 'password123';
+  const defaultPasswordHash = await hashPassword(defaultPassword);
 
   // Ensure Malta exists (should already exist from above)
   const malta = await prisma.country.findUnique({
@@ -301,89 +301,114 @@ async function main() {
     throw new Error('Malta (MT) country must exist before seeding users');
   }
 
-  // Test User - Regular USER role
-  const testUser = await prisma.user.upsert({
-    where: { phone_number: '+35699123456' },
-    update: {
-      password_hash: passwordHash,
-      first_name: 'Test',
-      last_name: 'User',
-      email: 'testuser@vox.app',
-      country_code: 'MT',
-      verified: true,
-      role: UserRole.USER,
-      is_active: true,
-    },
-    create: {
+  const usersToSeed = [
+    {
+      label: 'USER',
       phone_number: '+35699123456',
-      password_hash: passwordHash,
       first_name: 'Test',
       last_name: 'User',
       email: 'testuser@vox.app',
-      country_code: 'MT',
       verified: true,
       role: UserRole.USER,
       is_active: true,
+      password_hash: defaultPasswordHash,
     },
-  });
-
-  // Test Moderator - MODERATOR role
-  const testModerator = await prisma.user.upsert({
-    where: { phone_number: '+35699234567' },
-    update: {
-      password_hash: passwordHash,
-      first_name: 'Test',
-      last_name: 'Moderator',
-      email: 'testmoderator@vox.app',
-      country_code: 'MT',
-      verified: true,
-      role: UserRole.MODERATOR,
-      is_active: true,
-    },
-    create: {
+    {
+      label: 'MODERATOR',
       phone_number: '+35699234567',
-      password_hash: passwordHash,
       first_name: 'Test',
       last_name: 'Moderator',
       email: 'testmoderator@vox.app',
-      country_code: 'MT',
       verified: true,
       role: UserRole.MODERATOR,
       is_active: true,
+      password_hash: defaultPasswordHash,
     },
-  });
-
-  // Test Admin - ADMIN role
-  const testAdmin = await prisma.user.upsert({
-    where: { phone_number: '+35699345678' },
-    update: {
-      password_hash: passwordHash,
-      first_name: 'Test',
-      last_name: 'Admin',
-      email: 'testadmin@vox.app',
-      country_code: 'MT',
-      verified: true,
-      role: UserRole.ADMIN,
-      is_active: true,
-    },
-    create: {
+    {
+      label: 'ADMIN',
       phone_number: '+35699345678',
-      password_hash: passwordHash,
       first_name: 'Test',
       last_name: 'Admin',
       email: 'testadmin@vox.app',
-      country_code: 'MT',
       verified: true,
       role: UserRole.ADMIN,
       is_active: true,
+      password_hash: defaultPasswordHash,
     },
-  });
+    {
+      label: 'OTP_ONLY',
+      phone_number: '+35699456789',
+      first_name: 'OTP',
+      last_name: 'Only',
+      email: 'otponly@vox.app',
+      verified: true,
+      role: UserRole.USER,
+      is_active: true,
+      password_hash: null,
+    },
+    {
+      label: 'UNVERIFIED',
+      phone_number: '+35699567890',
+      first_name: 'Unverified',
+      last_name: 'User',
+      email: 'unverified@vox.app',
+      verified: false,
+      role: UserRole.USER,
+      is_active: true,
+      password_hash: defaultPasswordHash,
+    },
+    {
+      label: 'INACTIVE',
+      phone_number: '+35699678901',
+      first_name: 'Inactive',
+      last_name: 'User',
+      email: 'inactive@vox.app',
+      verified: true,
+      role: UserRole.USER,
+      is_active: false,
+      password_hash: defaultPasswordHash,
+    },
+  ];
+
+  const seededUsers: Array<{ label: string; user: User }> = [];
+  for (const user of usersToSeed) {
+    const seededUser = await prisma.user.upsert({
+      where: { phone_number: user.phone_number },
+      update: {
+        password_hash: user.password_hash,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        country_code: 'MT',
+        verified: user.verified,
+        verification_date: user.verified ? new Date() : null,
+        role: user.role,
+        is_active: user.is_active,
+      },
+      create: {
+        phone_number: user.phone_number,
+        password_hash: user.password_hash,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        country_code: 'MT',
+        verified: user.verified,
+        verification_date: user.verified ? new Date() : null,
+        role: user.role,
+        is_active: user.is_active,
+      },
+    });
+
+    seededUsers.push({ label: user.label, user: seededUser });
+  }
 
   console.log('✅ Seeded test users:');
-  console.log(`   - USER: ${testUser.phone_number} (${testUser.email})`);
-  console.log(`   - MODERATOR: ${testModerator.phone_number} (${testModerator.email})`);
-  console.log(`   - ADMIN: ${testAdmin.phone_number} (${testAdmin.email})`);
-  console.log(`\n🔑 All test users password: ${testPassword}`);
+  for (const { label, user } of seededUsers) {
+    const emailInfo = user.email ? ` (${user.email})` : '';
+    console.log(`   - ${label}: ${user.phone_number}${emailInfo}`);
+  }
+  console.log(`\n🔑 Default password for password-based users: ${defaultPassword}`);
+  console.log('   - OTP_ONLY has no password (OTP login only)');
 }
 
 main()

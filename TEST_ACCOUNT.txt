@@ -1,0 +1,7 @@
+Seeded test users:
+   - USER: +35699123456 (testuser@vox.app)
+   - MODERATOR: +35699234567 (testmoderator@vox.app)
+   - ADMIN: +35699345678 (testadmin@vox.app)
+   - OTP_ONLY: +35699456789 (otponly@vox.app)
+   - UNVERIFIED: +35699567890 (unverified@vox.app)
+   - INACTIVE: +35699678901 (inactive@vox.app)

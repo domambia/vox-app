@@ -5,6 +5,46 @@ import { AuthRequest } from '@/types';
 
 export class AuthController {
   /**
+   * Send OTP for phone verification
+   * POST /auth/send-otp
+   */
+  async sendOTP(req: Request, res: Response): Promise<void> {
+    try {
+      const data = req.body;
+      const result = await authService.sendOTP(data);
+      sendSuccess(res, result);
+    } catch (error: any) {
+      if (error.message === 'Invalid phone number format') {
+        sendError(res, 'INVALID_PHONE', error.message, 400);
+        return;
+      }
+      sendError(res, 'SEND_OTP_ERROR', error.message || 'Failed to send OTP', 400);
+    }
+  }
+
+  /**
+   * Verify OTP and complete authentication
+   * POST /auth/verify-otp
+   */
+  async verifyOTP(req: Request, res: Response): Promise<void> {
+    try {
+      const data = req.body;
+      const result = await authService.verifyOTP(data);
+      sendSuccess(res, result);
+    } catch (error: any) {
+      if (error.message === 'Invalid or expired OTP') {
+        sendError(res, 'INVALID_OTP', error.message, 400);
+        return;
+      }
+      if (error.message === 'Account not found or inactive') {
+        sendError(res, 'ACCOUNT_NOT_FOUND', error.message, 404);
+        return;
+      }
+      sendError(res, 'VERIFY_OTP_ERROR', error.message || 'Failed to verify OTP', 400);
+    }
+  }
+
+  /**
    * Register a new user
    * POST /auth/register
    */
