@@ -132,3 +132,31 @@ export const getUserGroupsSchema = z.object({
   }),
 });
 
+// Get group messages schema
+export const getGroupMessagesSchema = z.object({
+  params: z.object({
+    groupId: z.string().uuid('Invalid group ID format'),
+  }),
+  query: z.object({
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : undefined)),
+    offset: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : undefined)),
+  }),
+});
+
+// Send group message schema
+export const sendGroupMessageSchema = z.object({
+  params: z.object({
+    groupId: z.string().uuid('Invalid group ID format'),
+  }),
+  body: z.object({
+    content: z.string().min(1, 'Message content is required').max(4000, 'Message too long'),
+    message_type: z.enum(['TEXT', 'VOICE', 'IMAGE', 'FILE', 'SYSTEM']).optional().default('TEXT'),
+  }),
+});
+

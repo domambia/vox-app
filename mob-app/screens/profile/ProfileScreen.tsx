@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
     View,
     Text,
@@ -6,101 +6,173 @@ import {
     SafeAreaView,
     ScrollView,
     TouchableOpacity,
-    Alert,
-    Dimensions,
+    ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { VoiceBioPlayer } from '../../components/accessible/VoiceBioPlayer';
 import { OfflineBanner } from '../../components/accessible/OfflineBanner';
+import { NotificationBadge } from '../../components/accessible/NotificationBadge';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { useAppDispatch, useAppSelector } from '../../hooks';
+import { getMyProfile, uploadVoiceBio, deleteVoiceBio } from '../../store/slices/profileSlice';
+import { showToast } from '../../store/slices/toastSlice';
+import { groupsService } from '../../services/api/groupsService';
+import { eventsService } from '../../services/api/eventsService';
+import { discoveryService } from '../../services/api/discoveryService';
 
 type MainTabParamList = {
     Profile: undefined;
     EditProfile: undefined;
-    // Add other navigation types as needed
 };
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<MainTabParamList>;
 
-interface Profile {
-    userId: string;
-    firstName: string;
-    lastName: string;
-    email?: string;
-    bio?: string;
-    interests: string[];
-    location?: string;
-    lookingFor: 'dating' | 'friendship' | 'hobby' | 'all';
-    voiceBioUrl?: string;
-    createdAt: string;
-    isOwnProfile: boolean;
+/** Display-friendly lookingFor label */
+function lookingForLabel(lookingFor?: string): string {
+    switch (lookingFor) {
+        case 'ALL': return 'Open to All';
+        case 'DATING': return 'Dating';
+        case 'FRIENDSHIP': return 'Friendship';
+        case 'HOBBY': return 'Hobbies & Interests';
+        default: return 'Open to All';
+    }
 }
 
-// Mock profile data
-const mockProfile: Profile = {
-    userId: 'me',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@example.com',
-    bio: 'Hello! I\'m a software developer who loves hiking and playing guitar. Looking to connect with people who share similar interests.',
-    interests: ['Technology', 'Music', 'Hiking', 'Photography', 'Gaming'],
-    location: 'Valletta, Malta',
-    lookingFor: 'friendship',
-    voiceBioUrl: 'mock-url', // Mock voice bio
-    createdAt: '2024-01-15T10:00:00Z',
-    isOwnProfile: true,
-};
-
 /**
- * Profile Screen - User's profile view with accessibility focus
+ * Profile Screen - User's profile view with real data from backend
  * Voice-first design for profile management
  */
 export const ProfileScreen: React.FC = () => {
     const navigation = useNavigation<ProfileScreenNavigationProp>();
-    const [profile, setProfile] = useState<Profile>(mockProfile);
+    const dispatch = useAppDispatch();
+    const { currentProfile, isLoading, error } = useAppSelector((state) => state.profile);
+    const authUser = useAppSelector((state) => state.auth.user);
+
+    // Merge profile with auth user fallback (name from user when no profile or 404)
+    const profile = useMemo(() => {
+        const p = currentProfile;
+        const firstName = p?.firstName ?? authUser?.firstName ?? '';
+        const lastName = p?.lastName ?? authUser?.lastName ?? '';
+        const displayName = p?.displayName ?? ([firstName, lastName].filter(Boolean).join(' ') || 'Profile');
+        return {
+            userId: p?.userId ?? authUser?.userId ?? '',
+            firstName,
+            lastName,
+            displayName,
+            bio: p?.bio,
+            interests: p?.interests ?? [],
+            location: p?.location,
+            lookingFor: p?.lookingFor ?? 'ALL',
+            voiceBioUrl: p?.voiceBioUrl,
+            createdAt: p?.createdAt ?? '',
+            isOwnProfile: true,
+        };
+    }, [currentProfile, authUser]);
+
     const [voiceBioUri, setVoiceBioUri] = useState<string | undefined>(profile.voiceBioUrl);
+    const [stats, setStats] = useState<{ matches: number; groups: number; events: number }>({ matches: 0, groups: 0, events: 0 });
+    const [statsLoading, setStatsLoading] = useState(false);
+    const [voiceUploading, setVoiceUploading] = useState(false);
+
+    useEffect(() => {
+        setVoiceBioUri(profile.voiceBioUrl);
+    }, [profile.voiceBioUrl]);
+
+    useEffect(() => {
+        dispatch(getMyProfile());
+    }, [dispatch]);
+
+    // Fetch real counts for matches, groups, events
+    useEffect(() => {
+        const userId = profile.userId;
+        if (!userId) return;
+
+        let cancelled = false;
+        setStatsLoading(true);
+
+        const load = async () => {
+            try {
+                const [matchesRes, groupsRes, eventsRes] = await Promise.all([
+                    discoveryService.getMatches().catch(() => ({ matches: [] })),
+                    groupsService.getUserGroups(userId).catch(() => ({ groups: [] })),
+                    eventsService.getUserEvents(userId).catch(() => ({ events: [] })),
+                ]);
+                if (cancelled) return;
+                const matchesCount = Array.isArray((matchesRes as any).matches) ? (matchesRes as any).matches.length : 0;
+                const groupsCount = Array.isArray(groupsRes.groups) ? groupsRes.groups.length : 0;
+                const eventsCount = Array.isArray(eventsRes.events) ? eventsRes.events.length : 0;
+                setStats({ matches: matchesCount, groups: groupsCount, events: eventsCount });
+            } catch {
+                if (!cancelled) setStats({ matches: 0, groups: 0, events: 0 });
+            } finally {
+                if (!cancelled) setStatsLoading(false);
+            }
+        };
+        load();
+        return () => { cancelled = true; };
+    }, [profile.userId]);
 
     // Announce screen on load
     useEffect(() => {
+        if (!profile.displayName && !profile.firstName) return;
         const announceScreen = async () => {
             setTimeout(async () => {
                 await announceToScreenReader(
-                    `Profile screen. ${profile.firstName} ${profile.lastName}. ${profile.bio ? 'Has bio' : 'No bio'}. ${profile.interests.length} interests.`
+                    `Profile screen. ${profile.displayName || `${profile.firstName} ${profile.lastName}`.trim()}. ${profile.bio ? 'Has bio' : 'No bio'}. ${profile.interests.length} interests.`
                 );
             }, 500);
         };
-
         announceScreen();
-    }, [profile]);
+    }, [profile.displayName, profile.firstName, profile.lastName, profile.bio, profile.interests.length]);
 
     const handleEditProfile = () => {
         announceToScreenReader('Editing profile');
         navigation.navigate('EditProfile' as any);
     };
 
-    const handleVoiceBioRecorded = async (uri: string) => {
-        setVoiceBioUri(uri);
-        setProfile(prev => ({ ...prev, voiceBioUrl: uri }));
-        // TODO: Upload to backend
-        await announceToScreenReader('Voice bio saved');
+    const handleSettings = () => {
+        announceToScreenReader('Opening settings');
+        navigation.navigate('Settings' as any);
     };
 
-    const handleVoiceBioDelete = async () => {
-        setVoiceBioUri(undefined);
-        setProfile(prev => ({ ...prev, voiceBioUrl: undefined }));
-        // TODO: Delete from backend
-    };
+    const handleVoiceBioRecorded = useCallback(async (uri: string) => {
+        setVoiceUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('voiceBio', {
+                uri,
+                name: 'voice-bio.m4a',
+                type: 'audio/m4a',
+            } as any);
+            const result = await dispatch(uploadVoiceBio(formData)).unwrap();
+            if (result) setVoiceBioUri(result);
+            dispatch(showToast({ message: 'Voice bio saved', type: 'success' }));
+            await announceToScreenReader('Voice bio saved');
+        } catch (e: any) {
+            dispatch(showToast({ message: e?.message || 'Failed to upload voice bio', type: 'error' }));
+            await announceToScreenReader('Failed to upload voice bio');
+        } finally {
+            setVoiceUploading(false);
+        }
+    }, [dispatch]);
+
+    const handleVoiceBioDelete = useCallback(async () => {
+        try {
+            await dispatch(deleteVoiceBio()).unwrap();
+            setVoiceBioUri(undefined);
+            dispatch(showToast({ message: 'Voice bio removed', type: 'success' }));
+            await announceToScreenReader('Voice bio removed');
+        } catch (e: any) {
+            dispatch(showToast({ message: e?.message || 'Failed to remove voice bio', type: 'error' }));
+        }
+    }, [dispatch]);
 
     const handleInterestPress = (interest: string) => {
         announceToScreenReader(`Interest: ${interest}`);
-    };
-
-    const handleLike = () => {
-        announceToScreenReader('Like feature not implemented yet');
-        // TODO: Implement like functionality
     };
 
     const renderInterestChip = (interest: string) => (
@@ -116,9 +188,30 @@ export const ProfileScreen: React.FC = () => {
         </TouchableOpacity>
     );
 
+    if (isLoading && !currentProfile && !authUser) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={AppColors.primary} />
+                    <Text style={styles.loadingText}>Loading profile...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    const initials = [profile.firstName?.charAt(0), profile.lastName?.charAt(0)].filter(Boolean).join('').toUpperCase() || '?';
+    const nameDisplay = profile.displayName || [profile.firstName, profile.lastName].filter(Boolean).join(' ') || 'My Profile';
+
     return (
         <SafeAreaView style={styles.container}>
             <OfflineBanner />
+            {error ? (
+                <View style={styles.errorBanner}>
+                    <Text style={styles.errorText} accessibilityRole="alert">
+                        {error}
+                    </Text>
+                </View>
+            ) : null}
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContainer}
@@ -129,15 +222,27 @@ export const ProfileScreen: React.FC = () => {
                     <Text style={styles.title} accessibilityRole="header">
                         My Profile
                     </Text>
-                    <AccessibleButton
-                        title="Edit"
-                        onPress={handleEditProfile}
-                        variant="outline"
-                        size="small"
-                        accessibilityHint="Edit your profile information"
-                        style={styles.editButton}
-                        textStyle={styles.editButtonText}
-                    />
+                    <View style={styles.headerButtons}>
+                        <NotificationBadge />
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={handleSettings}
+                            accessibilityRole="button"
+                            accessibilityLabel="Settings"
+                            accessibilityHint="Open app settings and preferences"
+                        >
+                            <Ionicons name="settings-outline" size={24} color={AppColors.primary} />
+                        </TouchableOpacity>
+                        <AccessibleButton
+                            title="Edit"
+                            onPress={handleEditProfile}
+                            variant="outline"
+                            size="small"
+                            accessibilityHint="Edit your profile information"
+                            style={styles.editButton}
+                            textStyle={styles.editButtonText}
+                        />
+                    </View>
                 </View>
 
                 {/* Profile Card */}
@@ -146,16 +251,18 @@ export const ProfileScreen: React.FC = () => {
                     <View style={styles.avatarSection}>
                         <View style={styles.avatar}>
                             <Text style={styles.avatarText}>
-                                {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
+                                {initials}
                             </Text>
                         </View>
                         <View style={styles.nameSection}>
                             <Text style={styles.name} accessibilityRole="text">
-                                {profile.firstName} {profile.lastName}
+                                {nameDisplay}
                             </Text>
-                            <Text style={styles.location} accessibilityRole="text">
-                                📍 {profile.location}
-                            </Text>
+                            {profile.location ? (
+                                <Text style={styles.location} accessibilityRole="text">
+                                    📍 {profile.location}
+                                </Text>
+                            ) : null}
                         </View>
                     </View>
 
@@ -191,62 +298,50 @@ export const ProfileScreen: React.FC = () => {
                         </Text>
                         <View style={styles.lookingForBadge}>
                             <Text style={styles.lookingForText}>
-                                {profile.lookingFor === 'all' ? 'Open to All' :
-                                    profile.lookingFor === 'dating' ? 'Dating' :
-                                        profile.lookingFor === 'friendship' ? 'Friendship' :
-                                            'Hobbies & Interests'}
+                                {lookingForLabel(profile.lookingFor)}
                             </Text>
                         </View>
                     </View>
 
                     {/* Interests */}
-                    <View style={styles.interestsSection}>
-                        <Text style={styles.sectionTitle} accessibilityRole="header">
-                            Interests
-                        </Text>
-                        <View style={styles.interestsContainer}>
-                            {profile.interests.map(renderInterestChip)}
+                    {profile.interests.length > 0 ? (
+                        <View style={styles.interestsSection}>
+                            <Text style={styles.sectionTitle} accessibilityRole="header">
+                                Interests
+                            </Text>
+                            <View style={styles.interestsContainer}>
+                                {profile.interests.map(renderInterestChip)}
+                            </View>
                         </View>
-                    </View>
+                    ) : null}
 
-                    {/* Stats */}
+                    {/* Stats (real data) */}
                     <View style={styles.statsSection}>
                         <View style={styles.stat}>
-                            <Text style={styles.statNumber}>12</Text>
+                            {statsLoading ? (
+                                <ActivityIndicator size="small" color={AppColors.primary} />
+                            ) : (
+                                <Text style={styles.statNumber}>{stats.matches}</Text>
+                            )}
                             <Text style={styles.statLabel}>Matches</Text>
                         </View>
                         <View style={styles.stat}>
-                            <Text style={styles.statNumber}>8</Text>
+                            {statsLoading ? (
+                                <ActivityIndicator size="small" color={AppColors.primary} />
+                            ) : (
+                                <Text style={styles.statNumber}>{stats.groups}</Text>
+                            )}
                             <Text style={styles.statLabel}>Groups</Text>
                         </View>
                         <View style={styles.stat}>
-                            <Text style={styles.statNumber}>24</Text>
+                            {statsLoading ? (
+                                <ActivityIndicator size="small" color={AppColors.primary} />
+                            ) : (
+                                <Text style={styles.statNumber}>{stats.events}</Text>
+                            )}
                             <Text style={styles.statLabel}>Events</Text>
                         </View>
                     </View>
-                </View>
-
-                {/* Action Buttons */}
-                <View style={styles.actions}>
-                    <AccessibleButton
-                        title="View My Matches"
-                        onPress={() => announceToScreenReader('View matches feature not implemented')}
-                        variant="secondary"
-                        size="medium"
-                        accessibilityHint="View people you've matched with"
-                        style={styles.actionButton}
-                        textStyle={styles.actionButtonText}
-                    />
-
-                    <AccessibleButton
-                        title="My Events"
-                        onPress={() => announceToScreenReader('View events feature not implemented')}
-                        variant="secondary"
-                        size="medium"
-                        accessibilityHint="View events you're attending"
-                        style={styles.actionButton}
-                        textStyle={styles.actionButtonText}
-                    />
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -257,6 +352,28 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F8F9FA',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+    },
+    loadingText: {
+        fontSize: 16,
+        color: AppColors.textSecondary,
+    },
+    errorBanner: {
+        backgroundColor: AppColors.errorBgLight,
+        padding: 12,
+        marginHorizontal: 16,
+        marginTop: 8,
+        borderRadius: 8,
+    },
+    errorText: {
+        fontSize: 14,
+        color: AppColors.error,
+        textAlign: 'center',
     },
     scrollView: {
         flex: 1,
@@ -270,10 +387,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 16,
     },
+    headerButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    iconButton: {
+        padding: 8,
+    },
     title: {
         fontSize: 28,
         fontWeight: '700',
-        color: '#000000',
+        color: AppColors.text,
     },
     editButton: {
         minWidth: 60,
@@ -282,11 +407,11 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     profileCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
         borderRadius: 16,
         padding: 20,
         marginBottom: 24,
-        shadowColor: '#000000',
+        shadowColor: AppColors.text,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
@@ -301,7 +426,7 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
@@ -309,7 +434,7 @@ const styles = StyleSheet.create({
     avatarText: {
         fontSize: 28,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: AppColors.background,
     },
     nameSection: {
         flex: 1,
@@ -317,12 +442,12 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 24,
         fontWeight: '700',
-        color: '#000000',
+        color: AppColors.text,
         marginBottom: 4,
     },
     location: {
         fontSize: 16,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     bioSection: {
         marginBottom: 20,
@@ -330,12 +455,12 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         marginBottom: 8,
     },
     bio: {
         fontSize: 16,
-        color: '#333333',
+        color: AppColors.text,
         lineHeight: 24,
     },
     voiceBioSection: {
@@ -344,19 +469,19 @@ const styles = StyleSheet.create({
     voiceBioButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F0F8FF',
+        backgroundColor: AppColors.inputBg,
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#007AFF',
+        borderColor: AppColors.primary,
     },
     playingButton: {
-        backgroundColor: '#E3F2FD',
+        backgroundColor: AppColors.borderLight,
     },
     voiceBioText: {
         fontSize: 16,
-        color: '#007AFF',
+        color: AppColors.primary,
         marginLeft: 8,
         fontWeight: '500',
     },
@@ -364,7 +489,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     lookingForBadge: {
-        backgroundColor: '#E8F5E8',
+        backgroundColor: AppColors.borderLight,
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
@@ -372,7 +497,7 @@ const styles = StyleSheet.create({
     },
     lookingForText: {
         fontSize: 14,
-        color: '#2E7D32',
+        color: AppColors.success,
         fontWeight: '600',
     },
     interestsSection: {
@@ -384,7 +509,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     interestChip: {
-        backgroundColor: '#F0F0F0',
+        backgroundColor: AppColors.borderLight,
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
@@ -392,7 +517,7 @@ const styles = StyleSheet.create({
     },
     interestText: {
         fontSize: 14,
-        color: '#333333',
+        color: AppColors.text,
         fontWeight: '500',
     },
     statsSection: {
@@ -400,7 +525,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-around',
         paddingTop: 20,
         borderTopWidth: 1,
-        borderTopColor: '#E5E5E5',
+        borderTopColor: AppColors.border,
     },
     stat: {
         alignItems: 'center',
@@ -408,22 +533,22 @@ const styles = StyleSheet.create({
     statNumber: {
         fontSize: 24,
         fontWeight: '700',
-        color: '#007AFF',
+        color: AppColors.primary,
     },
     statLabel: {
         fontSize: 12,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         marginTop: 4,
     },
     actions: {
         gap: 12,
     },
     actionButton: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
         borderWidth: 1,
-        borderColor: '#E5E5E5',
+        borderColor: AppColors.border,
     },
     actionButtonText: {
-        color: '#007AFF',
+        color: AppColors.primary,
     },
 });

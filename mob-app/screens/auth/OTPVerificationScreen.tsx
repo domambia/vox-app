@@ -15,11 +15,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AppColors } from '../../constants/theme';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { AccessibleInput } from '../../components/accessible/AccessibleInput';
 import { useAppDispatch, useAppSelector } from '../../hooks';
 import { verifyOTP, sendOTP, resetOTPState } from '../../store/slices/authSlice';
+import { showToast } from '../../store/slices/toastSlice';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
 type OTPVerificationScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'OTPVerification'>;
@@ -70,11 +72,14 @@ export const OTPVerificationScreen: React.FC = () => {
         }
     }, [resendCooldown]);
 
-    // Redirect if no OTP was sent
+    // Redirect if no OTP was sent (after a short delay so Redux state has propagated)
     useEffect(() => {
-        if (!otpPhoneNumber || !otpPurpose) {
-            navigation.goBack();
-        }
+        const timer = setTimeout(() => {
+            if (!otpPhoneNumber || !otpPurpose) {
+                navigation.goBack();
+            }
+        }, 100);
+        return () => clearTimeout(timer);
     }, [otpPhoneNumber, otpPurpose, navigation]);
 
     // Announce screen on load
@@ -114,14 +119,17 @@ export const OTPVerificationScreen: React.FC = () => {
                     ? 'Account created successfully. Welcome to VOX!'
                     : 'Login successful. Welcome back to VOX!';
                 await announceToScreenReader(successMessage, { isAlert: true });
-                // Navigation will be handled by auth state change in root navigator
+                // Navigation to Profile is handled by auth state change in root navigator
             } else {
-                const errorMessage = result.payload as string || 'OTP verification failed';
+                const payload = result.payload as { message?: string } | string | undefined;
+                const errorMessage = typeof payload === 'object' && payload?.message ? payload.message : (payload as string) || 'OTP verification failed';
+                dispatch(showToast({ message: errorMessage, type: 'error' }));
                 await announceToScreenReader(`Verification failed. ${errorMessage}`, { isAlert: true });
                 setError('otpCode', { message: errorMessage });
             }
         } catch (error) {
             const errorMessage = 'An unexpected error occurred';
+            dispatch(showToast({ message: errorMessage, type: 'error' }));
             await announceToScreenReader(`Error: ${errorMessage}`, { isAlert: true });
             setError('otpCode', { message: errorMessage });
         }
@@ -175,7 +183,7 @@ export const OTPVerificationScreen: React.FC = () => {
 
     return (
         <LinearGradient
-            colors={['#F2ECFF', '#D6C9FF', '#B7A1FF']}
+            colors={[...AppColors.gradientAuth]}
             style={styles.gradient}
         >
             <SafeAreaView style={styles.container}>
@@ -319,21 +327,21 @@ const styles = StyleSheet.create({
     },
     backButton: {
         alignSelf: 'flex-start',
-        borderColor: '#7B5CFA',
+        borderColor: AppColors.primary,
     },
     backButtonText: {
-        color: '#7B5CFA',
+        color: AppColors.primary,
     },
     logoBubble: {
         width: 64,
         height: 64,
         borderRadius: 32,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 16,
         marginBottom: 10,
-        shadowColor: '#6D4CFF',
+        shadowColor: AppColors.primaryDark,
         shadowOpacity: 0.2,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
@@ -347,7 +355,7 @@ const styles = StyleSheet.create({
     logoText: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#3A2C7B',
+        color: AppColors.text,
     },
     centerContent: {
         flex: 1,
@@ -385,15 +393,15 @@ const styles = StyleSheet.create({
     },
     submitButton: {
         marginTop: 8,
-        backgroundColor: '#7B5CFA',
+        backgroundColor: AppColors.primary,
         borderRadius: 14,
     },
     submitButtonText: {
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     errorText: {
         fontSize: 15,
-        color: '#ef4444',
+        color: AppColors.error,
         textAlign: 'center',
         fontWeight: '500',
         marginTop: 16,
@@ -404,22 +412,22 @@ const styles = StyleSheet.create({
     },
     resendText: {
         fontSize: 13,
-        color: '#5E55A6',
+        color: AppColors.textSecondary,
         marginBottom: 12,
     },
     resendButton: {
         minWidth: 120,
-        borderColor: '#7B5CFA',
+        borderColor: AppColors.primary,
     },
     resendButtonText: {
-        color: '#7B5CFA',
+        color: AppColors.primary,
     },
     helpContainer: {
         paddingTop: 12,
     },
     helpText: {
         fontSize: 13,
-        color: '#5E55A6',
+        color: AppColors.textSecondary,
         textAlign: 'center',
         lineHeight: 18,
     },

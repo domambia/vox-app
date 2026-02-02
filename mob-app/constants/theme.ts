@@ -1,41 +1,64 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * App color palette: green, white, black.
+ * Use these across the entire UI for consistency.
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// Primary palette
+export const AppColors = {
+  primary: '#22c55e',      // Green (buttons, accents, links, selected)
+  primaryDark: '#16a34a',  // Darker green (pressed, headers)
+  background: '#ffffff',   // White (screens, cards)
+  text: '#000000',        // Black (primary text)
+  textSecondary: '#374151', // Gray-700 (secondary text, hints)
+  border: '#e5e7eb',      // Light gray (borders, dividers)
+  borderLight: '#f3f4f6', // Lighter gray
+  error: '#dc2626',       // Red (errors, destructive)
+  errorBgLight: '#fef2f2', // Light red background (error banners)
+  warning: '#f59e0b',    // Amber (pending, warnings)
+  success: '#22c55e',     // Same as primary
+  white: '#ffffff',
+  black: '#000000',
+  // For dark sections (e.g. chat headers) use primaryDark with white text
+  headerBg: '#16a34a',
+  headerText: '#ffffff',
+  // Inputs
+  inputBg: '#f9fafb',
+  inputBorder: '#e5e7eb',
+  placeholder: '#6b7280',
+  // Light green gradient for auth screens (green/white theme)
+  gradientAuth: ['#f0fdf4', '#dcfce7', '#bbf7d0'] as readonly [string, string, string],
+};
+
+// Legacy Colors for themed-text / themed-view if still used
+const tintColorLight = AppColors.primary;
+const tintColorDark = AppColors.white;
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: AppColors.text,
+    background: AppColors.background,
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    icon: AppColors.textSecondary,
+    tabIconDefault: AppColors.textSecondary,
+    tabIconSelected: AppColors.primary,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: AppColors.white,
+    background: '#0f172a',
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    icon: '#94a3b8',
+    tabIconDefault: '#94a3b8',
+    tabIconSelected: AppColors.primary,
   },
 };
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {

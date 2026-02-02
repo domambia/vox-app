@@ -10,6 +10,8 @@ import {
   joinGroupSchema,
   leaveGroupSchema,
   getGroupMembersSchema,
+  getGroupMessagesSchema,
+  sendGroupMessageSchema,
   updateMemberRoleSchema,
   removeMemberSchema,
 } from '@/validations/group.validation';
@@ -174,6 +176,30 @@ router.get(
   authenticate,
   validate(getGroupSchema),
   groupController.getGroup.bind(groupController)
+);
+
+/**
+ * @route   GET /api/v1/groups/:groupId/messages
+ * @desc    Get group messages (members only)
+ * @access  Private (Authenticated)
+ */
+router.get(
+  '/:groupId/messages',
+  authenticate,
+  validate(getGroupMessagesSchema),
+  groupController.getGroupMessages.bind(groupController)
+);
+
+/**
+ * @route   POST /api/v1/groups/:groupId/messages
+ * @desc    Send group message (members only)
+ * @access  Private (Authenticated)
+ */
+router.post(
+  '/:groupId/messages',
+  authenticate,
+  validate(sendGroupMessageSchema),
+  groupController.sendGroupMessage.bind(groupController)
 );
 
 /**

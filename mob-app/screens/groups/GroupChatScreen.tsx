@@ -9,337 +9,199 @@ import {
     Platform,
     TouchableOpacity,
     TextInput,
-    Alert,
+    ActivityIndicator,
+    RefreshControl,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
+import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { groupsService, GroupMessage } from '../../services/api/groupsService';
+import { useAppSelector } from '../../hooks';
 import type { GroupsStackParamList } from '../../navigation/MainNavigator';
 
 type GroupChatScreenNavigationProp = NativeStackNavigationProp<GroupsStackParamList, 'GroupChat'>;
 type GroupChatScreenRouteProp = RouteProp<GroupsStackParamList, 'GroupChat'>;
 
-interface GroupMessage {
-    id: string;
-    content: string;
-    senderId: string;
-    senderName: string;
-    timestamp: string;
-    messageType: 'text' | 'voice' | 'image';
-    isMine: boolean;
-    status: 'sent' | 'delivered' | 'read';
-}
-
-// Mock data for group chat
-const mockGroupMessages: GroupMessage[] = [
-    {
-        id: '1',
-        content: 'Welcome to our gaming community! 🎮',
-        senderId: 'user1',
-        senderName: 'Sarah Johnson',
-        timestamp: '2:30 PM',
-        messageType: 'text',
-        isMine: false,
-        status: 'read',
-    },
-    {
-        id: '2',
-        content: 'Thanks for having me! Looking forward to connecting with everyone.',
-        senderId: 'me',
-        senderName: 'You',
-        timestamp: '2:31 PM',
-        messageType: 'text',
-        isMine: true,
-        status: 'read',
-    },
-    {
-        id: '3',
-        content: 'Hey everyone! What games are you all into?',
-        senderId: 'user2',
-        senderName: 'Mike Chen',
-        timestamp: '2:32 PM',
-        messageType: 'text',
-        isMine: false,
-        status: 'read',
-    },
-    {
-        id: '4',
-        content: 'I love strategy games and RPGs. Anyone play Baldur\'s Gate?',
-        senderId: 'user1',
-        senderName: 'Sarah Johnson',
-        timestamp: '2:33 PM',
-        messageType: 'text',
-        isMine: false,
-        status: 'read',
-    },
-    {
-        id: '5',
-        content: 'I\'m more into action games, but I\'m always open to trying new things!',
-        senderId: 'me',
-        senderName: 'You',
-        timestamp: '2:34 PM',
-        messageType: 'text',
-        isMine: true,
-        status: 'delivered',
-    },
-];
-
 /**
- * Group Chat Screen - WhatsApp-style group conversation
- * Voice-first design with accessible group messaging interface
+ * Group Chat Screen - WhatsApp-style group messaging (real API)
+ * GET/POST /api/v1/groups/:groupId/messages
  */
 export const GroupChatScreen: React.FC = () => {
     const navigation = useNavigation<GroupChatScreenNavigationProp>();
     const route = useRoute<GroupChatScreenRouteProp>();
     const { groupId, groupName } = route.params;
+    const currentUserId = useAppSelector((state) => state.auth.user?.userId) ?? '';
 
-    const [messages, setMessages] = useState<GroupMessage[]>(mockGroupMessages);
+    const [messages, setMessages] = useState<GroupMessage[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [newMessage, setNewMessage] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const flatListRef = useRef<FlatList>(null);
 
-    // Announce screen on load
-    useEffect(() => {
-        const announceScreen = async () => {
-            setTimeout(async () => {
-                await announceToScreenReader(
-                    `Group chat: ${groupName}. ${messages.length} messages.`
-                );
-            }, 500);
-        };
-
-        announceScreen();
-    }, [groupName, messages.length]);
-
-    // Scroll to bottom when new messages arrive
-    useEffect(() => {
-        if (messages.length > 0) {
-            setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
+    const loadMessages = async () => {
+        if (!groupId) return;
+        try {
+            setError(null);
+            const res = await groupsService.getGroupMessages({ groupId, limit: 100, offset: 0 });
+            setMessages(res.items ?? []);
+        } catch (e: any) {
+            setError(e.message ?? 'Failed to load messages');
+            setMessages([]);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
-    }, [messages]);
-
-    const handleSendMessage = async () => {
-        if (!newMessage.trim()) return;
-
-        const message: GroupMessage = {
-            id: Date.now().toString(),
-            content: newMessage.trim(),
-            senderId: 'me',
-            senderName: 'You',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            messageType: 'text',
-            isMine: true,
-            status: 'sent',
-        };
-
-        setMessages(prev => [...prev, message]);
-        setNewMessage('');
-
-        await announceToScreenReader('Message sent to group');
-
-        // Simulate message being delivered
-        setTimeout(() => {
-            setMessages(prev =>
-                prev.map(msg =>
-                    msg.id === message.id ? { ...msg, status: 'delivered' as const } : msg
-                )
-            );
-        }, 1000);
     };
 
-    const handleVoiceRecord = async () => {
-        if (isRecording) {
-            setIsRecording(false);
-            await announceToScreenReader('Voice recording stopped. Sending voice message to group.');
-            // TODO: Send voice message
-        } else {
-            setIsRecording(true);
-            await announceToScreenReader('Voice recording started. Hold to record, release to send to group.');
+    useEffect(() => {
+        loadMessages();
+    }, [groupId]);
+
+    useEffect(() => {
+        if (messages.length > 0 || !loading) {
+            setTimeout(() =>
+                announceToScreenReader(`Group: ${groupName}. ${messages.length} messages.`)
+            , 500);
+        }
+    }, [groupName, messages.length, loading]);
+
+    useEffect(() => {
+        if (messages.length > 0) setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }, [messages.length]);
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        loadMessages();
+    };
+
+    const handleSend = async () => {
+        const content = newMessage.trim();
+        if (!content || sending) return;
+        setSending(true);
+        setNewMessage('');
+        try {
+            const sent = await groupsService.sendGroupMessage(groupId, content);
+            setMessages((prev) => [...prev, sent]);
+            announceToScreenReader('Message sent');
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        } catch (e: any) {
+            setNewMessage(content);
+            setError(e.message ?? 'Failed to send');
+            announceToScreenReader('Failed to send message');
+        } finally {
+            setSending(false);
         }
     };
 
     const handleBack = () => {
-        announceToScreenReader(`Going back to ${groupName} group`);
+        announceToScreenReader('Going back to groups');
         navigation.goBack();
     };
 
-    const handleAttachment = () => {
-        announceToScreenReader('Attachment options for group');
-        // TODO: Show attachment picker
+    const senderName = (msg: GroupMessage) => {
+        if (msg.senderId === currentUserId) return 'You';
+        const s = msg.sender;
+        if (!s) return 'Member';
+        const first = s.firstName ?? '';
+        const last = s.lastName ?? '';
+        return [first, last].filter(Boolean).join(' ') || 'Member';
     };
 
-    const handleGroupInfo = () => {
-        announceToScreenReader('Group information');
-        // TODO: Show group details modal
-    };
+    const formatTime = (dateStr: string) =>
+        dateStr ? new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
-    const renderMessage = ({ item }: { item: GroupMessage }) => (
-        <View style={[
-            styles.messageContainer,
-            item.isMine ? styles.myMessageContainer : styles.otherMessageContainer
-        ]}>
-            {!item.isMine && (
-                <View style={styles.senderInfo}>
-                    <Text style={styles.senderName}>{item.senderName}</Text>
-                </View>
-            )}
-
-            <View style={[
-                styles.messageBubble,
-                item.isMine ? styles.myMessageBubble : styles.otherMessageBubble
-            ]}>
-                <Text style={[
-                    styles.messageText,
-                    item.isMine ? styles.myMessageText : styles.otherMessageText
-                ]}>
-                    {item.content}
-                </Text>
-                <View style={styles.messageFooter}>
-                    <Text style={[
-                        styles.messageTime,
-                        item.isMine ? styles.myMessageTime : styles.otherMessageTime
-                    ]}>
-                        {item.timestamp}
-                    </Text>
-                    {item.isMine && (
-                        <Text style={styles.messageStatus}>
-                            {item.status === 'sent' ? '✓' : item.status === 'delivered' ? '✓✓' : '✓✓'}
-                        </Text>
-                    )}
-                </View>
-            </View>
-        </View>
-    );
-
-    const renderTypingIndicator = () => {
-        if (!isTyping) return null;
-
+    const renderMessage = ({ item }: { item: GroupMessage }) => {
+        const isMine = item.senderId === currentUserId;
         return (
-            <View style={styles.typingContainer}>
-                <Text style={styles.typingText} accessibilityRole="text">
-                    Someone is typing...
-                </Text>
+            <View style={[styles.messageRow, isMine ? styles.myMessageRow : styles.otherMessageRow]}>
+                {!isMine && (
+                    <Text style={styles.senderName} numberOfLines={1}>
+                        {senderName(item)}
+                    </Text>
+                )}
+                <View style={[styles.bubble, isMine ? styles.myBubble : styles.otherBubble]}>
+                    <Text style={[styles.bubbleText, isMine ? styles.myBubbleText : styles.otherBubbleText]}>
+                        {item.content}
+                    </Text>
+                    <Text style={[styles.time, isMine ? styles.myTime : styles.otherTime]}>
+                        {formatTime(item.createdAt)}
+                    </Text>
+                </View>
             </View>
         );
     };
 
+    if (loading && messages.length === 0) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <AccessibleButton title="Back" onPress={handleBack} variant="outline" size="small" style={styles.backButton} textStyle={styles.backButtonText} />
+                    <Text style={styles.headerTitle}>{groupName}</Text>
+                </View>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={AppColors.primary} />
+                    <Text style={styles.loadingText}>Loading messages...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <AccessibleButton
-                    title="Back"
-                    onPress={handleBack}
-                    variant="outline"
-                    size="small"
-                    accessibilityHint={`Return to ${groupName} group`}
-                    style={styles.backButton}
-                    textStyle={styles.backButtonText}
-                />
-                <View style={styles.headerContent}>
-                    <Text style={styles.headerTitle} accessibilityRole="header">
-                        {groupName}
-                    </Text>
-                    <Text style={styles.headerSubtitle} accessibilityRole="text">
-                        15 members
-                    </Text>
-                </View>
-                <View style={styles.headerActions}>
-                    <TouchableOpacity
-                        style={styles.headerAction}
-                        onPress={handleGroupInfo}
-                        accessibilityRole="button"
-                        accessibilityLabel="Group information"
-                        accessibilityHint="View group details and members"
-                    >
-                        <Ionicons name="information-circle-outline" size={24} color="#007AFF" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.headerAction}
-                        onPress={() => announceToScreenReader('Group options')}
-                        accessibilityRole="button"
-                        accessibilityLabel="Group options"
-                        accessibilityHint="Open group settings and options menu"
-                    >
-                        <Ionicons name="ellipsis-vertical" size={20} color="#007AFF" />
-                    </TouchableOpacity>
-                </View>
+            <OfflineBanner />
+            <View style={[styles.header, styles.headerWhatsApp]}>
+                <AccessibleButton title="Back" onPress={handleBack} variant="outline" size="small" style={styles.backButton} textStyle={styles.backButtonText} />
+                <Text style={styles.headerTitleWhite} numberOfLines={1}>{groupName}</Text>
             </View>
 
-            {/* Messages List */}
+            {error ? (
+                <View style={styles.errorBanner}>
+                    <Text style={styles.errorText}>{error}</Text>
+                </View>
+            ) : null}
+
             <FlatList
                 ref={flatListRef}
                 data={messages}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item.messageId}
                 renderItem={renderMessage}
-                style={styles.messagesList}
-                contentContainerStyle={styles.messagesContainer}
-                showsVerticalScrollIndicator={false}
-                accessibilityLabel="Group messages"
-                ListFooterComponent={renderTypingIndicator}
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+                ListEmptyComponent={
+                    <View style={styles.emptyWrap}>
+                        <Text style={styles.emptyText}>No messages yet. Say hello!</Text>
+                    </View>
+                }
             />
 
-            {/* Message Input */}
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.inputContainer}
-            >
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inputWrap}>
                 <View style={styles.inputRow}>
-                    <TouchableOpacity
-                        style={styles.attachmentButton}
-                        onPress={handleAttachment}
-                        accessibilityRole="button"
-                        accessibilityLabel="Add attachment"
-                        accessibilityHint="Add photo, document, or other attachment to group"
-                    >
-                        <Ionicons name="add" size={24} color="#007AFF" />
-                    </TouchableOpacity>
-
-                    <View style={styles.textInputContainer}>
+                    <View style={styles.inputBox}>
                         <TextInput
-                            style={styles.textInput}
+                            style={styles.input}
                             value={newMessage}
                             onChangeText={setNewMessage}
-                            placeholder={`Message ${groupName}...`}
-                            placeholderTextColor="#6C757D"
+                            placeholder="Message"
+                            placeholderTextColor={AppColors.placeholder}
                             multiline
-                            maxLength={1000}
-                            accessibilityLabel="Group message input"
-                            accessibilityHint={`Type your message to ${groupName}`}
+                            maxLength={4000}
                         />
                     </View>
-
-                    {newMessage.trim() ? (
-                        <AccessibleButton
-                            title="Send"
-                            onPress={handleSendMessage}
-                            variant="primary"
-                            size="small"
-                            accessibilityHint="Send message to group"
-                            style={styles.sendButton}
-                            textStyle={styles.sendButtonText}
-                        />
-                    ) : (
-                        <TouchableOpacity
-                            style={[styles.voiceButton, isRecording && styles.recordingButton]}
-                            onPress={handleVoiceRecord}
-                            accessibilityRole="button"
-                            accessibilityLabel={isRecording ? "Stop recording" : "Record voice message"}
-                            accessibilityHint={isRecording ? "Release to send voice message to group" : "Hold to record voice message for group"}
-                            accessibilityState={{ selected: isRecording }}
-                        >
-                            <Ionicons
-                                name={isRecording ? "stop" : "mic"}
-                                size={20}
-                                color={isRecording ? "#FF3B30" : "#007AFF"}
-                            />
-                        </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                        style={[styles.sendBtn, (!newMessage.trim() || sending) && styles.sendBtnDisabled]}
+                        onPress={handleSend}
+                        disabled={!newMessage.trim() || sending}
+                        accessibilityLabel="Send message"
+                    >
+                        <Ionicons name="send" size={22} color={AppColors.white} />
+                    </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -347,181 +209,50 @@ export const GroupChatScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#E5E5E5',
-    },
+    container: { flex: 1, backgroundColor: AppColors.background },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
-    backButton: {
-        marginRight: 12,
-    },
-    backButtonText: {
-        fontSize: 14,
-    },
-    headerContent: {
-        flex: 1,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#000000',
-    },
-    headerSubtitle: {
-        fontSize: 12,
-        color: '#6C757D',
-        marginTop: 2,
-    },
-    headerActions: {
-        flexDirection: 'row',
-    },
-    headerAction: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: 8,
-    },
-    messagesList: {
-        flex: 1,
-    },
-    messagesContainer: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-    },
-    messageContainer: {
-        marginVertical: 2,
-        maxWidth: '80%',
-    },
-    myMessageContainer: {
-        alignSelf: 'flex-end',
-        alignItems: 'flex-end',
-    },
-    otherMessageContainer: {
-        alignSelf: 'flex-start',
-        alignItems: 'flex-start',
-    },
-    senderInfo: {
-        marginBottom: 4,
-        marginLeft: 12,
-    },
-    senderName: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#6C757D',
-    },
-    messageBubble: {
+    headerWhatsApp: { backgroundColor: AppColors.primaryDark },
+    backButton: { marginRight: 12 },
+    backButtonText: { fontSize: 14, color: AppColors.white },
+    headerTitle: { fontSize: 18, fontWeight: '600', color: AppColors.text, flex: 1 },
+    headerTitleWhite: { fontSize: 18, fontWeight: '600', color: AppColors.white, flex: 1 },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+    loadingText: { fontSize: 14, color: AppColors.textSecondary },
+    errorBanner: { backgroundColor: AppColors.errorBgLight, paddingHorizontal: 16, paddingVertical: 8 },
+    errorText: { fontSize: 13, color: AppColors.error },
+    list: { flex: 1 },
+    listContent: { paddingHorizontal: 12, paddingVertical: 8, paddingBottom: 16 },
+    messageRow: { marginVertical: 2, maxWidth: '82%' },
+    myMessageRow: { alignSelf: 'flex-end', alignItems: 'flex-end' },
+    otherMessageRow: { alignSelf: 'flex-start', alignItems: 'flex-start' },
+    senderName: { fontSize: 12, color: AppColors.primary, marginBottom: 2, marginLeft: 4 },
+    bubble: {
         paddingHorizontal: 12,
         paddingVertical: 8,
-        borderRadius: 18,
+        borderRadius: 8,
         maxWidth: 280,
     },
-    myMessageBubble: {
-        backgroundColor: '#007AFF',
-    },
-    otherMessageBubble: {
-        backgroundColor: '#FFFFFF',
-    },
-    messageText: {
-        fontSize: 16,
-        lineHeight: 20,
-    },
-    myMessageText: {
-        color: '#FFFFFF',
-    },
-    otherMessageText: {
-        color: '#000000',
-    },
-    messageFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        marginTop: 4,
-    },
-    messageTime: {
-        fontSize: 11,
-        marginRight: 4,
-    },
-    myMessageTime: {
-        color: 'rgba(255, 255, 255, 0.7)',
-    },
-    otherMessageTime: {
-        color: '#6C757D',
-    },
-    messageStatus: {
-        fontSize: 11,
-        color: 'rgba(255, 255, 255, 0.7)',
-    },
-    typingContainer: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        alignSelf: 'flex-start',
-    },
-    typingText: {
-        fontSize: 14,
-        color: '#6C757D',
-        fontStyle: 'italic',
-    },
-    inputContainer: {
-        backgroundColor: '#FFFFFF',
-        borderTopWidth: 1,
-        borderTopColor: '#E5E5E5',
-    },
-    inputRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-    },
-    attachmentButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 8,
-    },
-    textInputContainer: {
-        flex: 1,
-        backgroundColor: '#F8F9FA',
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-        marginRight: 8,
-        maxHeight: 100,
-    },
-    textInput: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        fontSize: 16,
-        color: '#000000',
-        minHeight: 36,
-        maxHeight: 80,
-    },
-    sendButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-    },
-    sendButtonText: {
-        fontSize: 12,
-    },
-    voiceButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    recordingButton: {
-        backgroundColor: '#FF3B30',
-    },
+    myBubble: { backgroundColor: AppColors.primary, borderTopRightRadius: 2 },
+    otherBubble: { backgroundColor: AppColors.borderLight, borderTopLeftRadius: 2 },
+    bubbleText: { fontSize: 15, lineHeight: 20 },
+    myBubbleText: { color: AppColors.white },
+    otherBubbleText: { color: AppColors.text },
+    time: { fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
+    myTime: { color: 'rgba(255,255,255,0.85)' },
+    otherTime: { color: AppColors.textSecondary },
+    emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 48 },
+    emptyText: { fontSize: 15, color: AppColors.textSecondary },
+    inputWrap: { backgroundColor: AppColors.background, borderTopWidth: 1, borderTopColor: AppColors.border, paddingBottom: Platform.OS === 'ios' ? 24 : 8 },
+    inputRow: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+    inputBox: { flex: 1, backgroundColor: AppColors.inputBg, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 8, minHeight: 42, maxHeight: 120 },
+    input: { fontSize: 16, color: AppColors.text, minHeight: 26, maxHeight: 100 },
+    sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: AppColors.primary, justifyContent: 'center', alignItems: 'center' },
+    sendBtnDisabled: { opacity: 0.5 },
 });

@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, User } from '@prisma/client';
+import { PrismaClient, UserRole, User, LookingFor } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -409,11 +409,414 @@ async function main() {
   }
   console.log(`\n🔑 Default password for password-based users: ${defaultPassword}`);
   console.log('   - OTP_ONLY has no password (OTP login only)');
+
+  // Profile data for each seeded user (bio, interests, location, looking_for per schema).
+  // If running in Docker and you only see countries + users, rebuild: docker compose build backend && docker compose up -d
+  const profileData: Array<{
+    phone_number: string;
+    bio: string;
+    interests: string[];
+    location: string;
+    looking_for: LookingFor;
+  }> = [
+    {
+      phone_number: '+35699123456',
+      bio: 'Voice-first enthusiast. Love hiking and live music. Always up for a coffee chat.',
+      interests: ['hiking', 'music', 'coffee', 'accessibility'],
+      location: 'Valletta, Malta',
+      looking_for: LookingFor.FRIENDSHIP,
+    },
+    {
+      phone_number: '+35699234567',
+      bio: 'Community moderator. Into tech and inclusive events.',
+      interests: ['tech', 'events', 'community'],
+      location: 'Sliema, Malta',
+      looking_for: LookingFor.ALL,
+    },
+    {
+      phone_number: '+35699345678',
+      bio: 'Admin at VOX. Here to help the community grow.',
+      interests: ['community', 'support'],
+      location: 'Malta',
+      looking_for: LookingFor.ALL,
+    },
+    {
+      phone_number: '+35699456789',
+      bio: 'OTP-only user. Prefer quick voice intros.',
+      interests: ['voice', 'meetups'],
+      location: 'St. Julian\'s, Malta',
+      looking_for: LookingFor.HOBBY,
+    },
+    {
+      phone_number: '+35699567890',
+      bio: 'New here. Still setting up my profile.',
+      interests: [],
+      location: 'Malta',
+      looking_for: LookingFor.ALL,
+    },
+    {
+      phone_number: '+35699678901',
+      bio: 'Inactive account. Was into photography and travel.',
+      interests: ['photography', 'travel'],
+      location: 'Gozo, Malta',
+      looking_for: LookingFor.DATING,
+    },
+  ];
+
+  console.log('\n📋 Seeding profiles for users...');
+  for (const data of profileData) {
+    const user = seededUsers.find((u) => u.user.phone_number === data.phone_number)?.user;
+    if (!user) continue;
+    await prisma.profile.upsert({
+      where: { user_id: user.user_id },
+      update: {
+        bio: data.bio,
+        interests: data.interests,
+        location: data.location,
+        looking_for: data.looking_for,
+      },
+      create: {
+        user_id: user.user_id,
+        bio: data.bio,
+        interests: data.interests,
+        location: data.location,
+        looking_for: data.looking_for,
+      },
+    });
+  }
+  console.log(`✅ Seeded ${profileData.length} profiles`);
+
+  // Comprehensive social data: groups, events, conversations/messages, friendships, likes, matches, voice call, KYC
+  const testUser = seededUsers.find((u) => u.label === 'USER')?.user;
+  const otpUser = seededUsers.find((u) => u.label === 'OTP_ONLY')?.user;
+  const modUser = seededUsers.find((u) => u.label === 'MODERATOR')?.user;
+  const adminUser = seededUsers.find((u) => u.label === 'ADMIN')?.user;
+  const unverifiedUser = seededUsers.find((u) => u.label === 'UNVERIFIED')?.user;
+  const inactiveUser = seededUsers.find((u) => u.label === 'INACTIVE')?.user;
+
+  if (!testUser || !otpUser || !modUser || !adminUser) {
+    console.log('\n⚠️ Skipping social seed: required users not found');
+  } else {
+    console.log('\n👥 Seeding groups, events, messages, friendships, likes, matches, voice call, KYC...');
+
+    const orderedPair = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
+
+    // —— Groups (2 groups; 5 users in at least one group) ——
+    const groupCommunity = await prisma.group.upsert({
+      where: { group_id: 'seed-group-vox-community' },
+      update: { name: 'VOX Community', description: 'Main community group for VOX users.', category: 'Community', member_count: 4 },
+      create: {
+        group_id: 'seed-group-vox-community',
+        name: 'VOX Community',
+        description: 'Main community group for VOX users.',
+        category: 'Community',
+        creator_id: modUser.user_id,
+        is_public: true,
+        member_count: 0,
+      },
+    });
+
+    for (const { userId, role } of [
+      { userId: modUser.user_id, role: 'ADMIN' as const },
+      { userId: testUser.user_id, role: 'MEMBER' as const },
+      { userId: otpUser.user_id, role: 'MEMBER' as const },
+      ...(unverifiedUser ? [{ userId: unverifiedUser.user_id, role: 'MEMBER' as const }] : []),
+    ]) {
+      await prisma.groupMember.upsert({
+        where: { group_id_user_id: { group_id: groupCommunity.group_id, user_id: userId } },
+        update: {},
+        create: { group_id: groupCommunity.group_id, user_id: userId, role },
+      });
+    }
+    await prisma.group.update({
+      where: { group_id: groupCommunity.group_id },
+      data: { member_count: unverifiedUser ? 4 : 3 },
+    });
+
+    const groupAdmins = await prisma.group.upsert({
+      where: { group_id: 'seed-group-vox-admins' },
+      update: { name: 'VOX Admins', description: 'Admin & moderator group.', category: 'Admin', member_count: 3 },
+      create: {
+        group_id: 'seed-group-vox-admins',
+        name: 'VOX Admins',
+        description: 'Admin & moderator group.',
+        category: 'Admin',
+        creator_id: adminUser.user_id,
+        is_public: false,
+        member_count: 0,
+      },
+    });
+    for (const { userId, role } of [
+      { userId: adminUser.user_id, role: 'ADMIN' as const },
+      { userId: modUser.user_id, role: 'MODERATOR' as const },
+      { userId: testUser.user_id, role: 'MEMBER' as const },
+    ]) {
+      await prisma.groupMember.upsert({
+        where: { group_id_user_id: { group_id: groupAdmins.group_id, user_id: userId } },
+        update: {},
+        create: { group_id: groupAdmins.group_id, user_id: userId, role },
+      });
+    }
+    await prisma.group.update({
+      where: { group_id: groupAdmins.group_id },
+      data: { member_count: 3 },
+    });
+
+    // —— Events (2 events; multiple RSVPs across users) ——
+    const eventDate1 = new Date();
+    eventDate1.setDate(eventDate1.getDate() + 7);
+    const eventMeetup = await prisma.event.upsert({
+      where: { event_id: 'seed-event-meetup' },
+      update: { title: 'VOX Voice Meetup', description: 'Monthly voice-first meetup.', date_time: eventDate1, location: 'Valletta', attendee_count: 3 },
+      create: {
+        event_id: 'seed-event-meetup',
+        group_id: groupCommunity.group_id,
+        creator_id: modUser.user_id,
+        title: 'VOX Voice Meetup',
+        description: 'Monthly voice-first meetup.',
+        date_time: eventDate1,
+        location: 'Valletta',
+        attendee_count: 0,
+      },
+    });
+    for (const userId of [modUser.user_id, testUser.user_id, otpUser.user_id]) {
+      await prisma.eventRSVP.upsert({
+        where: { event_id_user_id: { event_id: eventMeetup.event_id, user_id: userId } },
+        update: {},
+        create: { event_id: eventMeetup.event_id, user_id: userId, status: 'GOING' },
+      });
+    }
+    await prisma.event.update({
+      where: { event_id: eventMeetup.event_id },
+      data: { attendee_count: 3 },
+    });
+
+    const eventDate2 = new Date();
+    eventDate2.setDate(eventDate2.getDate() + 14);
+    const eventQa = await prisma.event.upsert({
+      where: { event_id: 'seed-event-admin-qa' },
+      update: { title: 'Admin Q&A', description: 'Monthly admin Q&A session.', date_time: eventDate2, location: 'Online', attendee_count: 3 },
+      create: {
+        event_id: 'seed-event-admin-qa',
+        group_id: groupAdmins.group_id,
+        creator_id: adminUser.user_id,
+        title: 'Admin Q&A',
+        description: 'Monthly admin Q&A session.',
+        date_time: eventDate2,
+        location: 'Online',
+        attendee_count: 0,
+      },
+    });
+    for (const userId of [adminUser.user_id, modUser.user_id, otpUser.user_id]) {
+      await prisma.eventRSVP.upsert({
+        where: { event_id_user_id: { event_id: eventQa.event_id, user_id: userId } },
+        update: {},
+        create: { event_id: eventQa.event_id, user_id: userId, status: 'GOING' },
+      });
+    }
+    await prisma.event.update({
+      where: { event_id: eventQa.event_id },
+      data: { attendee_count: 3 },
+    });
+
+    // —— Conversations & Messages ——
+    const convUserOtp = orderedPair(testUser.user_id, otpUser.user_id);
+    const conv1 = await prisma.conversation.upsert({
+      where: { user_a_id_user_b_id: { user_a_id: convUserOtp[0], user_b_id: convUserOtp[1] } },
+      update: {},
+      create: { user_a_id: convUserOtp[0], user_b_id: convUserOtp[1] },
+    });
+    const messages1 = [
+      { sender_id: testUser.user_id, content: 'Hey! Nice to match with you.' },
+      { sender_id: otpUser.user_id, content: 'Hi! Same here, voice-first is the way.' },
+      { sender_id: testUser.user_id, content: 'Want to join the Voice Meetup next week?' },
+      { sender_id: otpUser.user_id, content: 'Yes, already RSVP\'d. See you there!' },
+    ];
+    const existingCount1 = await prisma.message.count({ where: { conversation_id: conv1.conversation_id } });
+    let lastMsgAt: Date | null = null;
+    if (existingCount1 === 0) {
+      for (const m of messages1) {
+        const msg = await prisma.message.create({
+          data: { conversation_id: conv1.conversation_id, sender_id: m.sender_id, content: m.content, message_type: 'TEXT' },
+        });
+        lastMsgAt = msg.created_at;
+      }
+      await prisma.conversation.update({
+        where: { conversation_id: conv1.conversation_id },
+        data: { last_message_at: lastMsgAt },
+      });
+    }
+
+    const convModUser = orderedPair(modUser.user_id, testUser.user_id);
+    const conv2 = await prisma.conversation.upsert({
+      where: { user_a_id_user_b_id: { user_a_id: convModUser[0], user_b_id: convModUser[1] } },
+      update: {},
+      create: { user_a_id: convModUser[0], user_b_id: convModUser[1] },
+    });
+    const messages2 = [
+      { sender_id: modUser.user_id, content: 'Thanks for joining VOX Community!' },
+      { sender_id: testUser.user_id, content: 'Happy to be here.' },
+      { sender_id: modUser.user_id, content: 'See you at the meetup.' },
+    ];
+    const existingCount2 = await prisma.message.count({ where: { conversation_id: conv2.conversation_id } });
+    lastMsgAt = null;
+    if (existingCount2 === 0) {
+      for (const m of messages2) {
+        const msg = await prisma.message.create({
+          data: { conversation_id: conv2.conversation_id, sender_id: m.sender_id, content: m.content, message_type: 'TEXT' },
+        });
+        lastMsgAt = msg.created_at;
+      }
+      await prisma.conversation.update({
+        where: { conversation_id: conv2.conversation_id },
+        data: { last_message_at: lastMsgAt },
+      });
+    }
+
+    const convAdminMod = orderedPair(adminUser.user_id, modUser.user_id);
+    const conv3 = await prisma.conversation.upsert({
+      where: { user_a_id_user_b_id: { user_a_id: convAdminMod[0], user_b_id: convAdminMod[1] } },
+      update: {},
+      create: { user_a_id: convAdminMod[0], user_b_id: convAdminMod[1] },
+    });
+    const messages3 = [
+      { sender_id: adminUser.user_id, content: 'Can you review the new event setup?' },
+      { sender_id: modUser.user_id, content: 'Done. Looks good.' },
+    ];
+    const existingCount3 = await prisma.message.count({ where: { conversation_id: conv3.conversation_id } });
+    lastMsgAt = null;
+    if (existingCount3 === 0) {
+      for (const m of messages3) {
+        const msg = await prisma.message.create({
+          data: { conversation_id: conv3.conversation_id, sender_id: m.sender_id, content: m.content, message_type: 'TEXT' },
+        });
+        lastMsgAt = msg.created_at;
+      }
+      await prisma.conversation.update({
+        where: { conversation_id: conv3.conversation_id },
+        data: { last_message_at: lastMsgAt },
+      });
+    }
+
+    // —— Friendships ——
+    const [ua1, ub1] = orderedPair(testUser.user_id, otpUser.user_id);
+    await prisma.friendship.upsert({
+      where: { user_a_id_user_b_id: { user_a_id: ua1, user_b_id: ub1 } },
+      update: {},
+      create: { user_a_id: ua1, user_b_id: ub1, status: 'ACCEPTED' },
+    });
+    const [ua2, ub2] = orderedPair(modUser.user_id, testUser.user_id);
+    await prisma.friendship.upsert({
+      where: { user_a_id_user_b_id: { user_a_id: ua2, user_b_id: ub2 } },
+      update: {},
+      create: { user_a_id: ua2, user_b_id: ub2, status: 'ACCEPTED' },
+    });
+    const [ua3, ub3] = orderedPair(adminUser.user_id, modUser.user_id);
+    await prisma.friendship.upsert({
+      where: { user_a_id_user_b_id: { user_a_id: ua3, user_b_id: ub3 } },
+      update: {},
+      create: { user_a_id: ua3, user_b_id: ub3, status: 'PENDING' },
+    });
+    if (unverifiedUser) {
+      const [ua4, ub4] = orderedPair(unverifiedUser.user_id, testUser.user_id);
+      await prisma.friendship.upsert({
+        where: { user_a_id_user_b_id: { user_a_id: ua4, user_b_id: ub4 } },
+        update: {},
+        create: { user_a_id: ua4, user_b_id: ub4, status: 'PENDING' },
+      });
+    }
+
+    // —— Likes & Matches ——
+    await prisma.like.upsert({
+      where: { liker_id_liked_id: { liker_id: testUser.user_id, liked_id: otpUser.user_id } },
+      update: {},
+      create: { liker_id: testUser.user_id, liked_id: otpUser.user_id },
+    });
+    await prisma.like.upsert({
+      where: { liker_id_liked_id: { liker_id: otpUser.user_id, liked_id: testUser.user_id } },
+      update: {},
+      create: { liker_id: otpUser.user_id, liked_id: testUser.user_id },
+    });
+    const [matchA1, matchB1] = orderedPair(testUser.user_id, otpUser.user_id);
+    await prisma.match.upsert({
+      where: { user_a_id_user_b_id: { user_a_id: matchA1, user_b_id: matchB1 } },
+      update: {},
+      create: { user_a_id: matchA1, user_b_id: matchB1, is_active: true },
+    });
+
+    await prisma.like.upsert({
+      where: { liker_id_liked_id: { liker_id: modUser.user_id, liked_id: testUser.user_id } },
+      update: {},
+      create: { liker_id: modUser.user_id, liked_id: testUser.user_id },
+    });
+    await prisma.like.upsert({
+      where: { liker_id_liked_id: { liker_id: testUser.user_id, liked_id: modUser.user_id } },
+      update: {},
+      create: { liker_id: testUser.user_id, liked_id: modUser.user_id },
+    });
+    const [matchA2, matchB2] = orderedPair(modUser.user_id, testUser.user_id);
+    await prisma.match.upsert({
+      where: { user_a_id_user_b_id: { user_a_id: matchA2, user_b_id: matchB2 } },
+      update: {},
+      create: { user_a_id: matchA2, user_b_id: matchB2, is_active: true },
+    });
+
+    await prisma.like.upsert({
+      where: { liker_id_liked_id: { liker_id: adminUser.user_id, liked_id: otpUser.user_id } },
+      update: {},
+      create: { liker_id: adminUser.user_id, liked_id: otpUser.user_id },
+    });
+    if (unverifiedUser) {
+      await prisma.like.upsert({
+        where: { liker_id_liked_id: { liker_id: unverifiedUser.user_id, liked_id: testUser.user_id } },
+        update: {},
+        create: { liker_id: unverifiedUser.user_id, liked_id: testUser.user_id },
+      });
+    }
+    if (inactiveUser) {
+      await prisma.like.upsert({
+        where: { liker_id_liked_id: { liker_id: testUser.user_id, liked_id: inactiveUser.user_id } },
+        update: {},
+        create: { liker_id: testUser.user_id, liked_id: inactiveUser.user_id },
+      });
+    }
+
+    // —— VoiceCall (one completed call) ——
+    await prisma.voiceCall.upsert({
+      where: { call_id: 'seed-call-user-otp' },
+      update: {},
+      create: {
+        call_id: 'seed-call-user-otp',
+        caller_id: testUser.user_id,
+        receiver_id: otpUser.user_id,
+        status: 'ENDED',
+        started_at: new Date(Date.now() - 3600000),
+        ended_at: new Date(Date.now() - 3480000),
+        duration: 120,
+      },
+    });
+
+    // —— KYCVerification (one pending for test user) ——
+    await prisma.kYCVerification.upsert({
+      where: { verification_id: 'seed-kyc-testuser' },
+      update: {},
+      create: {
+        verification_id: 'seed-kyc-testuser',
+        user_id: testUser.user_id,
+        method: 'DOCUMENT',
+        document_type: 'ID',
+        status: 'PENDING',
+      },
+    });
+
+    console.log('✅ Seeded: 2 groups (4+3 members), 2 events (3 RSVPs each), 3 conversations with messages, 3–4 friendships, likes/matches (USER↔OTP, MOD↔USER, ADMIN→OTP, etc.), 1 voice call, 1 KYC');
+  }
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error seeding countries:', e);
+    console.error('❌ Seed failed:', e instanceof Error ? e.message : e);
+    if (e instanceof Error && e.stack) console.error(e.stack);
     process.exit(1);
   })
   .finally(async () => {

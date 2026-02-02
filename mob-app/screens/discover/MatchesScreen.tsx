@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,20 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { discoveryService } from '../../services/api/discoveryService';
 
 type MatchesScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').DiscoverStackParamList, 'Matches'>;
 
-interface Match {
+interface MatchRow {
   matchId: string;
   userId: string;
   firstName: string;
@@ -30,82 +33,69 @@ interface Match {
   unreadCount: number;
 }
 
-// Mock matches data
-const mockMatches: Match[] = [
-  {
-    matchId: '1',
-    userId: '1',
-    firstName: 'Sarah',
-    lastName: 'Johnson',
-    bio: 'Music enthusiast and accessibility advocate.',
-    interests: ['Music', 'Technology', 'Accessibility'],
-    location: 'Valletta, Malta',
-    matchedAt: '2025-01-20T10:30:00Z',
-    lastMessage: 'Hey! How are you doing?',
-    unreadCount: 2,
-  },
-  {
-    matchId: '2',
-    userId: '2',
-    firstName: 'Mike',
-    lastName: 'Chen',
-    bio: 'Tech professional passionate about accessibility.',
-    interests: ['Technology', 'Coding', 'Accessibility'],
-    location: 'Sliema, Malta',
-    matchedAt: '2025-01-19T14:20:00Z',
-    lastMessage: 'Thanks for the great conversation!',
+function mapApiMatchToRow(raw: any): MatchRow {
+  const other = raw.other_user ?? raw.otherUser;
+  const profile = raw.profile;
+  const firstName = other?.first_name ?? other?.firstName ?? '';
+  const lastName = other?.last_name ?? other?.lastName ?? '';
+  const userId = other?.user_id ?? other?.userId ?? raw.userId ?? '';
+  const interests = Array.isArray(profile?.interests) ? profile.interests : [];
+  return {
+    matchId: raw.match_id ?? raw.matchId ?? userId,
+    userId,
+    firstName,
+    lastName,
+    bio: profile?.bio ?? undefined,
+    interests,
+    location: profile?.location ?? undefined,
+    matchedAt: raw.matched_at ?? raw.matchedAt ?? '',
+    lastMessage: undefined,
     unreadCount: 0,
-  },
-  {
-    matchId: '3',
-    userId: '3',
-    firstName: 'Emma',
-    lastName: 'Davis',
-    bio: 'Outdoor enthusiast and nature lover.',
-    interests: ['Hiking', 'Nature', 'Photography'],
-    location: 'St. Julian\'s, Malta',
-    matchedAt: '2025-01-18T09:15:00Z',
-    lastMessage: 'See you at the event tomorrow!',
-    unreadCount: 1,
-  },
-];
+  };
+}
 
 /**
- * Matches Screen - List of all matches
- * Voice-first design for accessible match viewing
+ * Matches Screen - List of all matches (real data from API)
  */
 export const MatchesScreen: React.FC = () => {
   const navigation = useNavigation<MatchesScreenNavigationProp>();
-  const [matches, setMatches] = useState<Match[]>(mockMatches);
+  const [matches, setMatches] = useState<MatchRow[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Announce screen on load
+  const loadMatches = async () => {
+    setLoading(true);
+    try {
+      const result = await discoveryService.getMatches();
+      const list = Array.isArray(result.matches) ? result.matches.map(mapApiMatchToRow) : [];
+      setMatches(list);
+    } catch {
+      setMatches([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const announceScreen = async () => {
-      setTimeout(async () => {
-        await announceToScreenReader(
-          `Matches screen. ${matches.length} matches. Double tap any match to start chatting.`
-        );
-      }, 500);
-    };
+    loadMatches();
+  }, []);
 
-    announceScreen();
-  }, [matches.length]);
+  useEffect(() => {
+    if (matches.length > 0 || !loading) {
+      setTimeout(() => announceToScreenReader(`Matches. ${matches.length} matches. Double tap any match to start chatting.`), 500);
+    }
+  }, [matches.length, loading]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await announceToScreenReader('Refreshing matches');
-
-    // Simulate API call
-    setTimeout(() => {
-      setRefreshing(false);
-      announceToScreenReader('Matches updated');
-    }, 1000);
+    await loadMatches();
+    setRefreshing(false);
+    announceToScreenReader('Matches updated');
   };
 
-  const handleMatchPress = async (match: Match) => {
+  const handleMatchPress = async (match: MatchRow) => {
     await announceToScreenReader(`Opening chat with ${match.firstName} ${match.lastName}`);
-    // Navigate to Messages tab and then to Chat screen
     const rootNavigation = navigation.getParent()?.getParent();
     if (rootNavigation) {
       rootNavigation.dispatch(
@@ -114,8 +104,8 @@ export const MatchesScreen: React.FC = () => {
           params: {
             screen: 'Chat',
             params: {
-              conversationId: match.userId,
               participantName: `${match.firstName} ${match.lastName}`,
+              participantId: match.userId,
             },
           },
         })
@@ -123,7 +113,7 @@ export const MatchesScreen: React.FC = () => {
     }
   };
 
-  const handleViewProfile = async (match: Match) => {
+  const handleViewProfile = async (match: MatchRow) => {
     await announceToScreenReader(`Viewing ${match.firstName} ${match.lastName}'s profile`);
     navigation.navigate('ProfileDetail', { userId: match.userId });
   };
@@ -145,7 +135,7 @@ export const MatchesScreen: React.FC = () => {
     }
   };
 
-  const renderMatchItem = ({ item }: { item: Match }) => (
+  const renderMatchItem = ({ item }: { item: MatchRow }) => (
     <TouchableOpacity
       style={styles.matchItem}
       onPress={() => handleMatchPress(item)}
@@ -203,7 +193,7 @@ export const MatchesScreen: React.FC = () => {
         accessibilityLabel={`View ${item.firstName}'s profile`}
         accessibilityHint="View full profile details"
       >
-        <Ionicons name="person-outline" size={20} color="#007AFF" />
+        <Ionicons name="person-outline" size={20} color={AppColors.primary} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -261,6 +251,12 @@ export const MatchesScreen: React.FC = () => {
         </Text>
       </View>
 
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={AppColors.primary} />
+          <Text style={styles.loadingText}>Loading matches...</Text>
+        </View>
+      ) : (
       <FlatList
         data={matches}
         keyExtractor={(item) => item.matchId}
@@ -278,6 +274,7 @@ export const MatchesScreen: React.FC = () => {
         accessibilityLabel="Matches list"
         contentContainerStyle={matches.length === 0 ? { flex: 1 } : undefined}
       />
+      )}
     </SafeAreaView>
   );
 };
@@ -285,23 +282,23 @@ export const MatchesScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
   },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: AppColors.border,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#000000',
+    color: AppColors.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
   },
   matchesList: {
     flex: 1,
@@ -311,7 +308,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: AppColors.border,
     alignItems: 'center',
     minHeight: 80,
   },
@@ -320,7 +317,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#007AFF',
+    backgroundColor: AppColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -328,13 +325,13 @@ const styles = StyleSheet.create({
   matchAvatarText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: AppColors.background,
   },
   unreadBadge: {
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#FF3B30',
+    backgroundColor: AppColors.error,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -342,12 +339,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 6,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: AppColors.background,
   },
   unreadCount: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: AppColors.background,
   },
   matchContent: {
     flex: 1,
@@ -362,17 +359,17 @@ const styles = StyleSheet.create({
   matchName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000000',
+    color: AppColors.text,
     flex: 1,
     marginRight: 8,
   },
   matchDate: {
     fontSize: 12,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
   },
   lastMessage: {
     fontSize: 14,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     marginBottom: 8,
   },
   matchFooter: {
@@ -387,15 +384,15 @@ const styles = StyleSheet.create({
   },
   interestTag: {
     fontSize: 12,
-    color: '#007AFF',
-    backgroundColor: '#E3F2FD',
+    color: AppColors.primary,
+    backgroundColor: AppColors.borderLight,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
   },
   location: {
     fontSize: 12,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
   },
   profileButton: {
     width: 32,
@@ -413,14 +410,14 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#000000',
+    color: AppColors.text,
     textAlign: 'center',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyDescription: {
     fontSize: 16,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
@@ -440,13 +437,23 @@ const styles = StyleSheet.create({
   tipTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
+    color: AppColors.text,
     marginBottom: 8,
   },
   tipItem: {
     fontSize: 14,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     lineHeight: 20,
     marginBottom: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: AppColors.textSecondary,
   },
 });

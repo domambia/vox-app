@@ -61,6 +61,7 @@ model User {
     conversations_as_user_a Conversation[]       @relation("UserA")
     conversations_as_user_b Conversation[]       @relation("UserB")
     messages_sent           Message[]
+    group_messages_sent    GroupMessage[]
     messageReactions        MessageReaction[]
     calls_initiated         VoiceCall[]          @relation("Caller")
     calls_received          VoiceCall[]          @relation("Receiver")
@@ -134,23 +135,27 @@ model Profile {
 }
 
 model Group {
-    group_id     String   @id @default(uuid())
-    name         String
-    description  String?
-    creator_id   String
-    category     String
-    member_count Int      @default(0)
-    is_public    Boolean  @default(true)
-    created_at   DateTime @default(now())
+    group_id            String    @id @default(uuid())
+    name                String
+    description         String?
+    creator_id          String
+    category            String
+    member_count        Int       @default(0)
+    is_public           Boolean   @default(true)
+    last_message_at     DateTime?
+    last_message_preview String?
+    created_at         DateTime  @default(now())
 
     // Relations
-    creator User          @relation(fields: [creator_id], references: [user_id])
-    members GroupMember[]
-    events  Event[]
+    creator       User           @relation(fields: [creator_id], references: [user_id])
+    members       GroupMember[]
+    events        Event[]
+    group_messages GroupMessage[]
 
     @@index([category])
     @@index([creator_id])
     @@index([is_public])
+    @@index([last_message_at])
     @@map("groups")
 }
 
@@ -169,6 +174,25 @@ model GroupMember {
     @@index([group_id])
     @@index([user_id])
     @@map("group_members")
+}
+
+model GroupMessage {
+    message_id   String      @id @default(uuid())
+    group_id     String
+    sender_id    String
+    content      String
+    message_type MessageType @default(TEXT)
+    created_at   DateTime    @default(now())
+    updated_at   DateTime    @updatedAt
+
+    // Relations
+    group  Group @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
+    sender User  @relation(fields: [sender_id], references: [user_id], onDelete: Cascade)
+
+    @@index([group_id])
+    @@index([sender_id])
+    @@index([created_at])
+    @@map("group_messages")
 }
 
 model Friendship {

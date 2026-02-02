@@ -16,9 +16,12 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { AccessibleInput } from '../../components/accessible/AccessibleInput';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { useAppDispatch } from '../../hooks/useAppDispatch';
+import { createGroup } from '../../store/slices/groupsSlice';
 
 type MainTabParamList = {
     Groups: undefined;
@@ -79,6 +82,7 @@ const categories = [
  */
 export const CreateGroupScreen: React.FC = () => {
     const navigation = useNavigation<CreateGroupScreenNavigationProp>();
+    const dispatch = useAppDispatch();
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
     const {
@@ -137,20 +141,23 @@ export const CreateGroupScreen: React.FC = () => {
             clearErrors();
             await announceToScreenReader('Creating group. Please wait.');
 
-            // TODO: Call create group API
-            console.log('Creating group:', data);
+            const result = await dispatch(
+                createGroup({
+                    name: data.name.trim(),
+                    description: data.description.trim() || undefined,
+                    category: data.category,
+                    isPublic: data.isPublic,
+                })
+            );
 
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            await announceToScreenReader('Group created successfully!', { isAlert: true });
-
-            // Navigate back to groups screen
-            setTimeout(() => {
+            if (createGroup.fulfilled.match(result)) {
+                await announceToScreenReader('Group created successfully!', { isAlert: true });
                 navigation.goBack();
-                // TODO: Navigate to the newly created group detail
-            }, 1000);
-
+            } else {
+                const msg = (result.payload as string) || 'Failed to create group. Please try again.';
+                await announceToScreenReader(msg, { isAlert: true });
+                setError('root', { message: msg });
+            }
         } catch (error) {
             const errorMessage = 'Failed to create group. Please try again.';
             await announceToScreenReader(errorMessage, { isAlert: true });
@@ -301,7 +308,7 @@ export const CreateGroupScreen: React.FC = () => {
                                 ]}>
                                     {selectedCategory || 'Select a category'}
                                 </Text>
-                                <Ionicons name="chevron-down" size={20} color="#6C757D" />
+                                <Ionicons name="chevron-down" size={20} color={AppColors.textSecondary} />
                             </TouchableOpacity>
                             {errors.category?.message && (
                                 <Text style={styles.errorText} accessibilityRole="alert">
@@ -372,7 +379,7 @@ export const CreateGroupScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
     },
     header: {
         flexDirection: 'row',
@@ -381,7 +388,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
     cancelHeaderButton: {
         minWidth: 60,
@@ -392,7 +399,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
     },
     createHeaderButton: {
         minWidth: 60,
@@ -421,7 +428,7 @@ const styles = StyleSheet.create({
     sectionLabel: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
     },
     categorySelector: {
         flexDirection: 'row',
@@ -430,20 +437,20 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderWidth: 1,
-        borderColor: '#E5E5E5',
+        borderColor: AppColors.border,
         borderRadius: 8,
-        backgroundColor: '#F8F9FA',
+        backgroundColor: AppColors.inputBg,
     },
     categorySelectorText: {
         fontSize: 16,
-        color: '#000000',
+        color: AppColors.text,
     },
     placeholderText: {
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     errorText: {
         fontSize: 14,
-        color: '#DC3545',
+        color: AppColors.error,
         marginTop: 4,
     },
     categoryPicker: {
@@ -460,12 +467,12 @@ const styles = StyleSheet.create({
     pickerTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#FFFFFF',
+        color: AppColors.background,
         textAlign: 'center',
         marginBottom: 20,
     },
     categoryList: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
         borderRadius: 12,
         maxHeight: 300,
         marginBottom: 16,
@@ -477,21 +484,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 0.5,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
     categoryOptionText: {
         fontSize: 16,
-        color: '#000000',
+        color: AppColors.text,
     },
     selectedCategoryText: {
-        color: '#007AFF',
+        color: AppColors.primary,
         fontWeight: '600',
     },
     cancelButton: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
     },
     cancelButtonText: {
-        color: '#007AFF',
+        color: AppColors.primary,
     },
     privacySection: {
         gap: 12,
@@ -504,20 +511,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         borderWidth: 1,
-        borderColor: '#E5E5E5',
+        borderColor: AppColors.border,
         borderRadius: 8,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
     },
     selectedPrivacyOption: {
-        borderColor: '#007AFF',
-        backgroundColor: '#E3F2FD',
+        borderColor: AppColors.primary,
+        backgroundColor: AppColors.borderLight,
     },
     radioButton: {
         width: 20,
         height: 20,
         borderRadius: 10,
         borderWidth: 2,
-        borderColor: '#6C757D',
+        borderColor: AppColors.textSecondary,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -526,7 +533,7 @@ const styles = StyleSheet.create({
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
     },
     privacyContent: {
         flex: 1,
@@ -534,12 +541,12 @@ const styles = StyleSheet.create({
     privacyTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         marginBottom: 4,
     },
     privacyDescription: {
         fontSize: 14,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         lineHeight: 18,
     },
 });

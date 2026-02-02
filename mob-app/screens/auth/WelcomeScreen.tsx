@@ -12,10 +12,13 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppColors } from '../../constants/theme';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { AccessibleModal } from '../../components/accessible/AccessibleModal';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { useAppSelector, useAppDispatch } from '../../hooks';
+import { clearError } from '../../store/slices/authSlice';
 
 type WelcomeScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Welcome'>;
 
@@ -24,12 +27,36 @@ const VOICE_GUIDANCE_KEY = 'voiceGuidanceEnabled';
 
 /**
  * Welcome Screen - First screen users see
+ * If user is already logged in, redirect to Profile.
+ * If session expired (invalid/expired token), redirect to Login.
  * Voice-first design with optional audio onboarding
- * Completely accessible without visual reference
  */
 export const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<WelcomeScreenNavigationProp>();
+  const dispatch = useAppDispatch();
+  const { isAuthenticated, errorCode, error } = useAppSelector((state) => state.auth);
   const [showVoiceOnboarding, setShowVoiceOnboarding] = useState(false);
+
+  // If user is logged in, redirect to Main (Profile tab)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const root = navigation.getParent();
+    if (root) {
+      (root as any).navigate('Main', { initialTab: 'Profile' });
+    }
+  }, [isAuthenticated, navigation]);
+
+  // If session expired or invalid token, go to Login (don't stay on Welcome)
+  useEffect(() => {
+    if (isAuthenticated) return;
+    const sessionExpired =
+      errorCode === 'UNAUTHORIZED' ||
+      (typeof error === 'string' && (error.includes('refresh') || error.includes('expired') || error.includes('token')));
+    if (sessionExpired) {
+      dispatch(clearError());
+      navigation.replace('Login');
+    }
+  }, [isAuthenticated, errorCode, error, dispatch, navigation]);
 
   // Announce screen on load - CRITICAL for accessibility
   useEffect(() => {
@@ -103,7 +130,7 @@ export const WelcomeScreen: React.FC = () => {
 
   return (
     <LinearGradient
-      colors={['#F2ECFF', '#D6C9FF', '#B7A1FF']}
+      colors={[...AppColors.gradientAuth]}
       style={styles.gradient}
     >
       <SafeAreaView style={styles.container}>
@@ -236,11 +263,11 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#6D4CFF',
+    shadowColor: AppColors.primaryDark,
     shadowOpacity: 0.2,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -254,20 +281,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 40,
     fontWeight: '700',
-    color: '#3A2C7B',
+    color: AppColors.text,
     textAlign: 'center',
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#4B3BA9',
+    color: AppColors.primaryDark,
     textAlign: 'center',
     marginBottom: 6,
   },
   tagline: {
     fontSize: 14,
-    color: '#5E55A6',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
     maxWidth: 280,
@@ -281,9 +308,9 @@ const styles = StyleSheet.create({
     maxWidth: 260,
     aspectRatio: 0.52,
     borderRadius: 28,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     padding: 14,
-    shadowColor: '#6D4CFF',
+    shadowColor: AppColors.primaryDark,
     shadowOpacity: 0.25,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 10 },
@@ -293,13 +320,13 @@ const styles = StyleSheet.create({
     width: 64,
     height: 8,
     borderRadius: 6,
-    backgroundColor: '#EAE2FF',
+    backgroundColor: AppColors.borderLight,
     alignSelf: 'center',
     marginBottom: 10,
   },
   phoneScreen: {
     flex: 1,
-    backgroundColor: '#F7F3FF',
+    backgroundColor: AppColors.inputBg,
     borderRadius: 18,
     padding: 12,
     justifyContent: 'space-between',
@@ -313,18 +340,18 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#D9CCFF',
+    backgroundColor: AppColors.borderLight,
   },
   mockPill: {
     width: 72,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#C6B5FF',
+    backgroundColor: AppColors.border,
   },
   mockCard: {
     height: 80,
     borderRadius: 16,
-    backgroundColor: '#B79BFF',
+    backgroundColor: AppColors.primary,
     opacity: 0.8,
   },
   mockRow: {
@@ -336,7 +363,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#7B5CFA',
+    backgroundColor: AppColors.primaryDark,
   },
   voiceOnboardingContainer: {
     alignItems: 'center',
@@ -345,14 +372,14 @@ const styles = StyleSheet.create({
   voiceButton: {
     marginBottom: 8,
     minWidth: 200,
-    borderColor: '#7B5CFA',
+    borderColor: AppColors.primary,
   },
   voiceButtonText: {
-    color: '#7B5CFA',
+    color: AppColors.primary,
   },
   voiceDescription: {
     fontSize: 13,
-    color: '#5E55A6',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
     maxWidth: 260,
@@ -363,33 +390,33 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     width: '100%',
-    backgroundColor: '#7B5CFA',
+    backgroundColor: AppColors.primary,
     borderRadius: 14,
-    shadowColor: '#6D4CFF',
+    shadowColor: AppColors.primaryDark,
     shadowOpacity: 0.35,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: AppColors.white,
   },
   secondaryButton: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E0D6FF',
+    borderColor: AppColors.border,
   },
   secondaryButtonText: {
-    color: '#4B3BA9',
+    color: AppColors.primaryDark,
   },
   helpButton: {
     width: '100%',
-    borderColor: '#7B5CFA',
+    borderColor: AppColors.primary,
   },
   helpButtonText: {
-    color: '#7B5CFA',
+    color: AppColors.primary,
   },
   footer: {
     alignItems: 'center',
@@ -397,7 +424,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 13,
-    color: '#5E55A6',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },
@@ -407,7 +434,7 @@ const styles = StyleSheet.create({
   modalText: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#374151',
+    color: AppColors.textSecondary,
     marginBottom: 24,
   },
   modalActions: {
@@ -417,9 +444,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   modalButtonText: {
-    color: '#FFFFFF',
+    color: AppColors.white,
   },
   modalButtonOutlineText: {
-    color: '#7B5CFA',
+    color: AppColors.primary,
   },
 });

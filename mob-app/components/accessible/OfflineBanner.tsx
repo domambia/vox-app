@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { offlineService } from '../../services/network/offlineService';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
@@ -46,7 +47,7 @@ export const OfflineBanner: React.FC = () => {
             <Ionicons
                 name={isOnline ? 'cloud-upload-outline' : 'cloud-offline-outline'}
                 size={20}
-                color={isOnline ? '#007AFF' : '#FF3B30'}
+                color={isOnline ? AppColors.primary : AppColors.error}
             />
             <Text style={[styles.text, !isOnline && styles.offlineText]}>
                 {!isOnline
@@ -63,24 +64,24 @@ const styles = StyleSheet.create({
     banner: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#E3F2FD',
+        backgroundColor: AppColors.background,
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#BBDEFB',
+        borderBottomColor: AppColors.border,
     },
     offlineBanner: {
-        backgroundColor: '#FFEBEE',
-        borderBottomColor: '#FFCDD2',
+        backgroundColor: AppColors.errorBgLight,
+        borderBottomColor: AppColors.error,
     },
     text: {
         fontSize: 14,
-        color: '#007AFF',
+        color: AppColors.primary,
         marginLeft: 8,
         flex: 1,
     },
     offlineText: {
-        color: '#FF3B30',
+        color: AppColors.error,
     },
 });
 

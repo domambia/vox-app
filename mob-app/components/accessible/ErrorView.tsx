@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from './AccessibleButton';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
@@ -25,7 +26,7 @@ export const ErrorView: React.FC<ErrorViewProps> = ({
 
     return (
         <View style={styles.container} accessibilityRole="alert">
-            <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
+            <Ionicons name="alert-circle-outline" size={48} color={AppColors.error} />
             <Text style={styles.title} accessibilityRole="header">
                 Error
             </Text>
@@ -51,19 +52,19 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
     },
     title: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         marginTop: 16,
         marginBottom: 8,
         textAlign: 'center',
     },
     message: {
         fontSize: 16,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         textAlign: 'center',
         marginBottom: 24,
         lineHeight: 22,

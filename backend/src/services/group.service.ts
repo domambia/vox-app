@@ -1,6 +1,6 @@
 import prisma from '@/config/database';
 import { logger } from '@/utils/logger';
-import { Prisma, GroupRole } from '@prisma/client';
+import { Prisma, GroupRole, MessageType } from '@prisma/client';
 import {
   normalizePagination,
   createPaginatedResponse,
@@ -641,6 +641,90 @@ export class GroupService {
       logger.error('Error removing member', error);
       throw error;
     }
+  }
+
+  /**
+   * Get group messages (members only)
+   */
+  async getGroupMessages(groupId: string, userId: string, limit: number = 50, offset: number = 0) {
+    const membership = await prisma.groupMember.findUnique({
+      where: {
+        group_id_user_id: { group_id: groupId, user_id: userId },
+      },
+    });
+    if (!membership) {
+      throw new Error('Not a member of this group');
+    }
+
+    const total = await prisma.groupMessage.count({
+      where: { group_id: groupId },
+    });
+
+    const messages = await prisma.groupMessage.findMany({
+      where: { group_id: groupId },
+      orderBy: { created_at: 'desc' },
+      take: limit,
+      skip: offset,
+      include: {
+        sender: {
+          select: {
+            user_id: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    const pagination = getPaginationMetadata(total, limit, offset);
+    return {
+      items: messages.reverse(),
+      pagination,
+    };
+  }
+
+  /**
+   * Send a group message (members only)
+   */
+  async sendGroupMessage(groupId: string, userId: string, content: string, messageType: MessageType = 'TEXT') {
+    const membership = await prisma.groupMember.findUnique({
+      where: {
+        group_id_user_id: { group_id: groupId, user_id: userId },
+      },
+    });
+    if (!membership) {
+      throw new Error('Not a member of this group');
+    }
+
+    const message = await prisma.groupMessage.create({
+      data: {
+        group_id: groupId,
+        sender_id: userId,
+        content: content.trim(),
+        message_type: messageType,
+      },
+      include: {
+        sender: {
+          select: {
+            user_id: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    const preview = content.trim().slice(0, 100);
+    await prisma.group.update({
+      where: { group_id: groupId },
+      data: {
+        last_message_at: message.created_at,
+        last_message_preview: preview || null,
+      },
+    });
+
+    logger.info(`Group message sent in ${groupId} by ${userId}`);
+    return message;
   }
 
   /**

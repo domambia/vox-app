@@ -9,6 +9,7 @@ import {
   StyleSheet,
   TextInput as RNTextInput,
 } from 'react-native';
+import { AppColors } from '../../constants/theme';
 import { announceValidationError } from '../../services/accessibility/accessibilityUtils';
 
 interface AccessibleInputProps extends TextInputProps {
@@ -127,7 +128,7 @@ export const AccessibleInput = forwardRef<RNTextInput, AccessibleInputProps>(
           }}
           // Visual placeholder (secondary to accessibility label)
           placeholder={props.placeholder || `Enter ${label.toLowerCase()}`}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={AppColors.placeholder}
           {...props}
         />
 
@@ -153,29 +154,30 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: AppColors.text,
     marginBottom: 8,
   },
   requiredAsterisk: {
-    color: '#ef4444',
+    color: AppColors.error,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: AppColors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#ffffff',
-    minHeight: 48, // WCAG touch target minimum
+    backgroundColor: AppColors.background,
+    color: AppColors.text,
+    minHeight: 48,
   },
   inputError: {
-    borderColor: '#ef4444',
+    borderColor: AppColors.error,
     borderWidth: 2,
   },
   error: {
     fontSize: 14,
-    color: '#ef4444',
+    color: AppColors.error,
     marginTop: 4,
     fontWeight: '500',
   },

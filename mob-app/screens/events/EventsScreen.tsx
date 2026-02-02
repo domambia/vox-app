@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
     View,
     Text,
@@ -7,25 +7,27 @@ import {
     FlatList,
     TouchableOpacity,
     RefreshControl,
-    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { eventsService } from '../../services/api/eventsService';
+import { useAppSelector } from '../../hooks';
 
 type MainTabParamList = {
     Events: undefined;
     CreateEvent: undefined;
     EventDetail: { eventId: string };
-    // Add other navigation types as needed
 };
 
 type EventsScreenNavigationProp = NativeStackNavigationProp<MainTabParamList>;
 
-interface Event {
+interface EventRow {
     id: string;
     title: string;
     description: string;
@@ -40,63 +42,28 @@ interface Event {
     isCreator: boolean;
 }
 
-// Mock events data
-const mockEvents: Event[] = [
-    {
-        id: '1',
-        title: 'Blind Gamers Meetup',
-        description: 'Monthly gathering for blind and visually impaired gamers to share experiences and play accessible games.',
-        dateTime: '2025-01-25T18:00:00Z',
-        location: 'Game Center, Valletta',
-        accessibilityNotes: 'Venue is fully accessible with audio guides available. Bring your own accessible gaming device.',
-        attendeeCount: 12,
-        maxAttendees: 20,
-        creatorName: 'Sarah Johnson',
-        groupName: 'Blind Gamers Community',
-        isAttending: true,
-        isCreator: false,
-    },
-    {
-        id: '2',
-        title: 'Accessible Music Workshop',
-        description: 'Learn about music production with screen readers and accessible audio tools.',
-        dateTime: '2025-01-28T14:00:00Z',
-        location: 'Community Center, Sliema',
-        accessibilityNotes: 'Wheelchair accessible venue with audio description available.',
-        attendeeCount: 8,
-        maxAttendees: 15,
-        creatorName: 'Mike Chen',
-        groupName: 'Music Lovers',
-        isAttending: false,
-        isCreator: false,
-    },
-    {
-        id: '3',
-        title: 'Hiking with Audio Guides',
-        description: 'Guided nature walk with audio descriptions of the landscape and wildlife.',
-        dateTime: '2025-02-02T09:00:00Z',
-        location: 'Dingli Cliffs',
-        accessibilityNotes: 'Terrain may be uneven. Audio guides provided. Meet at accessible parking area.',
-        attendeeCount: 6,
-        maxAttendees: 12,
-        creatorName: 'Emma Davis',
-        isAttending: true,
-        isCreator: true,
-    },
-    {
-        id: '4',
-        title: 'Tech Accessibility Conference',
-        description: 'Annual conference on the latest developments in accessible technology.',
-        dateTime: '2025-02-15T09:00:00Z',
-        location: 'University Campus, Msida',
-        accessibilityNotes: 'Full accessibility support with live captioning and audio description.',
-        attendeeCount: 45,
-        maxAttendees: 100,
-        creatorName: 'James Wilson',
-        isAttending: false,
-        isCreator: false,
-    },
-];
+function mapApiEventToRow(raw: any, isAttending: boolean = false, currentUserId?: string): EventRow {
+    const e = raw.event ?? raw;
+    const id = e.event_id ?? e.eventId ?? e.id ?? '';
+    const creator = e.creator ?? {};
+    const creatorName = [creator.first_name ?? creator.firstName, creator.last_name ?? creator.lastName].filter(Boolean).join(' ') || 'Unknown';
+    const group = e.group ?? {};
+    const groupName = group.name;
+    return {
+        id,
+        title: e.title ?? '',
+        description: e.description ?? '',
+        dateTime: e.date_time ?? e.startTime ?? e.start_time ?? e.dateTime ?? '',
+        location: e.location ?? '',
+        accessibilityNotes: e.accessibility_notes ?? e.accessibilityNotes,
+        attendeeCount: e.attendee_count ?? e.attendeeCount ?? 0,
+        maxAttendees: e.max_attendees ?? e.maxAttendees,
+        creatorName,
+        groupName,
+        isAttending,
+        isCreator: (e.creator_id ?? e.creatorId) === currentUserId,
+    };
+}
 
 /**
  * Events Screen - Accessible events list with RSVP functionality
@@ -104,9 +71,41 @@ const mockEvents: Event[] = [
  */
 export const EventsScreen: React.FC = () => {
     const navigation = useNavigation<EventsScreenNavigationProp>();
-    const [events, setEvents] = useState<Event[]>(mockEvents);
+    const userId = useAppSelector((state) => state.auth.user?.userId) ?? '';
+    const [events, setEvents] = useState<EventRow[]>([]);
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'attending' | 'upcoming'>('all');
+
+    const loadEvents = async () => {
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        try {
+            const [listRes, userRes] = await Promise.all([
+                eventsService.listEvents({ limit: 50, upcomingOnly: true }),
+                eventsService.getUserEvents(userId, { upcomingOnly: true }),
+            ]);
+            const listItems = Array.isArray(listRes.data) ? listRes.data : [];
+            const attendingEventIds = new Set(
+                (userRes.events ?? []).map((x: any) => x.event?.event_id ?? x.event?.eventId ?? x.event_id)
+            );
+            const rows = listItems.map((raw: any) =>
+                mapApiEventToRow(raw, attendingEventIds.has(raw.event_id ?? raw.eventId ?? raw.id ?? ''), userId)
+            );
+            setEvents(rows);
+        } catch {
+            setEvents([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadEvents();
+    }, [userId]);
 
     // Announce screen on load
     useEffect(() => {
@@ -122,7 +121,7 @@ export const EventsScreen: React.FC = () => {
         announceScreen();
     }, [events.length, filter]);
 
-    const getFilteredEvents = () => {
+    const getFilteredEvents = (): EventRow[] => {
         switch (filter) {
             case 'attending':
                 return events.filter(event => event.isAttending);
@@ -136,15 +135,12 @@ export const EventsScreen: React.FC = () => {
     const handleRefresh = async () => {
         setRefreshing(true);
         await announceToScreenReader('Refreshing events');
-
-        // Simulate API call
-        setTimeout(() => {
-            setRefreshing(false);
-            announceToScreenReader('Events updated');
-        }, 1000);
+        await loadEvents();
+        setRefreshing(false);
+        announceToScreenReader('Events updated');
     };
 
-    const handleEventPress = async (event: Event) => {
+    const handleEventPress = async (event: EventRow) => {
         await announceToScreenReader(`Opening ${event.title} event details`);
         navigation.navigate('EventDetail', { eventId: event.id });
     };
@@ -154,20 +150,27 @@ export const EventsScreen: React.FC = () => {
         navigation.navigate('CreateEvent' as any);
     };
 
-    const handleRSVP = async (event: Event) => {
+    const handleRSVP = async (event: EventRow) => {
         const newAttendingStatus = !event.isAttending;
-        await announceToScreenReader(
-            newAttendingStatus
-                ? `RSVP confirmed for ${event.title}`
-                : `Cancelled RSVP for ${event.title}`
-        );
-
-        // Update local state
-        setEvents(prev =>
-            prev.map(e =>
-                e.id === event.id ? { ...e, isAttending: newAttendingStatus } : e
-            )
-        );
+        try {
+            await eventsService.rsvpToEvent(event.id, {
+                status: newAttendingStatus ? 'going' : 'not_going',
+            });
+            await announceToScreenReader(
+                newAttendingStatus
+                    ? `RSVP confirmed for ${event.title}`
+                    : `Cancelled RSVP for ${event.title}`
+            );
+            setEvents(prev =>
+                prev.map(e =>
+                    e.id === event.id
+                        ? { ...e, isAttending: newAttendingStatus, attendeeCount: e.attendeeCount + (newAttendingStatus ? 1 : -1) }
+                        : e
+                )
+            );
+        } catch {
+            await announceToScreenReader('Failed to update RSVP');
+        }
     };
 
     const handleFilterChange = (newFilter: typeof filter) => {
@@ -195,7 +198,7 @@ export const EventsScreen: React.FC = () => {
         }
     };
 
-    const renderEventItem = ({ item }: { item: Event }) => (
+    const renderEventItem = ({ item }: { item: EventRow }) => (
         <TouchableOpacity
             style={styles.eventItem}
             onPress={() => handleEventPress(item)}
@@ -221,14 +224,14 @@ export const EventsScreen: React.FC = () => {
 
                 <View style={styles.eventDetails}>
                     <View style={styles.detailRow}>
-                        <Ionicons name="calendar-outline" size={16} color="#6C757D" />
+                        <Ionicons name="calendar-outline" size={16} color={AppColors.textSecondary} />
                         <Text style={styles.detailText}>
                             {formatDateTime(item.dateTime)}
                         </Text>
                     </View>
 
                     <View style={styles.detailRow}>
-                        <Ionicons name="location-outline" size={16} color="#6C757D" />
+                        <Ionicons name="location-outline" size={16} color={AppColors.textSecondary} />
                         <Text style={styles.detailText}>
                             {item.location}
                         </Text>
@@ -236,7 +239,7 @@ export const EventsScreen: React.FC = () => {
 
                     {item.groupName && (
                         <View style={styles.detailRow}>
-                            <Ionicons name="people-outline" size={16} color="#6C757D" />
+                            <Ionicons name="people-outline" size={16} color={AppColors.textSecondary} />
                             <Text style={styles.detailText}>
                                 {item.groupName}
                             </Text>
@@ -246,7 +249,7 @@ export const EventsScreen: React.FC = () => {
 
                 <View style={styles.eventFooter}>
                     <View style={styles.attendeeInfo}>
-                        <Ionicons name="people" size={16} color="#6C757D" />
+                        <Ionicons name="people" size={16} color={AppColors.textSecondary} />
                         <Text style={styles.attendeeText}>
                             {item.attendeeCount}{item.maxAttendees ? `/${item.maxAttendees}` : ''} attending
                         </Text>
@@ -270,7 +273,7 @@ export const EventsScreen: React.FC = () => {
 
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={64} color="#CCCCCC" />
+            <Ionicons name="calendar-outline" size={64} color={AppColors.textSecondary} />
             <Text style={styles.emptyTitle} accessibilityRole="header">
                 {filter === 'attending' ? 'No events yet' : 'No events found'}
             </Text>
@@ -313,61 +316,70 @@ export const EventsScreen: React.FC = () => {
                 />
             </View>
 
-            <View style={styles.filterContainer}>
-                <TouchableOpacity
-                    style={[styles.filterTab, filter === 'all' && styles.activeFilterTab]}
-                    onPress={() => handleFilterChange('all')}
-                    accessibilityRole="tab"
-                    accessibilityLabel={`All events. ${events.length} events`}
-                    accessibilityState={{ selected: filter === 'all' }}
-                >
-                    <Text style={[styles.filterTabText, filter === 'all' && styles.activeFilterTabText]}>
-                        All ({events.length})
-                    </Text>
-                </TouchableOpacity>
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={AppColors.primary} />
+                    <Text style={styles.loadingText}>Loading events...</Text>
+                </View>
+            ) : (
+                <>
+                    <View style={styles.filterContainer}>
+                        <TouchableOpacity
+                            style={[styles.filterTab, filter === 'all' && styles.activeFilterTab]}
+                            onPress={() => handleFilterChange('all')}
+                            accessibilityRole="tab"
+                            accessibilityLabel={`All events. ${events.length} events`}
+                            accessibilityState={{ selected: filter === 'all' }}
+                        >
+                            <Text style={[styles.filterTabText, filter === 'all' && styles.activeFilterTabText]}>
+                                All ({events.length})
+                            </Text>
+                        </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={[styles.filterTab, filter === 'attending' && styles.activeFilterTab]}
-                    onPress={() => handleFilterChange('attending')}
-                    accessibilityRole="tab"
-                    accessibilityLabel={`My events. ${events.filter(e => e.isAttending).length} events`}
-                    accessibilityState={{ selected: filter === 'attending' }}
-                >
-                    <Text style={[styles.filterTabText, filter === 'attending' && styles.activeFilterTabText]}>
-                        My Events ({events.filter(e => e.isAttending).length})
-                    </Text>
-                </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.filterTab, filter === 'attending' && styles.activeFilterTab]}
+                            onPress={() => handleFilterChange('attending')}
+                            accessibilityRole="tab"
+                            accessibilityLabel={`My events. ${events.filter(e => e.isAttending).length} events`}
+                            accessibilityState={{ selected: filter === 'attending' }}
+                        >
+                            <Text style={[styles.filterTabText, filter === 'attending' && styles.activeFilterTabText]}>
+                                My Events ({events.filter(e => e.isAttending).length})
+                            </Text>
+                        </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={[styles.filterTab, filter === 'upcoming' && styles.activeFilterTab]}
-                    onPress={() => handleFilterChange('upcoming')}
-                    accessibilityRole="tab"
-                    accessibilityLabel={`Upcoming events. ${events.filter(e => new Date(e.dateTime) > new Date()).length} events`}
-                    accessibilityState={{ selected: filter === 'upcoming' }}
-                >
-                    <Text style={[styles.filterTabText, filter === 'upcoming' && styles.activeFilterTabText]}>
-                        Upcoming ({events.filter(e => new Date(e.dateTime) > new Date()).length})
-                    </Text>
-                </TouchableOpacity>
-            </View>
+                        <TouchableOpacity
+                            style={[styles.filterTab, filter === 'upcoming' && styles.activeFilterTab]}
+                            onPress={() => handleFilterChange('upcoming')}
+                            accessibilityRole="tab"
+                            accessibilityLabel={`Upcoming events. ${events.filter(e => new Date(e.dateTime) > new Date()).length} events`}
+                            accessibilityState={{ selected: filter === 'upcoming' }}
+                        >
+                            <Text style={[styles.filterTabText, filter === 'upcoming' && styles.activeFilterTabText]}>
+                                Upcoming ({events.filter(e => new Date(e.dateTime) > new Date()).length})
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
 
-            <FlatList
-                data={filteredEvents}
-                keyExtractor={(item) => item.id}
-                renderItem={renderEventItem}
-                ListEmptyComponent={renderEmptyState}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        accessibilityLabel="Pull to refresh events"
+                    <FlatList
+                        data={filteredEvents}
+                        keyExtractor={(item) => item.id}
+                        renderItem={renderEventItem}
+                        ListEmptyComponent={renderEmptyState}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={handleRefresh}
+                                accessibilityLabel="Pull to refresh events"
+                            />
+                        }
+                        style={styles.eventsList}
+                        showsVerticalScrollIndicator={false}
+                        accessibilityLabel="Events list"
+                        contentContainerStyle={filteredEvents.length === 0 ? { flex: 1 } : undefined}
                     />
-                }
-                style={styles.eventsList}
-                showsVerticalScrollIndicator={false}
-                accessibilityLabel="Events list"
-                contentContainerStyle={filteredEvents.length === 0 ? { flex: 1 } : undefined}
-            />
+                </>
+            )}
         </SafeAreaView>
     );
 };
@@ -375,7 +387,7 @@ export const EventsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
     },
     header: {
         flexDirection: 'row',
@@ -384,12 +396,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
     title: {
         fontSize: 28,
         fontWeight: '700',
-        color: '#000000',
+        color: AppColors.text,
     },
     createButton: {
         minWidth: 60,
@@ -399,7 +411,7 @@ const styles = StyleSheet.create({
     },
     filterContainer: {
         flexDirection: 'row',
-        backgroundColor: '#F8F9FA',
+        backgroundColor: AppColors.inputBg,
         marginHorizontal: 16,
         marginVertical: 8,
         borderRadius: 8,
@@ -413,8 +425,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     activeFilterTab: {
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#000000',
+        backgroundColor: AppColors.background,
+        shadowColor: AppColors.black,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
@@ -423,10 +435,10 @@ const styles = StyleSheet.create({
     filterTabText: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     activeFilterTabText: {
-        color: '#007AFF',
+        color: AppColors.primary,
     },
     eventsList: {
         flex: 1,
@@ -434,11 +446,11 @@ const styles = StyleSheet.create({
     eventItem: {
         marginHorizontal: 16,
         marginVertical: 4,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#E5E5E5',
-        shadowColor: '#000000',
+        borderColor: AppColors.border,
+        shadowColor: AppColors.black,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
@@ -456,12 +468,12 @@ const styles = StyleSheet.create({
     eventTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         flex: 1,
         marginRight: 8,
     },
     creatorBadge: {
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
@@ -469,11 +481,11 @@ const styles = StyleSheet.create({
     creatorBadgeText: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#FFFFFF',
+        color: AppColors.background,
     },
     eventDescription: {
         fontSize: 14,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         lineHeight: 20,
         marginBottom: 12,
     },
@@ -487,7 +499,7 @@ const styles = StyleSheet.create({
     },
     detailText: {
         fontSize: 14,
-        color: '#333333',
+        color: AppColors.text,
         marginLeft: 6,
         flex: 1,
     },
@@ -502,25 +514,25 @@ const styles = StyleSheet.create({
     },
     attendeeText: {
         fontSize: 14,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         marginLeft: 6,
     },
     rsvpButton: {
-        backgroundColor: '#F0F0F0',
+        backgroundColor: AppColors.borderLight,
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
     },
     attendingButton: {
-        backgroundColor: '#34C759',
+        backgroundColor: AppColors.success,
     },
     rsvpButtonText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#007AFF',
+        color: AppColors.primary,
     },
     attendingButtonText: {
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     emptyState: {
         flex: 1,
@@ -531,14 +543,14 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         textAlign: 'center',
         marginTop: 16,
         marginBottom: 8,
     },
     emptyDescription: {
         fontSize: 16,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         textAlign: 'center',
         lineHeight: 22,
         marginBottom: 24,
@@ -548,5 +560,15 @@ const styles = StyleSheet.create({
     },
     browseButtonText: {
         fontSize: 16,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+    },
+    loadingText: {
+        fontSize: 16,
+        color: AppColors.textSecondary,
     },
 });

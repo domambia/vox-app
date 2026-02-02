@@ -15,11 +15,12 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AppColors } from '../../constants/theme';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { AccessibleInput } from '../../components/accessible/AccessibleInput';
 import { useAppDispatch, useAppSelector } from '../../hooks';
-import { sendOTP } from '../../store/slices/authSlice';
+import { sendOTP, getAllowedCountries, type AllowedCountry } from '../../store/slices/authSlice';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
@@ -45,7 +46,7 @@ const accountInfoSchema = yup.object().shape({
 export const RegisterScreen: React.FC = () => {
   const navigation = useNavigation<RegisterScreenNavigationProp>();
   const dispatch = useAppDispatch();
-  const { isLoading, error } = useAppSelector((state: any) => state.auth);
+  const { isLoading, error, errorCode, allowedCountries, allowedCountriesLoaded } = useAppSelector((state: any) => state.auth);
 
   const {
     control,
@@ -61,14 +62,16 @@ export const RegisterScreen: React.FC = () => {
     },
   });
 
-  // Announce screen on load
+  useEffect(() => {
+    dispatch(getAllowedCountries());
+  }, [dispatch]);
+
   useEffect(() => {
     const announceScreen = async () => {
       setTimeout(async () => {
         await announceToScreenReader('Create account screen. Enter your phone number to get started.');
       }, 500);
     };
-
     announceScreen();
   }, []);
 
@@ -89,12 +92,12 @@ export const RegisterScreen: React.FC = () => {
 
       if (sendOTP.fulfilled.match(result)) {
         await announceToScreenReader('Verification code sent. Please check your phone.', { isAlert: true });
-        // Navigate to OTP verification
         setTimeout(() => {
           navigation.navigate('OTPVerification');
         }, 1000);
       } else {
-        const errorMessage = result.payload as string || 'Failed to send verification code';
+        const payload = result.payload as { message?: string } | string | undefined;
+        const errorMessage = typeof payload === 'object' && payload?.message ? payload.message : (payload as string) || 'Failed to send verification code';
         await announceToScreenReader(`Failed to send code. ${errorMessage}`, { isAlert: true });
         setError('root', { message: errorMessage });
       }
@@ -157,6 +160,15 @@ export const RegisterScreen: React.FC = () => {
                 <Text style={styles.description} accessibilityRole="text">
                   Enter your phone number to get started with VOX.
                 </Text>
+                {allowedCountriesLoaded && allowedCountries.length > 0 && (
+                  <Text
+                    style={styles.countriesText}
+                    accessibilityRole="text"
+                    accessibilityLabel={`Registration available in: ${allowedCountries.map((c: AllowedCountry) => c.name).join(', ')}`}
+                  >
+                    Available in: {allowedCountries.map((c: AllowedCountry) => c.name).join(', ')}
+                  </Text>
+                )}
               </View>
 
               <View style={styles.form}>
@@ -195,6 +207,7 @@ export const RegisterScreen: React.FC = () => {
                     style={styles.errorText}
                     accessibilityRole="alert"
                     accessibilityLiveRegion="polite"
+                    accessibilityLabel={errorCode ? `${errorCode}: ${errors.root?.message || error}` : undefined}
                   >
                     {errors.root?.message || error}
                   </Text>
@@ -236,21 +249,21 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignSelf: 'flex-start',
-    borderColor: '#7B5CFA',
+    borderColor: AppColors.primary,
   },
   backButtonText: {
-    color: '#7B5CFA',
+    color: AppColors.primary,
   },
   logoBubble: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 16,
     marginBottom: 10,
-    shadowColor: '#6D4CFF',
+    shadowColor: AppColors.primaryDark,
     shadowOpacity: 0.2,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -264,7 +277,7 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#3A2C7B',
+    color: AppColors.text,
   },
   centerContent: {
     flex: 1,
@@ -276,15 +289,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#3A2C7B',
+    color: AppColors.text,
     textAlign: 'center',
     marginBottom: 10,
   },
   description: {
     fontSize: 15,
-    color: '#5E55A6',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  countriesText: {
+    fontSize: 13,
+    color: AppColors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
   },
   form: {
     gap: 20,
@@ -292,15 +311,15 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 8,
-    backgroundColor: '#7B5CFA',
+    backgroundColor: AppColors.primary,
     borderRadius: 14,
   },
   submitButtonText: {
-    color: '#FFFFFF',
+    color: AppColors.white,
   },
   errorText: {
     fontSize: 15,
-    color: '#ef4444',
+    color: AppColors.error,
     textAlign: 'center',
     fontWeight: '500',
     marginTop: 12,
@@ -310,7 +329,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 13,
-    color: '#5E55A6',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },

@@ -18,11 +18,18 @@ import { sendSms } from '@/utils/sms';
 
 export class AuthService {
   /**
-   * Send OTP for phone number verification
+   * Send OTP for phone number verification.
+   * In development, if devBypassOtp is true, skips OTP and returns tokens directly (same shape as verify-otp).
    */
-  async sendOTP(data: SendOTPInput) {
+  async sendOTP(data: SendOTPInput & { devBypassOtp?: boolean }) {
     try {
-      const { phoneNumber, purpose } = data;
+      const { phoneNumber, purpose, devBypassOtp } = data;
+
+      // Development-only: bypass OTP and return tokens directly for easier testing
+      if (config.nodeEnv === 'development' && devBypassOtp === true) {
+        logger.info(`[DEV] send-otp bypass for ${phoneNumber}, purpose=${purpose}`);
+        return this.devBypassOtpAndReturnTokens(phoneNumber, purpose);
+      }
 
       // Generate 6-digit OTP
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -57,6 +64,70 @@ export class AuthService {
       logger.error('Error sending OTP', error);
       throw new Error('Failed to send OTP');
     }
+  }
+
+  /**
+   * Development-only: find or create user and return tokens (same shape as verify-otp).
+   */
+  private async devBypassOtpAndReturnTokens(phoneNumber: string, purpose: string) {
+    if (purpose === 'LOGIN') {
+      const user = await prisma.user.findUnique({
+        where: { phone_number: phoneNumber },
+      });
+      if (!user || !user.is_active) {
+        throw new Error('Account not found or inactive');
+      }
+      const token = generateToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+      const refreshToken = generateRefreshToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+      await prisma.user.update({
+        where: { user_id: user.user_id },
+        data: { last_active: new Date() },
+      });
+      return {
+        user: {
+          userId: user.user_id,
+          phoneNumber: user.phone_number,
+          verified: user.verified,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          email: user.email,
+        },
+        token,
+        refreshToken,
+        expiresIn: 3600,
+      };
+    }
+    // REGISTRATION: create user if not exists, then return tokens
+    let user = await prisma.user.findUnique({
+      where: { phone_number: phoneNumber },
+    });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          phone_number: phoneNumber,
+          verified: true,
+          verification_date: new Date(),
+          is_active: true,
+        },
+      });
+    } else {
+      user = await prisma.user.update({
+        where: { user_id: user.user_id },
+        data: { verified: true, verification_date: new Date(), is_active: true },
+      });
+    }
+    const token = generateToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+    const refreshToken = generateRefreshToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+    return {
+      user: {
+        userId: user.user_id,
+        phoneNumber: user.phone_number,
+        verified: user.verified,
+      },
+      token,
+      refreshToken,
+      expiresIn: 3600,
+    };
   }
 
   /**

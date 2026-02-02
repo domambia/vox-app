@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../constants/theme';
+import { useAppDispatch } from '../hooks';
+import { clearPostLogin } from '../store/slices/authSlice';
 import { AccessibleButton } from '../components/accessible/AccessibleButton';
 import { announceToScreenReader } from '../services/accessibility/accessibilityUtils';
 import type { RootStackParamList } from './types';
@@ -14,22 +17,31 @@ import { GroupsScreen } from '../screens/groups/GroupsScreen';
 import { CreateGroupScreen } from '../screens/groups/CreateGroupScreen';
 import { GroupChatScreen } from '../screens/groups/GroupChatScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
+import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
+import { SettingsScreen } from '../screens/profile/SettingsScreen';
 import { EventsScreen } from '../screens/events/EventsScreen';
+import { CreateEventScreen } from '../screens/events/CreateEventScreen';
+import { EventDetailScreen } from '../screens/events/EventDetailScreen';
 import { DiscoverScreen } from '../screens/discover/DiscoverScreen';
 import { ProfileDetailScreen } from '../screens/discover/ProfileDetailScreen';
 import { MatchesScreen } from '../screens/discover/MatchesScreen';
 import { LikesScreen } from '../screens/discover/LikesScreen';
+import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
+import { KYCVerificationScreen } from '../screens/profile/KYCVerificationScreen';
 
 // Discover screen is now imported and used in DiscoverStackNavigator
 
 export type MessagesStackParamList = {
   MessagesMain: undefined;
-  Chat: { conversationId: string; participantName: string };
+  Chat: { conversationId?: string; participantName: string; participantId?: string };
 };
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
   EditProfile: undefined;
+  Settings: undefined;
+  Notifications: undefined;
+  KYCVerification: undefined;
 };
 
 export type GroupsStackParamList = {
@@ -75,12 +87,18 @@ const GroupsStackNavigator = () => (
 const ProfileStackNavigator = () => (
   <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
     <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
+    <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
+    <ProfileStack.Screen name="Settings" component={SettingsScreen} />
+    <ProfileStack.Screen name="Notifications" component={NotificationsScreen} />
+    <ProfileStack.Screen name="KYCVerification" component={KYCVerificationScreen} />
   </ProfileStack.Navigator>
 );
 
 const EventsStackNavigator = () => (
   <EventsStack.Navigator screenOptions={{ headerShown: false }}>
     <EventsStack.Screen name="EventsMain" component={EventsScreen} />
+    <EventsStack.Screen name="CreateEvent" component={CreateEventScreen} />
+    <EventsStack.Screen name="EventDetail" component={EventDetailScreen} />
   </EventsStack.Navigator>
 );
 
@@ -99,7 +117,7 @@ export type MainTabParamList = {
   Groups: undefined;
   Events: undefined;
   Profile: undefined;
-  Chat: { conversationId: string; participantName: string };
+  Chat: { conversationId?: string; participantName: string; participantId?: string };
   GroupChat: { groupId: string; groupName: string };
   EditProfile: undefined;
   CreateEvent: undefined;
@@ -116,8 +134,13 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
  * Accessible tab navigation with proper labels and hints
  */
 export const MainNavigator: React.FC = () => {
+  const dispatch = useAppDispatch();
   const route = useRoute<RouteProp<RootStackParamList, 'Main'>>();
   const initialTab = route.params?.initialTab ?? 'Messages';
+
+  useEffect(() => {
+    dispatch(clearPostLogin());
+  }, [dispatch]);
 
   return (
     <Tab.Navigator
@@ -125,10 +148,14 @@ export const MainNavigator: React.FC = () => {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          minHeight: 60, // Larger touch targets for accessibility
+          minHeight: 60,
           paddingBottom: 8,
           paddingTop: 8,
+          backgroundColor: AppColors.background,
+          borderTopColor: AppColors.border,
         },
+        tabBarActiveTintColor: AppColors.primary,
+        tabBarInactiveTintColor: AppColors.textSecondary,
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',

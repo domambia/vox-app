@@ -1,0 +1,191 @@
+# VOX Backend – Auth API requests
+# Use with REST Client (VS Code/Cursor) or run the curl commands below.
+# Default base URL; change if your server runs elsewhere.
+
+@baseUrl = http://localhost:4000/api/v1
+@phoneNumber = +35699123456
+
+# =============================================================================
+# 1. SEND OTP (start login or registration)
+# =============================================================================
+
+### Send OTP – LOGIN
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}",
+  "purpose": "LOGIN"
+}
+
+### Send OTP – REGISTRATION
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}",
+  "purpose": "REGISTRATION"
+}
+
+### Send OTP – DEV ONLY: bypass OTP and get tokens (NODE_ENV=development)
+POST {{baseUrl}}/auth/send-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}",
+  "purpose": "LOGIN",
+  "devBypassOtp": true
+}
+
+# =============================================================================
+# 2. VERIFY OTP (replace 123456 with the OTP from server logs / SMS)
+# =============================================================================
+
+### Verify OTP – LOGIN
+POST {{baseUrl}}/auth/verify-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}",
+  "otpCode": "123456",
+  "purpose": "LOGIN"
+}
+
+### Verify OTP – REGISTRATION
+POST {{baseUrl}}/auth/verify-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}",
+  "otpCode": "123456",
+  "purpose": "REGISTRATION"
+}
+
+# =============================================================================
+# 3. ALLOWED COUNTRIES (public)
+# =============================================================================
+
+### Get allowed countries for registration
+GET {{baseUrl}}/auth/allowed-countries
+
+# =============================================================================
+# 4. REGISTER (email/password – optional flow)
+# =============================================================================
+
+### Register with email/password
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Test",
+  "lastName": "User",
+  "email": "test@example.com",
+  "phoneNumber": "{{phoneNumber}}",
+  "password": "SecurePass1",
+  "countryCode": "MT"
+}
+
+# =============================================================================
+# 5. LOGIN (email/password – optional flow)
+# =============================================================================
+
+### Login with phone + password
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}",
+  "password": "SecurePass1"
+}
+
+# =============================================================================
+# 6. REFRESH TOKEN (set @refreshToken after verify-otp or login)
+# =============================================================================
+
+@refreshToken = YOUR_REFRESH_TOKEN_HERE
+
+### Refresh access token
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+Authorization: Bearer {{refreshToken}}
+
+# =============================================================================
+# 7. LOGOUT (requires access token)
+# =============================================================================
+
+@accessToken = YOUR_ACCESS_TOKEN_HERE
+
+### Logout
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+# =============================================================================
+# 8. PASSWORD RESET
+# =============================================================================
+
+### Request password reset
+POST {{baseUrl}}/auth/password-reset/request
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}"
+}
+
+### Verify password reset token
+POST {{baseUrl}}/auth/password-reset/verify
+Content-Type: application/json
+
+{
+  "token": "RESET_TOKEN_FROM_EMAIL"
+}
+
+### Complete password reset
+POST {{baseUrl}}/auth/password-reset/complete
+Content-Type: application/json
+
+{
+  "token": "RESET_TOKEN_FROM_EMAIL",
+  "newPassword": "NewSecurePass1"
+}
+
+# =============================================================================
+# 9. CHANGE PASSWORD (authenticated)
+# =============================================================================
+
+### Change password
+POST {{baseUrl}}/auth/change-password
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "currentPassword": "SecurePass1",
+  "newPassword": "NewSecurePass1"
+}
+
+# =============================================================================
+# CURL – Test auth flow with +35699123456
+# Run backend first: npm run dev (or docker-compose up)
+# =============================================================================
+#
+# 1) Send OTP (LOGIN):
+#
+#   curl -s -X POST http://localhost:3000/api/v1/auth/send-otp \
+#     -H "Content-Type: application/json" \
+#     -d '{"phoneNumber":"+35699123456","purpose":"LOGIN"}'
+#
+# 2) Check server logs for the 6-digit OTP, then verify (replace 123456):
+#
+#   curl -s -X POST http://localhost:3000/api/v1/auth/verify-otp \
+#     -H "Content-Type: application/json" \
+#     -d '{"phoneNumber":"+35699123456","otpCode":"123456","purpose":"LOGIN"}'
+#
+# 3) Optional – allowed countries:
+#
+#   curl -s http://localhost:3000/api/v1/auth/allowed-countries
+#
+# 4) Optional – refresh token (replace REFRESH_TOKEN):
+#
+#   curl -s -X POST http://localhost:3000/api/v1/auth/refresh \
+#     -H "Authorization: Bearer REFRESH_TOKEN"
+#

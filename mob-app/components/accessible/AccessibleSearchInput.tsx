@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
 interface AccessibleSearchInputProps {
@@ -35,7 +36,7 @@ export const AccessibleSearchInput: React.FC<AccessibleSearchInputProps> = ({
     return (
         <View style={styles.container}>
             <View style={styles.inputContainer}>
-                <Ionicons name="search" size={20} color="#6C757D" style={styles.searchIcon} />
+                <Ionicons name="search" size={20} color={AppColors.placeholder} style={styles.searchIcon} />
                 <TextInput
                     style={styles.input}
                     value={value}
@@ -55,7 +56,7 @@ export const AccessibleSearchInput: React.FC<AccessibleSearchInputProps> = ({
                         accessibilityLabel="Clear search"
                         accessibilityHint="Clear the search text"
                     >
-                        <Ionicons name="close-circle" size={20} color="#6C757D" />
+                        <Ionicons name="close-circle" size={20} color={AppColors.textSecondary} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -71,10 +72,10 @@ const styles = StyleSheet.create({
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F8F9FA',
+        backgroundColor: AppColors.inputBg,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#E5E5E5',
+        borderColor: AppColors.inputBorder,
         paddingHorizontal: 12,
         minHeight: 44,
     },
@@ -84,7 +85,7 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 16,
-        color: '#000000',
+        color: AppColors.text,
         paddingVertical: 8,
     },
     clearButton: {

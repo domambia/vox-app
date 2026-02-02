@@ -8,57 +8,58 @@ import { View, Text } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from './hooks/use-color-scheme';
+import { AppColors } from './constants/theme';
 import { store } from './store';
 import { AuthNavigator } from './navigation/AuthNavigator';
 import { MainNavigator } from './navigation/MainNavigator';
+import { CallScreen } from './screens/voice/CallScreen';
 import { useAppSelector } from './hooks/useAppSelector';
 import { useAppDispatch } from './hooks/useAppDispatch';
 import { initializeAuth } from './store/slices/authSlice';
+import { loadSettings } from './store/slices/settingsSlice';
 import { announceToScreenReader } from './services/accessibility/accessibilityUtils';
 import { offlineService } from './services/network/offlineService';
 import { VoiceCommandOverlay } from './components/accessible/VoiceCommandOverlay';
+import { Toast } from './components/Toast';
 import type { RootStackParamList } from './navigation/types';
 
 // App Navigator Component (inside Redux Provider)
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 function AppNavigator({ navigationRef }: { navigationRef: ReturnType<typeof useNavigationContainerRef<RootStackParamList>> }) {
-  const { isAuthenticated, isLoading } = useAppSelector((state: any) => state.auth);
+  const { isAuthenticated, isLoading, postLogin } = useAppSelector((state: any) => state.auth);
   const dispatch = useAppDispatch();
-  const allowUnauthenticatedNavigation = true;
-
-  console.log('AppNavigator render:', { isAuthenticated, isLoading });
 
   useEffect(() => {
-    console.log('AppNavigator mounted, dispatching initializeAuth');
-    // Initialize auth state on app launch
     dispatch(initializeAuth());
-    // Initialize offline service
+    dispatch(loadSettings());
     offlineService.initialize();
   }, [dispatch]);
 
   useEffect(() => {
-    // Announce app launch to screen readers
     announceToScreenReader('VOX app launched. A community for blind and visually impaired people.');
   }, []);
 
   useEffect(() => {
-    if (!navigationRef.isReady() || !isAuthenticated) return;
+    if (!navigationRef.isReady()) return;
+    if (isAuthenticated) {
+      navigationRef.navigate('Main', { initialTab: postLogin ? 'Profile' : 'Messages' });
+    } else {
+      navigationRef.navigate('Auth');
+    }
+  }, [isAuthenticated, postLogin, navigationRef]);
 
-    navigationRef.navigate('Main', { initialTab: 'Messages' });
-  }, [isAuthenticated, navigationRef]);
-
+  // Show loading until auth state is resolved (token check + optional profile fetch)
   if (isLoading) {
-    console.log('Showing loading screen');
     return (
       <View style={{
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#ffffff'
+        backgroundColor: AppColors.background,
       }}>
         <Text
-          style={{ marginTop: 16, fontSize: 16 }}
+          style={{ marginTop: 16, fontSize: 16, color: AppColors.text }}
           accessibilityRole="text"
         >
           Loading VOX...
@@ -67,10 +68,9 @@ function AppNavigator({ navigationRef }: { navigationRef: ReturnType<typeof useN
     );
   }
 
-  const initialRouteName: keyof RootStackParamList =
-    isAuthenticated || allowUnauthenticatedNavigation ? 'Main' : 'Auth';
-
-  console.log('Rendering navigator:', initialRouteName);
+  // Protected routes: Main only when authenticated, otherwise Auth
+  const initialRouteName: keyof RootStackParamList = isAuthenticated ? 'Main' : 'Auth';
+  const initialTab = postLogin ? 'Profile' : 'Messages';
 
   return (
     <RootStack.Navigator
@@ -81,9 +81,10 @@ function AppNavigator({ navigationRef }: { navigationRef: ReturnType<typeof useN
       <RootStack.Screen
         name="Main"
         component={MainNavigator}
-        initialParams={{ initialTab: 'Messages' }}
+        initialParams={{ initialTab }}
       />
       <RootStack.Screen name="Auth" component={AuthNavigator} />
+      <RootStack.Screen name="Call" component={CallScreen} />
     </RootStack.Navigator>
   );
 }
@@ -96,17 +97,9 @@ export default function RootLayout() {
   return (
     <Provider store={store}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <NavigationContainer
-          ref={navigationRef}
-          onReady={() => {
-            console.log('Navigation container ready');
-          }}
-          onStateChange={(state) => {
-            console.log('Navigation state changed:', state);
-          }}
-        >
+        <NavigationContainer ref={navigationRef}>
           <AppNavigator navigationRef={navigationRef} />
-          <VoiceCommandOverlay />
+          <Toast />
           <StatusBar style="auto" />
         </NavigationContainer>
       </ThemeProvider>

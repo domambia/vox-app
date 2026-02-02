@@ -6,14 +6,17 @@ import {
     SafeAreaView,
     ScrollView,
     TouchableOpacity,
-    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { VoiceBioPlayer } from '../../components/accessible/VoiceBioPlayer';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { profileService, Profile as ApiProfile } from '../../services/api/profileService';
+import { discoveryService } from '../../services/api/discoveryService';
 
 type ProfileDetailScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').DiscoverStackParamList, 'ProfileDetail'>;
 type ProfileDetailScreenRouteProp = RouteProp<import('../../navigation/MainNavigator').DiscoverStackParamList, 'ProfileDetail'>;
@@ -33,24 +36,26 @@ interface Profile {
     isMatched: boolean;
 }
 
-// Mock profile data
-const mockProfile: Profile = {
-    userId: '1',
-    firstName: 'Sarah',
-    lastName: 'Johnson',
-    bio: 'Music enthusiast and accessibility advocate. Love connecting with people who share similar interests. Always up for a good conversation about music, technology, or accessibility features.',
-    interests: ['Music', 'Technology', 'Accessibility', 'Gaming', 'Photography', 'Travel'],
-    location: 'Valletta, Malta',
-    lookingFor: 'friendship',
-    voiceBioUrl: 'mock-url',
-    matchScore: 85,
-    distance: 2.5,
-    isLiked: false,
-    isMatched: false,
-};
+function mapApiProfileToScreen(api: ApiProfile, isLiked: boolean, isMatched: boolean): Profile {
+    const first = api.firstName ?? api.displayName?.split(' ')[0] ?? '';
+    const last = api.lastName ?? (api.displayName ? api.displayName.split(' ').slice(1).join(' ') : '');
+    const looking = (api.lookingFor ?? 'ALL').toLowerCase() as Profile['lookingFor'];
+    return {
+        userId: api.userId,
+        firstName: first,
+        lastName: last,
+        bio: api.bio,
+        interests: Array.isArray(api.interests) ? api.interests : [],
+        location: api.location,
+        lookingFor: looking === 'all' ? 'all' : looking,
+        voiceBioUrl: api.voiceBioUrl,
+        isLiked,
+        isMatched,
+    };
+}
 
 /**
- * Profile Detail Screen - Full profile view from discovery
+ * Profile Detail Screen - Full profile view from discovery (real API)
  * Voice-first design for accessible profile viewing
  */
 export const ProfileDetailScreen: React.FC = () => {
@@ -58,37 +63,79 @@ export const ProfileDetailScreen: React.FC = () => {
     const route = useRoute<ProfileDetailScreenRouteProp>();
     const { userId } = route.params;
 
-    const [profile, setProfile] = useState<Profile>(mockProfile);
+    const [profile, setProfile] = useState<Profile | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [likeLoading, setLikeLoading] = useState(false);
 
-    // Announce screen on load
     useEffect(() => {
-        const announceScreen = async () => {
-            setTimeout(async () => {
-                await announceToScreenReader(
-                    `Profile detail: ${profile.firstName} ${profile.lastName}. ${profile.bio ? 'Has bio' : 'No bio'}. ${profile.interests.length} interests. ${profile.matchScore ? `${profile.matchScore}% match` : ''}`
+        let cancelled = false;
+        const load = async () => {
+            if (!userId) {
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
+            try {
+                const [apiProfile, likesRes, matchesRes] = await Promise.all([
+                    profileService.getProfile(userId),
+                    discoveryService.getLikes({ type: 'given', limit: 100 }),
+                    discoveryService.getMatches({ limit: 100 }),
+                ]);
+                if (cancelled) return;
+                const givenLikes = likesRes?.data ?? [];
+                const matches = matchesRes?.data ?? matchesRes?.matches ?? [];
+                const likedUserIds = new Set(
+                    givenLikes.map((l: any) => l.liked_id ?? l.likedId ?? l.userId ?? l.profile?.user_id)
                 );
-            }, 500);
+                const matchedUserIds = new Set(
+                    matches.map((m: any) => {
+                        const u = m.other_user ?? m.user ?? m;
+                        return u.user_id ?? u.userId;
+                    })
+                );
+                const isLiked = likedUserIds.has(userId);
+                const isMatched = matchedUserIds.has(userId);
+                setProfile(mapApiProfileToScreen(apiProfile, isLiked, isMatched));
+            } catch {
+                if (!cancelled) setProfile(null);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
         };
+        load();
+        return () => { cancelled = true; };
+    }, [userId]);
 
-        announceScreen();
+    useEffect(() => {
+        if (!profile) return;
+        const t = setTimeout(() => {
+            announceToScreenReader(
+                `Profile detail: ${profile.firstName} ${profile.lastName}. ${profile.bio ? 'Has bio' : 'No bio'}. ${profile.interests.length} interests. ${profile.matchScore ? `${profile.matchScore}% match` : ''}`
+            );
+        }, 500);
+        return () => clearTimeout(t);
     }, [profile]);
 
     const handleLike = async () => {
-        await announceToScreenReader(`Liked ${profile.firstName} ${profile.lastName}`);
-        setProfile(prev => ({ ...prev, isLiked: true }));
-
-        // Simulate match check
-        if (profile.matchScore && profile.matchScore > 80) {
-            setTimeout(() => {
-                announceToScreenReader(`It's a match! You and ${profile.firstName} liked each other!`, { isAlert: true });
-                setProfile(prev => ({ ...prev, isMatched: true }));
-            }, 500);
+        if (!profile || profile.isLiked || likeLoading) return;
+        setLikeLoading(true);
+        try {
+            const result = await profileService.likeProfile(profile.userId);
+            setProfile(prev => prev ? { ...prev, isLiked: true, isMatched: prev.isMatched || result.isMatch } : null);
+            await announceToScreenReader(`Liked ${profile.firstName} ${profile.lastName}`);
+            if (result.isMatch) {
+                await announceToScreenReader(`It's a match! You and ${profile.firstName} liked each other!`, { isAlert: true });
+            }
+        } catch {
+            await announceToScreenReader('Failed to like profile', { isAlert: true });
+        } finally {
+            setLikeLoading(false);
         }
     };
 
     const handleMessage = async () => {
+        if (!profile) return;
         await announceToScreenReader(`Starting conversation with ${profile.firstName}`);
-        // Navigate to Messages tab and then to Chat screen
         const rootNavigation = navigation.getParent()?.getParent();
         if (rootNavigation) {
             rootNavigation.dispatch(
@@ -97,7 +144,7 @@ export const ProfileDetailScreen: React.FC = () => {
                     params: {
                         screen: 'Chat',
                         params: {
-                            conversationId: profile.userId,
+                            participantId: profile.userId,
                             participantName: `${profile.firstName} ${profile.lastName}`,
                         },
                     },
@@ -106,11 +153,55 @@ export const ProfileDetailScreen: React.FC = () => {
         }
     };
 
+    const handleCall = () => {
+        if (!profile) return;
+        const rootNav = (navigation.getParent() as any)?.getParent()?.getParent();
+        if (rootNav) {
+            rootNav.navigate('Call', {
+                receiverId: profile.userId,
+                receiverName: `${profile.firstName} ${profile.lastName}`.trim() || 'User',
+                direction: 'outgoing' as const,
+            });
+            announceToScreenReader(`Starting voice call with ${profile.firstName}`);
+        }
+    };
 
     const handleBack = () => {
         announceToScreenReader('Going back to discover');
         navigation.goBack();
     };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <AccessibleButton title="Back" onPress={handleBack} variant="outline" size="small" style={styles.backButton} textStyle={styles.backButtonText} />
+                    <Text style={styles.headerTitle}>Profile</Text>
+                    <View style={styles.headerPlaceholder} />
+                </View>
+                <View style={styles.loadingContainer}> 
+                    <ActivityIndicator size="large" color={AppColors.primary} />
+                    <Text style={styles.loadingText}>Loading profile...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    if (!profile) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <AccessibleButton title="Back" onPress={handleBack} variant="outline" size="small" style={styles.backButton} textStyle={styles.backButtonText} />
+                    <Text style={styles.headerTitle}>Profile</Text>
+                    <View style={styles.headerPlaceholder} />
+                </View>
+                <View style={styles.loadingContainer}>
+                    <Text style={styles.emptyTitle}>Profile not found</Text>
+                    <Text style={styles.emptyDescription}>This profile may have been removed or is no longer available.</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -222,15 +313,26 @@ export const ProfileDetailScreen: React.FC = () => {
                 {/* Action Buttons */}
                 <View style={styles.actions}>
                     {profile.isMatched ? (
-                        <AccessibleButton
-                            title="Send Message"
-                            onPress={handleMessage}
-                            variant="primary"
-                            size="large"
-                            accessibilityHint={`Start conversation with ${profile.firstName}`}
-                            style={styles.messageButton}
-                            textStyle={styles.messageButtonText}
-                        />
+                        <>
+                            <AccessibleButton
+                                title="Send Message"
+                                onPress={handleMessage}
+                                variant="primary"
+                                size="large"
+                                accessibilityHint={`Start conversation with ${profile.firstName}`}
+                                style={styles.messageButton}
+                                textStyle={styles.messageButtonText}
+                            />
+                            <AccessibleButton
+                                title="Voice call"
+                                onPress={handleCall}
+                                variant="outline"
+                                size="large"
+                                accessibilityHint={`Start voice call with ${profile.firstName}`}
+                                style={styles.messageButton}
+                                textStyle={styles.messageButtonText}
+                            />
+                        </>
                     ) : (
                         <>
                             <AccessibleButton
@@ -238,7 +340,7 @@ export const ProfileDetailScreen: React.FC = () => {
                                 onPress={handleLike}
                                 variant={profile.isLiked ? "secondary" : "primary"}
                                 size="large"
-                                disabled={profile.isLiked}
+                                disabled={profile.isLiked || likeLoading}
                                 accessibilityHint={profile.isLiked ? "Already liked" : `Like ${profile.firstName}`}
                                 style={styles.likeButton}
                                 textStyle={styles.likeButtonText}
@@ -265,7 +367,7 @@ export const ProfileDetailScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8F9FA',
+        backgroundColor: AppColors.inputBg,
     },
     header: {
         flexDirection: 'row',
@@ -273,23 +375,47 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
     backButton: {
         minWidth: 60,
     },
     backButtonText: {
         fontSize: 14,
+        color: AppColors.text,
     },
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
     },
     headerPlaceholder: {
         width: 60,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+        gap: 12,
+    },
+    loadingText: {
+        fontSize: 16,
+        color: AppColors.textSecondary,
+    },
+    emptyTitle: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: AppColors.text,
+        textAlign: 'center',
+    },
+    emptyDescription: {
+        fontSize: 16,
+        color: AppColors.textSecondary,
+        textAlign: 'center',
+        marginTop: 8,
     },
     scrollView: {
         flex: 1,
@@ -298,11 +424,11 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     profileCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
         borderRadius: 20,
         padding: 20,
         marginBottom: 24,
-        shadowColor: '#000000',
+        shadowColor: AppColors.black,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 12,
@@ -317,20 +443,20 @@ const styles = StyleSheet.create({
         width: 120,
         height: 120,
         borderRadius: 60,
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
         justifyContent: 'center',
         alignItems: 'center',
     },
     avatarText: {
         fontSize: 48,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     matchScoreBadge: {
         position: 'absolute',
         top: -8,
         right: -8,
-        backgroundColor: '#34C759',
+        backgroundColor: AppColors.success,
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
@@ -338,7 +464,7 @@ const styles = StyleSheet.create({
     matchScoreText: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     nameSection: {
         alignItems: 'center',
@@ -347,12 +473,12 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 28,
         fontWeight: '700',
-        color: '#000000',
+        color: AppColors.text,
         marginBottom: 4,
     },
     location: {
         fontSize: 16,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     bioSection: {
         marginBottom: 20,
@@ -360,12 +486,12 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         marginBottom: 8,
     },
     bio: {
         fontSize: 16,
-        color: '#333333',
+        color: AppColors.text,
         lineHeight: 24,
     },
     voiceBioSection: {
@@ -374,19 +500,19 @@ const styles = StyleSheet.create({
     voiceBioButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F0F8FF',
+        backgroundColor: AppColors.inputBg,
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#007AFF',
+        borderColor: AppColors.primary,
     },
     playingButton: {
-        backgroundColor: '#E3F2FD',
+        backgroundColor: AppColors.borderLight,
     },
     voiceBioText: {
         fontSize: 16,
-        color: '#007AFF',
+        color: AppColors.primary,
         marginLeft: 8,
         fontWeight: '500',
     },
@@ -394,7 +520,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     lookingForBadge: {
-        backgroundColor: '#E8F5E8',
+        backgroundColor: AppColors.borderLight,
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
@@ -402,7 +528,7 @@ const styles = StyleSheet.create({
     },
     lookingForText: {
         fontSize: 14,
-        color: '#2E7D32',
+        color: AppColors.success,
         fontWeight: '600',
     },
     interestsSection: {
@@ -414,29 +540,29 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     interestChip: {
-        backgroundColor: '#F0F0F0',
+        backgroundColor: AppColors.borderLight,
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
     },
     interestText: {
         fontSize: 14,
-        color: '#333333',
+        color: AppColors.text,
         fontWeight: '500',
     },
     actions: {
         gap: 12,
     },
     likeButton: {
-        backgroundColor: '#34C759',
+        backgroundColor: AppColors.success,
     },
     likeButtonText: {
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     messageButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
     },
     messageButtonText: {
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
 });

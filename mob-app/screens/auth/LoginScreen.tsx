@@ -8,18 +8,22 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  InteractionManager,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, StackActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AppColors } from '../../constants/theme';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { AccessibleInput } from '../../components/accessible/AccessibleInput';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppDispatch, useAppSelector } from '../../hooks';
-import { sendOTP, setError, clearError } from '../../store/slices/authSlice';
+import { sendOTP, clearError, initializeAuth } from '../../store/slices/authSlice';
+import { showToast } from '../../store/slices/toastSlice';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -44,9 +48,7 @@ const loginSchema = yup.object().shape({
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const dispatch = useAppDispatch();
-  const { isLoading, error, isOffline } = useAppSelector((state: any) => state.auth);
-
-  const [showPassword, setShowPassword] = useState(false);
+  const { isLoading, error, errorCode, isOffline, isAuthenticated } = useAppSelector((state: any) => state.auth);
 
   const {
     control,
@@ -58,9 +60,22 @@ export const LoginScreen: React.FC = () => {
     resolver: yupResolver(loginSchema),
     mode: 'onChange',
     defaultValues: {
-      phoneNumber: '',
+      phoneNumber: '+35699123456',
     },
   });
+
+  // If we have a stored token but aren't authenticated yet, restore session (then App will show Main)
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem('accessToken').then((token) => {
+      if (!cancelled && token && !isAuthenticated) {
+        dispatch(initializeAuth());
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, isAuthenticated]);
 
   // Announce screen on load - CRITICAL for accessibility
   useEffect(() => {
@@ -92,24 +107,34 @@ export const LoginScreen: React.FC = () => {
 
       await announceToScreenReader('Sending verification code. Please wait.');
 
+      // In development, devBypassOtp: true makes backend return tokens directly (skip OTP screen)
       const result = await dispatch(sendOTP({
         phoneNumber: data.phoneNumber,
         purpose: 'LOGIN',
+        ...(__DEV__ ? { devBypassOtp: true } : {}),
       }));
 
       if (sendOTP.fulfilled.match(result)) {
+        const payload = result.payload as { token?: string; message?: string };
+        // Dev bypass or token in response: we're logged in, app will switch to Main/Profile
+        if (payload?.token) {
+          await announceToScreenReader('Logged in. Opening profile.', { isAlert: true });
+          return;
+        }
         await announceToScreenReader('Verification code sent. Please check your phone.', { isAlert: true });
-        // Navigate to OTP verification
-        setTimeout(() => {
-          navigation.navigate('OTPVerification');
-        }, 1000);
+        InteractionManager.runAfterInteractions(() => {
+          navigation.dispatch(StackActions.push('OTPVerification'));
+        });
       } else {
-        const errorMessage = result.payload as string || 'Failed to send verification code';
+        const payload = result.payload as { message?: string } | string | undefined;
+        const errorMessage = typeof payload === 'object' && payload?.message ? payload.message : (payload as string) || 'Failed to send verification code';
+        dispatch(showToast({ message: errorMessage, type: 'error' }));
         await announceToScreenReader(`Failed to send code. ${errorMessage}`, { isAlert: true });
         setFormError('root', { message: errorMessage });
       }
     } catch (error) {
       const errorMessage = 'An unexpected error occurred';
+      dispatch(showToast({ message: errorMessage, type: 'error' }));
       await announceToScreenReader(`Error: ${errorMessage}`, { isAlert: true });
       setFormError('root', { message: errorMessage });
     }
@@ -123,15 +148,9 @@ export const LoginScreen: React.FC = () => {
     }, 300);
   };
 
-  const toggleShowPassword = () => {
-    const newState = !showPassword;
-    setShowPassword(newState);
-    announceToScreenReader(newState ? 'Password will be shown' : 'Password will be hidden');
-  };
-
   return (
     <LinearGradient
-      colors={['#F2ECFF', '#D6C9FF', '#B7A1FF']}
+      colors={[...AppColors.gradientAuth]}
       style={styles.gradient}
     >
       <SafeAreaView style={styles.container}>
@@ -187,7 +206,7 @@ export const LoginScreen: React.FC = () => {
                       autoCapitalize="none"
                       autoComplete="tel"
                       accessibilityHint="Enter your phone number with country code"
-                      placeholder="+1234567890"
+                      placeholder="+35699123456"
                     />
                   )}
                 />
@@ -207,6 +226,7 @@ export const LoginScreen: React.FC = () => {
                     style={styles.errorText}
                     accessibilityRole="alert"
                     accessibilityLiveRegion="polite"
+                    accessibilityLabel={errorCode ? `${errorCode}: ${errors.root?.message || error}` : undefined}
                   >
                     {errors.root?.message || error}
                   </Text>
@@ -268,11 +288,11 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
-    shadowColor: '#6D4CFF',
+    shadowColor: AppColors.primaryDark,
     shadowOpacity: 0.2,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -286,7 +306,7 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#3A2C7B',
+    color: AppColors.text,
   },
   centerContent: {
     flex: 1,
@@ -298,13 +318,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#3A2C7B',
+    color: AppColors.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   description: {
     fontSize: 15,
-    color: '#5E55A6',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -313,15 +333,15 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     marginTop: 20,
-    backgroundColor: '#7B5CFA',
+    backgroundColor: AppColors.primary,
     borderRadius: 14,
   },
   loginButtonText: {
-    color: '#FFFFFF',
+    color: AppColors.white,
   },
   errorText: {
     fontSize: 15,
-    color: '#ef4444',
+    color: AppColors.error,
     textAlign: 'center',
     fontWeight: '500',
   },
@@ -331,25 +351,25 @@ const styles = StyleSheet.create({
   },
   createAccountButton: {
     marginTop: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E0D6FF',
+    borderColor: AppColors.border,
   },
   createAccountButtonText: {
-    color: '#4B3BA9',
+    color: AppColors.primaryDark,
   },
   offlineContainer: {
     marginTop: 20,
     padding: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0D6FF',
+    borderColor: AppColors.border,
   },
   offlineText: {
     fontSize: 14,
-    color: '#5E55A6',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     fontWeight: '500',
   },

@@ -16,10 +16,10 @@ export const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Authentication endpoints (stricter)
+// Authentication endpoints (stricter in production; effectively disabled in development)
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per 15 minutes
+  max: config.nodeEnv === 'development' ? 10000 : 5, // no practical limit in dev, 5 per 15 min in prod
   message: {
     success: false,
     error: {

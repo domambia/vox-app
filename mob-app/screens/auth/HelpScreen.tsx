@@ -11,6 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AppColors } from '../../constants/theme';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 
@@ -42,7 +43,7 @@ export const HelpScreen: React.FC = () => {
 
   return (
     <LinearGradient
-      colors={['#F2ECFF', '#D6C9FF', '#B7A1FF']}
+      colors={[...AppColors.gradientAuth]}
       style={styles.gradient}
     >
       <SafeAreaView style={styles.container}>
@@ -163,18 +164,18 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
-    color: '#7B5CFA',
+    color: AppColors.primary,
     fontWeight: '600',
   },
   logoBubble: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
-    shadowColor: '#6D4CFF',
+    shadowColor: AppColors.primaryDark,
     shadowOpacity: 0.2,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -188,13 +189,13 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#3A2C7B',
+    color: AppColors.text,
     marginBottom: 6,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#3A2C7B',
+    color: AppColors.text,
     textAlign: 'center',
   },
   content: {
@@ -208,12 +209,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#4B3BA9',
+    color: AppColors.primaryDark,
     marginBottom: 12,
   },
   paragraph: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#5E55A6',
+    color: AppColors.textSecondary,
   },
 });

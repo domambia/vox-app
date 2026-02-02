@@ -10,6 +10,10 @@ import messagesReducer from './slices/messagesSlice';
 import groupsReducer from './slices/groupsSlice';
 import eventsReducer from './slices/eventsSlice';
 import callsReducer from './slices/callsSlice';
+import discoveryReducer from './slices/discoverySlice';
+import settingsReducer from './slices/settingsSlice';
+import notificationsReducer from './slices/notificationsSlice';
+import toastReducer from './slices/toastSlice';
 
 // Temporarily disable persistence completely
 const rootReducer = combineReducers({
@@ -19,6 +23,10 @@ const rootReducer = combineReducers({
   groups: groupsReducer,
   events: eventsReducer,
   calls: callsReducer,
+  discovery: discoveryReducer,
+  settings: settingsReducer,
+  notifications: notificationsReducer,
+  toast: toastReducer,
 });
 
 export const store = configureStore({

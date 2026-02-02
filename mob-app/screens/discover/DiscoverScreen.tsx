@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,19 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { FilterPanel, FilterGroup } from '../../components/accessible/FilterPanel';
 import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { useVoiceCommands } from '../../hooks/useVoiceCommands';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { hapticService } from '../../services/accessibility/hapticService';
+import { discoveryService } from '../../services/api/discoveryService';
+import { profileService } from '../../services/api/profileService';
+import { showToast } from '../../store/slices/toastSlice';
+import { useAppDispatch } from '../../hooks';
+import { ErrorView } from '@/components/accessible/ErrorView';
+import { LoadingSkeleton } from '@/components/accessible/LoadingSkeleton';
 
 type DiscoverScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').DiscoverStackParamList>;
 
@@ -35,78 +43,80 @@ interface DiscoverProfile {
   isLiked: boolean;
 }
 
-// Mock discovery profiles
-const mockProfiles: DiscoverProfile[] = [
-  {
-    userId: '1',
-    firstName: 'Sarah',
-    lastName: 'Johnson',
-    bio: 'Music enthusiast and accessibility advocate. Love connecting with people who share similar interests.',
-    interests: ['Music', 'Technology', 'Accessibility', 'Gaming'],
-    location: 'Valletta, Malta',
-    lookingFor: 'friendship',
-    matchScore: 85,
-    distance: 2.5,
+function mapApiToDiscoverProfile(raw: any): DiscoverProfile {
+  const userId = raw.user_id ?? raw.userId ?? '';
+  const user = raw.user ?? {};
+  const firstName = user.first_name ?? user.firstName ?? '';
+  const lastName = user.last_name ?? user.lastName ?? '';
+  const interests = Array.isArray(raw.interests) ? raw.interests : [];
+  const lookingFor = (raw.looking_for ?? raw.lookingFor ?? 'ALL').toLowerCase();
+  const matchScore = raw.matchScore != null ? Math.round((raw.matchScore as number) * 100) : undefined;
+  return {
+    userId,
+    firstName,
+    lastName,
+    bio: raw.bio ?? undefined,
+    interests,
+    location: raw.location ?? undefined,
+    lookingFor: lookingFor as DiscoverProfile['lookingFor'],
+    voiceBioUrl: raw.voice_bio_url ?? raw.voiceBioUrl,
+    matchScore,
+    distance: raw.distance,
     isLiked: false,
-  },
-  {
-    userId: '2',
-    firstName: 'Mike',
-    lastName: 'Chen',
-    bio: 'Tech professional passionate about making the digital world more accessible.',
-    interests: ['Technology', 'Coding', 'Accessibility', 'Photography'],
-    location: 'Sliema, Malta',
-    lookingFor: 'all',
-    matchScore: 78,
-    distance: 5.2,
-    isLiked: false,
-  },
-  {
-    userId: '3',
-    firstName: 'Emma',
-    lastName: 'Davis',
-    bio: 'Outdoor enthusiast and nature lover. Always up for an adventure!',
-    interests: ['Hiking', 'Nature', 'Photography', 'Travel'],
-    location: 'St. Julian\'s, Malta',
-    lookingFor: 'hobby',
-    matchScore: 72,
-    distance: 8.1,
-    isLiked: true,
-  },
-  {
-    userId: '4',
-    firstName: 'James',
-    lastName: 'Wilson',
-    bio: 'Gamer and tech enthusiast. Love discussing the latest in accessible gaming.',
-    interests: ['Gaming', 'Technology', 'Music', 'Movies'],
-    location: 'Birgu, Malta',
-    lookingFor: 'friendship',
-    matchScore: 90,
-    distance: 12.3,
-    isLiked: false,
-  },
-];
+  };
+}
 
 const { width } = Dimensions.get('window');
 
 /**
- * Discover Screen - Profile discovery with swipeable cards
- * Voice-first design for accessible profile discovery
+ * Discover Screen - Profile discovery (real data from API)
  */
 export const DiscoverScreen: React.FC = () => {
   const navigation = useNavigation<DiscoverScreenNavigationProp>();
-  const [profiles, setProfiles] = useState<DiscoverProfile[]>(mockProfiles);
+  const dispatch = useAppDispatch();
+  const [profiles, setProfiles] = useState<DiscoverProfile[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [showFilters, setShowFilters] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
 
-  // Voice commands integration
   const { registerCommand } = useVoiceCommands('Discover');
   const [activeFilters, setActiveFilters] = useState<Record<string, any[]>>({
     lookingFor: [],
     location: [],
   });
+
+  const loadProfiles = async () => {
+    setLoading(true);
+    setDiscoverError(null);
+    try {
+      const result = await discoveryService.discoverProfiles({ limit: 30 });
+      const list = Array.isArray(result.data) ? result.data.map(mapApiToDiscoverProfile) : [];
+      setProfiles(list);
+      setCurrentIndex(0);
+    } catch (e: any) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? 'Failed to load profiles';
+      setDiscoverError(msg);
+      if (e?.response?.status === 404) {
+        dispatch(showToast({ message: 'Create your profile first to discover others', type: 'info' }));
+      }
+      setProfiles([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfiles();
+  }, []);
+
+  useEffect(() => {
+    if (profiles.length > 0 || !loading) {
+      setTimeout(() => announceToScreenReader(`Discover. ${profiles.length} profiles to discover.`), 500);
+    }
+  }, [profiles.length, loading]);
 
   // Filter configuration
   const filterGroups: FilterGroup[] = [
@@ -123,62 +133,49 @@ export const DiscoverScreen: React.FC = () => {
     },
   ];
 
-  // Announce screen on load
-  useEffect(() => {
-    const announceScreen = async () => {
-      setTimeout(async () => {
-        await announceToScreenReader(
-          `Discover screen. ${profiles.length} profiles to discover. Swipe right to like, left to pass. Or use the buttons below.`
-        );
-      }, 500);
-    };
-
-    announceScreen();
-  }, [profiles.length]);
-
   const handleRefresh = async () => {
     setRefreshing(true);
     await announceToScreenReader('Refreshing profiles');
-
-    // Simulate API call
-    setTimeout(() => {
-      setRefreshing(false);
-      setCurrentIndex(0);
-      announceToScreenReader('Profiles updated');
-    }, 1000);
+    await loadProfiles();
+    setRefreshing(false);
+    announceToScreenReader('Profiles updated');
   };
 
   const handleLike = async (profile: DiscoverProfile) => {
-    await announceToScreenReader(`Liked ${profile.firstName} ${profile.lastName}`);
-
-    // Update local state
-    setProfiles(prev =>
-      prev.map(p =>
-        p.userId === profile.userId ? { ...p, isLiked: true } : p
-      )
-    );
-
-    // Simulate match check
-    if (profile.matchScore && profile.matchScore > 80) {
-      setTimeout(() => {
-        announceToScreenReader(`It's a match! You and ${profile.firstName} liked each other!`, { isAlert: true });
-      }, 500);
+    hapticService.light();
+    try {
+      const res = await profileService.likeProfile(profile.userId);
+      const isMatch = res?.isMatch === true;
+      await announceToScreenReader(`Liked ${profile.firstName} ${profile.lastName}`);
+      if (isMatch) {
+        dispatch(showToast({ message: `It's a match! You and ${profile.firstName} liked each other!`, type: 'success' }));
+        await announceToScreenReader(`It's a match! You and ${profile.firstName} liked each other!`, { isAlert: true });
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? 'Failed to like';
+      dispatch(showToast({ message: msg, type: 'error' }));
+      return;
     }
+    setProfiles(prev => prev.filter(p => p.userId !== profile.userId));
+    if (currentIndex >= profiles.length - 1) setCurrentIndex(Math.max(0, profiles.length - 2));
+    else setCurrentIndex(currentIndex + 1);
+  };
 
-    // Move to next profile
-    if (currentIndex < profiles.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    }
+  const handleSuperLike = async (profile: DiscoverProfile) => {
+    hapticService.success();
+    await announceToScreenReader(`Super liked ${profile.firstName} ${profile.lastName}. They'll be notified!`);
+    await handleLike(profile);
   };
 
   const handlePass = async (profile: DiscoverProfile) => {
+    hapticService.light();
     await announceToScreenReader(`Passed on ${profile.firstName} ${profile.lastName}`);
-
-    // Move to next profile
-    if (currentIndex < profiles.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
+    setProfiles(prev => prev.filter(p => p.userId !== profile.userId));
+    if (currentIndex >= profiles.length - 1) {
+      setCurrentIndex(Math.max(0, profiles.length - 2));
       announceToScreenReader('No more profiles to discover. Pull down to refresh.');
+    } else {
+      setCurrentIndex(currentIndex + 1);
     }
   };
 
@@ -216,7 +213,8 @@ export const DiscoverScreen: React.FC = () => {
     return filtered;
   }, [profiles, activeFilters]);
 
-  const currentProfile = filteredProfiles[currentIndex];
+  const safeIndex = Math.min(currentIndex, Math.max(0, filteredProfiles.length - 1));
+  const currentProfile = filteredProfiles[safeIndex];
 
   // Register screen-specific voice commands
   useEffect(() => {
@@ -236,6 +234,15 @@ export const DiscoverScreen: React.FC = () => {
       registerCommand('pass_profile', () => {
         if (currentProfile) {
           handlePass(currentProfile);
+        }
+      })
+    );
+
+    // Super like command
+    unsubscribes.push(
+      registerCommand('super_like', () => {
+        if (currentProfile) {
+          handleSuperLike(currentProfile);
         }
       })
     );
@@ -354,7 +361,16 @@ export const DiscoverScreen: React.FC = () => {
             accessibilityLabel={`Pass on ${profile.firstName}`}
             accessibilityHint="Skip this profile"
           >
-            <Ionicons name="close" size={24} color="#FF3B30" />
+            <Ionicons name="close" size={24} color={AppColors.error} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.swipeButton, styles.superLikeButton]}
+            onPress={() => handleSuperLike(profile)}
+            accessibilityRole="button"
+            accessibilityLabel={`Super like ${profile.firstName}`}
+            accessibilityHint="Super like this profile. They'll be notified!"
+          >
+            <Ionicons name="star" size={24} color="#FFD700" />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.swipeButton, styles.likeButton]}
@@ -363,7 +379,7 @@ export const DiscoverScreen: React.FC = () => {
             accessibilityLabel={`Like ${profile.firstName}`}
             accessibilityHint="Like this profile"
           >
-            <Ionicons name="heart" size={24} color="#34C759" />
+            <Ionicons name="heart" size={24} color={AppColors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -411,7 +427,7 @@ export const DiscoverScreen: React.FC = () => {
             </View>
           </View>
           {item.isLiked && (
-            <Ionicons name="heart" size={20} color="#34C759" />
+            <Ionicons name="heart" size={20} color={AppColors.primary} />
           )}
         </TouchableOpacity>
       )}
@@ -429,7 +445,7 @@ export const DiscoverScreen: React.FC = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="people-outline" size={64} color="#CCCCCC" />
+      <Ionicons name="people-outline" size={64} color={AppColors.textSecondary} />
       <Text style={styles.emptyTitle} accessibilityRole="header">
         No more profiles
       </Text>
@@ -464,7 +480,7 @@ export const DiscoverScreen: React.FC = () => {
               accessibilityLabel="Switch to card view"
               accessibilityHint="Change view mode to cards"
             >
-              <Ionicons name="grid-outline" size={24} color="#007AFF" />
+              <Ionicons name="grid-outline" size={24} color={AppColors.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerAction}
@@ -476,7 +492,7 @@ export const DiscoverScreen: React.FC = () => {
               accessibilityLabel="Filter options"
               accessibilityHint="Open filter options"
             >
-              <Ionicons name="filter-outline" size={24} color="#007AFF" />
+              <Ionicons name="filter-outline" size={24} color={AppColors.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -534,7 +550,7 @@ export const DiscoverScreen: React.FC = () => {
             accessibilityLabel="Switch to list view"
             accessibilityHint="Change view mode to list"
           >
-            <Ionicons name="list-outline" size={24} color="#007AFF" />
+            <Ionicons name="list-outline" size={24} color={AppColors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerAction}
@@ -546,7 +562,7 @@ export const DiscoverScreen: React.FC = () => {
             accessibilityLabel="Filter options"
             accessibilityHint="Open filter options"
           >
-            <Ionicons name="filter-outline" size={24} color="#007AFF" />
+            <Ionicons name="filter-outline" size={24} color={AppColors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -571,35 +587,42 @@ export const DiscoverScreen: React.FC = () => {
         />
       )}
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            accessibilityLabel="Pull to refresh profiles"
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {currentProfile ? (
-          renderProfileCard(currentProfile)
-        ) : (
-          renderEmptyState()
-        )}
+      {discoverError ? (
+        <ErrorView message={discoverError} onRetry={handleRefresh} />
+      ) : null}
+      {loading ? (
+        <LoadingSkeleton type="list" />
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              accessibilityLabel="Pull to refresh profiles"
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {currentProfile ? (
+            renderProfileCard(currentProfile)
+          ) : (
+            renderEmptyState()
+          )}
 
-        {currentIndex < filteredProfiles.length - 1 && (
-          <View style={styles.navigationHint}>
-            <Text style={styles.navigationHintText} accessibilityRole="text">
-              Profile {currentIndex + 1} of {filteredProfiles.length}
-            </Text>
-            <Text style={styles.navigationHintSubtext} accessibilityRole="text">
-              Use buttons below to like or pass, or swipe to navigate
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+          {safeIndex < filteredProfiles.length - 1 && filteredProfiles.length > 0 && (
+            <View style={styles.navigationHint}>
+              <Text style={styles.navigationHintText} accessibilityRole="text">
+                Profile {currentIndex + 1} of {filteredProfiles.length}
+              </Text>
+              <Text style={styles.navigationHintSubtext} accessibilityRole="text">
+                Use buttons below to like or pass, or swipe to navigate
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
 
       <View style={styles.quickActions}>
         <AccessibleButton
@@ -628,7 +651,7 @@ export const DiscoverScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: AppColors.inputBg,
   },
   header: {
     flexDirection: 'row',
@@ -636,14 +659,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: AppColors.border,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#000000',
+    color: AppColors.text,
   },
   headerActions: {
     flexDirection: 'row',
@@ -657,21 +680,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filtersContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: AppColors.border,
   },
   filterTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000000',
+    color: AppColors.text,
     marginBottom: 12,
   },
   filterPlaceholder: {
     fontSize: 14,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     fontStyle: 'italic',
+  },
+  errorBanner: {
+    backgroundColor: AppColors.errorBgLight,
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: AppColors.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -680,11 +725,11 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   profileCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#000000',
+    shadowColor: AppColors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -700,20 +745,20 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#007AFF',
+    backgroundColor: AppColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     fontSize: 48,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: AppColors.background,
   },
   matchScoreBadge: {
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: '#34C759',
+    backgroundColor: AppColors.success,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -721,7 +766,7 @@ const styles = StyleSheet.create({
   matchScoreText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: AppColors.background,
   },
   profileInfo: {
     alignItems: 'center',
@@ -730,19 +775,19 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#000000',
+    color: AppColors.text,
     marginBottom: 4,
   },
   profileLocation: {
     fontSize: 16,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
   },
   bioSection: {
     marginBottom: 16,
   },
   bio: {
     fontSize: 16,
-    color: '#333333',
+    color: AppColors.text,
     lineHeight: 24,
     textAlign: 'center',
   },
@@ -755,12 +800,12 @@ const styles = StyleSheet.create({
   },
   lookingForLabel: {
     fontSize: 14,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
   },
   lookingForValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#007AFF',
+    color: AppColors.primary,
   },
   interestsSection: {
     marginBottom: 24,
@@ -768,7 +813,7 @@ const styles = StyleSheet.create({
   interestsLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#000000',
+    color: AppColors.text,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -779,31 +824,31 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   interestChip: {
-    backgroundColor: '#F0F0F0',
+    backgroundColor: AppColors.borderLight,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   interestText: {
     fontSize: 14,
-    color: '#333333',
+    color: AppColors.text,
     fontWeight: '500',
   },
   moreInterests: {
     fontSize: 14,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     fontStyle: 'italic',
   },
   actionButtons: {
     gap: 12,
   },
   viewButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: AppColors.primary,
   },
   viewButtonText: {
-    color: '#007AFF',
+    color: AppColors.primary,
   },
   swipeButtons: {
     flexDirection: 'row',
@@ -819,12 +864,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   passButton: {
-    borderColor: '#FF3B30',
-    backgroundColor: '#FFFFFF',
+    borderColor: AppColors.error,
+    backgroundColor: AppColors.background,
+  },
+  superLikeButton: {
+    borderColor: AppColors.warning,
+    backgroundColor: AppColors.background,
+    borderWidth: 2,
   },
   likeButton: {
-    borderColor: '#34C759',
-    backgroundColor: '#FFFFFF',
+    borderColor: AppColors.success,
+    backgroundColor: AppColors.background,
   },
   navigationHint: {
     alignItems: 'center',
@@ -833,12 +883,12 @@ const styles = StyleSheet.create({
   navigationHintText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     marginBottom: 4,
   },
   navigationHintSubtext: {
     fontSize: 14,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     textAlign: 'center',
   },
   listView: {
@@ -846,13 +896,13 @@ const styles = StyleSheet.create({
   },
   listItem: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: AppColors.border,
     alignItems: 'center',
     minHeight: 80,
   },
@@ -860,7 +910,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#007AFF',
+    backgroundColor: AppColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -868,7 +918,7 @@ const styles = StyleSheet.create({
   listAvatarText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: AppColors.background,
   },
   listContent: {
     flex: 1,
@@ -882,16 +932,16 @@ const styles = StyleSheet.create({
   listName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000000',
+    color: AppColors.text,
   },
   listMatchScore: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#34C759',
+    color: AppColors.success,
   },
   listBio: {
     fontSize: 14,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     marginBottom: 8,
   },
   listFooter: {
@@ -901,12 +951,12 @@ const styles = StyleSheet.create({
   },
   listInterests: {
     fontSize: 12,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     flex: 1,
   },
   listLocation: {
     fontSize: 12,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
   },
   emptyState: {
     flex: 1,
@@ -918,14 +968,14 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#000000',
+    color: AppColors.text,
     textAlign: 'center',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyDescription: {
     fontSize: 16,
-    color: '#6C757D',
+    color: AppColors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
@@ -941,19 +991,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppColors.background,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
+    borderTopColor: AppColors.border,
     gap: 12,
   },
   quickActionButton: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: AppColors.inputBg,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: AppColors.border,
   },
   quickActionButtonText: {
-    color: '#007AFF',
+    color: AppColors.primary,
     fontSize: 14,
   },
 });

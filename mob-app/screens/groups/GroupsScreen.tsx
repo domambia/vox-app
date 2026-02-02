@@ -1,25 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     SafeAreaView,
-    FlatList,
     TouchableOpacity,
     RefreshControl,
     SectionList,
+    ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 import type { GroupsStackParamList } from '../../navigation/MainNavigator';
+import { groupsService } from '../../services/api/groupsService';
+import { useAppSelector } from '../../hooks';
 
 type GroupsScreenNavigationProp = NativeStackNavigationProp<GroupsStackParamList>;
 
-interface Group {
+interface GroupRow {
     id: string;
     name: string;
     description: string;
@@ -27,110 +30,107 @@ interface Group {
     memberCount: number;
     isPublic: boolean;
     lastActivity: string;
+    lastMessagePreview?: string;
+    lastMessageAt?: string;
     myRole?: 'member' | 'moderator' | 'admin';
     isJoined: boolean;
 }
 
-// Mock data for groups
-const mockGroups: Group[] = [
-    {
-        id: '1',
-        name: 'Blind Gamers Community',
-        description: 'Connect with fellow gamers who are blind or visually impaired',
-        category: 'Gaming',
-        memberCount: 245,
-        isPublic: true,
-        lastActivity: '2 hours ago',
-        myRole: 'member',
-        isJoined: true,
-    },
-    {
-        id: '2',
-        name: 'Accessible Travel Tips',
-        description: 'Share experiences and tips for accessible travel worldwide',
-        category: 'Travel',
-        memberCount: 189,
-        isPublic: true,
-        lastActivity: '5 hours ago',
-        myRole: 'moderator',
-        isJoined: true,
-    },
-    {
-        id: '3',
-        name: 'Music Lovers',
-        description: 'Discuss music, share playlists, and connect through sound',
-        category: 'Music',
-        memberCount: 312,
-        isPublic: true,
-        lastActivity: '1 day ago',
-        isJoined: false,
-    },
-    {
-        id: '4',
-        name: 'Tech Accessibility',
-        description: 'Discuss latest tech and accessibility features',
-        category: 'Technology',
-        memberCount: 156,
-        isPublic: false,
-        lastActivity: '3 days ago',
-        isJoined: false,
-    },
-];
+function formatRelative(dateStr: string | undefined): string {
+    if (!dateStr) return 'Recently';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+}
+
+function mapApiGroupToRow(raw: any, isJoined: boolean, myRole?: string): GroupRow {
+    const g = raw.group ?? raw;
+    const id = g.group_id ?? g.groupId ?? '';
+    const memberCount = g.member_count ?? g.memberCount ?? 0;
+    const isPublic = g.is_public !== false;
+    const role = (raw.role ?? myRole ?? '').toLowerCase();
+    const lastAt = g.last_message_at ?? g.lastMessageAt ?? g.updated_at ?? g.updatedAt;
+    return {
+        id,
+        name: g.name ?? '',
+        description: g.description ?? '',
+        category: g.category ?? 'General',
+        memberCount,
+        isPublic,
+        lastActivity: formatRelative(lastAt),
+        lastMessagePreview: g.last_message_preview ?? g.lastMessagePreview,
+        lastMessageAt: lastAt,
+        myRole: role ? (role as GroupRow['myRole']) : undefined,
+        isJoined,
+    };
+}
 
 /**
- * Groups Screen - WhatsApp-style groups list
- * Voice-first design for accessible community features
+ * Groups Screen - Groups list (real data from API)
  */
 export const GroupsScreen: React.FC = () => {
     const navigation = useNavigation<GroupsScreenNavigationProp>();
-    const [groups, setGroups] = useState<Group[]>(mockGroups);
+    const userId = useAppSelector((state) => state.auth.user?.userId) ?? '';
+    const [joinedGroups, setJoinedGroups] = useState<GroupRow[]>([]);
+    const [discoverGroups, setDiscoverGroups] = useState<GroupRow[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'joined' | 'discover'>('joined');
 
-    // Separate groups into sections
-    const joinedGroups = groups.filter(group => group.isJoined);
-    const discoverGroups = groups.filter(group => !group.isJoined);
-
-    const sections = [
-        ...(joinedGroups.length > 0 ? [{
-            title: 'My Groups',
-            data: joinedGroups,
-            key: 'joined'
-        }] : []),
-        {
-            title: 'Discover Groups',
-            data: discoverGroups,
-            key: 'discover'
+    const loadGroups = async () => {
+        if (!userId) return;
+        setLoading(true);
+        try {
+            const [myRes, listRes] = await Promise.all([
+                groupsService.getUserGroups(userId),
+                groupsService.listGroups({ limit: 50 }),
+            ]);
+            const myItems = Array.isArray(myRes.groups) ? myRes.groups : [];
+            const joined = myItems.map((m: any) => mapApiGroupToRow(m, true, m.role));
+            setJoinedGroups(joined);
+            const myIds = new Set(joined.map((g) => g.id));
+            const listItems = Array.isArray(listRes.data) ? listRes.data : [];
+            const discover = listItems
+                .filter((g: any) => !myIds.has(g.group_id ?? g.groupId ?? ''))
+                .map((g: any) => mapApiGroupToRow(g, false));
+            setDiscoverGroups(discover);
+        } catch {
+            setJoinedGroups([]);
+            setDiscoverGroups([]);
+        } finally {
+            setLoading(false);
         }
-    ];
+    };
 
-    // Announce screen on load
     useEffect(() => {
-        const announceScreen = async () => {
-            setTimeout(async () => {
-                await announceToScreenReader(
-                    `Groups. ${joinedGroups.length} joined groups, ${discoverGroups.length} available to discover.`
-                );
-            }, 500);
-        };
+        loadGroups();
+    }, [userId]);
 
-        announceScreen();
-    }, [joinedGroups.length, discoverGroups.length]);
+    useEffect(() => {
+        if (joinedGroups.length > 0 || discoverGroups.length > 0 || !loading) {
+            setTimeout(() => announceToScreenReader(
+                `Groups. ${joinedGroups.length} joined groups, ${discoverGroups.length} available to discover.`
+            ), 500);
+        }
+    }, [joinedGroups.length, discoverGroups.length, loading]);
 
     const handleRefresh = async () => {
         setRefreshing(true);
         await announceToScreenReader('Refreshing groups');
-
-        // Simulate API call
-        setTimeout(() => {
-            setRefreshing(false);
-            announceToScreenReader('Groups updated');
-        }, 1000);
+        await loadGroups();
+        setRefreshing(false);
+        announceToScreenReader('Groups updated');
     };
 
-    const handleGroupPress = async (group: Group) => {
+    const handleGroupPress = async (group: GroupRow) => {
         await announceToScreenReader(`Opening ${group.name} group chat`);
-        // Navigate to group chat screen
         navigation.navigate('GroupChat', {
             groupId: group.id,
             groupName: group.name,
@@ -142,13 +142,22 @@ export const GroupsScreen: React.FC = () => {
         navigation.navigate('CreateGroup');
     };
 
-    const handleJoinGroup = async (group: Group) => {
-        await announceToScreenReader(`Joining ${group.name}`);
-        // TODO: Call join group API
-        console.log('Join group:', group.id);
+    const handleJoinGroup = async (group: GroupRow) => {
+        try {
+            await groupsService.joinGroup(group.id);
+            await announceToScreenReader(`Joined ${group.name}`);
+            await loadGroups();
+        } catch (e: any) {
+            await announceToScreenReader(e?.response?.data?.error?.message ?? 'Failed to join group');
+        }
     };
 
-    const renderGroupItem = ({ item }: { item: Group }) => (
+    const sections = [
+        ...(joinedGroups.length > 0 ? [{ title: 'My Groups', data: joinedGroups, key: 'joined' }] : []),
+        { title: 'Discover Groups', data: discoverGroups, key: 'discover' },
+    ];
+
+    const renderGroupItem = ({ item }: { item: GroupRow }) => (
         <TouchableOpacity
             style={styles.groupItem}
             onPress={() => handleGroupPress(item)}
@@ -169,7 +178,7 @@ export const GroupsScreen: React.FC = () => {
                     </Text>
                     <View style={styles.groupMeta}>
                         {!item.isPublic && (
-                            <Ionicons name="lock-closed" size={12} color="#6C757D" style={styles.lockIcon} />
+                            <Ionicons name="lock-closed" size={12} color={AppColors.textSecondary} style={styles.lockIcon} />
                         )}
                         <Text style={styles.memberCount}>
                             {item.memberCount}
@@ -177,9 +186,15 @@ export const GroupsScreen: React.FC = () => {
                     </View>
                 </View>
 
-                <Text style={styles.groupDescription} numberOfLines={2}>
-                    {item.description}
-                </Text>
+                {(item.lastMessagePreview != null && item.lastMessagePreview !== '') ? (
+                    <Text style={styles.lastMessagePreview} numberOfLines={1}>
+                        {item.lastMessagePreview}
+                    </Text>
+                ) : (
+                    <Text style={styles.groupDescription} numberOfLines={2}>
+                        {item.description}
+                    </Text>
+                )}
 
                 <View style={styles.groupFooter}>
                     <Text style={styles.categoryTag}>
@@ -211,7 +226,7 @@ export const GroupsScreen: React.FC = () => {
         </TouchableOpacity>
     );
 
-    const renderSectionHeader = ({ section }: { section: { title: string; data: Group[] } }) => (
+    const renderSectionHeader = ({ section }: { section: { title: string; data: GroupRow[] } }) => (
         <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle} accessibilityRole="header">
                 {section.title}
@@ -221,7 +236,7 @@ export const GroupsScreen: React.FC = () => {
 
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={64} color="#CCCCCC" />
+            <Ionicons name="people-outline" size={64} color={AppColors.border} />
             <Text style={styles.emptyTitle} accessibilityRole="header">
                 {activeTab === 'joined' ? 'No groups joined yet' : 'No groups to discover'}
             </Text>
@@ -294,6 +309,12 @@ export const GroupsScreen: React.FC = () => {
                 </TouchableOpacity>
             </View>
 
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={AppColors.primary} />
+                    <Text style={styles.loadingText}>Loading groups...</Text>
+                </View>
+            ) : (
             <SectionList
                 sections={activeTab === 'joined' ? sections.slice(0, 1) : sections.slice(-1)}
                 keyExtractor={(item) => item.id}
@@ -312,6 +333,7 @@ export const GroupsScreen: React.FC = () => {
                 stickySectionHeadersEnabled={false}
                 accessibilityLabel="Groups list"
             />
+            )}
         </SafeAreaView>
     );
 };
@@ -319,7 +341,7 @@ export const GroupsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
     },
     header: {
         flexDirection: 'row',
@@ -328,12 +350,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
     title: {
         fontSize: 28,
         fontWeight: '700',
-        color: '#000000',
+        color: AppColors.text,
     },
     createButton: {
         minWidth: 60,
@@ -343,7 +365,7 @@ const styles = StyleSheet.create({
     },
     tabContainer: {
         flexDirection: 'row',
-        backgroundColor: '#F8F9FA',
+        backgroundColor: AppColors.inputBg,
         marginHorizontal: 16,
         marginVertical: 8,
         borderRadius: 8,
@@ -357,8 +379,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     activeTab: {
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#000000',
+        backgroundColor: AppColors.background,
+        shadowColor: AppColors.text,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
@@ -367,25 +389,25 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     activeTabText: {
-        color: '#007AFF',
+        color: AppColors.primary,
     },
     groupsList: {
         flex: 1,
     },
     sectionHeader: {
-        backgroundColor: '#F8F9FA',
+        backgroundColor: AppColors.inputBg,
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
     sectionTitle: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
@@ -394,7 +416,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 0.5,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
         alignItems: 'center',
         minHeight: 80,
     },
@@ -402,7 +424,7 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -410,7 +432,7 @@ const styles = StyleSheet.create({
     groupAvatarText: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     groupContent: {
         flex: 1,
@@ -425,7 +447,7 @@ const styles = StyleSheet.create({
     groupName: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         flex: 1,
         marginRight: 8,
     },
@@ -438,11 +460,17 @@ const styles = StyleSheet.create({
     },
     memberCount: {
         fontSize: 12,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     groupDescription: {
         fontSize: 14,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
+        lineHeight: 18,
+        marginBottom: 8,
+    },
+    lastMessagePreview: {
+        fontSize: 14,
+        color: AppColors.textSecondary,
         lineHeight: 18,
         marginBottom: 8,
     },
@@ -453,8 +481,8 @@ const styles = StyleSheet.create({
     },
     categoryTag: {
         fontSize: 12,
-        color: '#007AFF',
-        backgroundColor: '#E3F2FD',
+        color: AppColors.primary,
+        backgroundColor: AppColors.borderLight,
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 10,
@@ -462,7 +490,7 @@ const styles = StyleSheet.create({
     },
     lastActivity: {
         fontSize: 12,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     joinButton: {
         minWidth: 60,
@@ -471,7 +499,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     adminBadge: {
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
@@ -479,7 +507,17 @@ const styles = StyleSheet.create({
     adminBadgeText: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#FFFFFF',
+        color: AppColors.white,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+    },
+    loadingText: {
+        fontSize: 16,
+        color: AppColors.textSecondary,
     },
     emptyState: {
         flex: 1,
@@ -490,14 +528,14 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         textAlign: 'center',
         marginTop: 16,
         marginBottom: 8,
     },
     emptyDescription: {
         fontSize: 16,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         textAlign: 'center',
         lineHeight: 22,
         marginBottom: 24,

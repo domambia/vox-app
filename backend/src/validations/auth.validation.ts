@@ -94,7 +94,7 @@ export const passwordResetCompleteSchema = z.object({
   }),
 });
 
-// OTP send schema
+// OTP send schema (devBypassOtp only used in development to skip OTP and return tokens)
 export const sendOTPSchema = z.object({
   body: z.object({
     phoneNumber: z
@@ -104,6 +104,7 @@ export const sendOTPSchema = z.object({
     purpose: z.enum(['REGISTRATION', 'LOGIN'], {
       errorMap: () => ({ message: 'Purpose must be either REGISTRATION or LOGIN' }),
     }),
+    devBypassOtp: z.boolean().optional(),
   }),
 });
 

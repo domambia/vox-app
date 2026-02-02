@@ -7,6 +7,7 @@ import {
   AccessibilityRole,
   TouchableOpacityProps,
 } from 'react-native';
+import { AppColors } from '../../constants/theme';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 import { hapticService } from '../../services/accessibility/hapticService';
 
@@ -107,20 +108,20 @@ export const AccessibleButton: React.FC<AccessibleButtonProps> = ({
         break;
     }
 
-    // Variant styles
+    // Variant styles (green, white, black theme)
     switch (variant) {
       case 'secondary':
-        baseStyle.backgroundColor = '#f3f4f6';
+        baseStyle.backgroundColor = AppColors.borderLight;
         baseStyle.borderWidth = 1;
-        baseStyle.borderColor = '#d1d5db';
+        baseStyle.borderColor = AppColors.border;
         break;
       case 'outline':
         baseStyle.backgroundColor = 'transparent';
         baseStyle.borderWidth = 2;
-        baseStyle.borderColor = '#3b82f6';
+        baseStyle.borderColor = AppColors.primary;
         break;
       default: // primary
-        baseStyle.backgroundColor = '#3b82f6';
+        baseStyle.backgroundColor = AppColors.primary;
         break;
     }
 
@@ -134,16 +135,16 @@ export const AccessibleButton: React.FC<AccessibleButtonProps> = ({
       textAlign: 'center',
     };
 
-    // Color based on variant
+    // Color based on variant (black text on white/gray, white on green)
     switch (variant) {
       case 'secondary':
-        baseTextStyle.color = '#374151';
+        baseTextStyle.color = AppColors.text;
         break;
       case 'outline':
-        baseTextStyle.color = '#3b82f6';
+        baseTextStyle.color = AppColors.primary;
         break;
       default: // primary
-        baseTextStyle.color = '#ffffff';
+        baseTextStyle.color = AppColors.white;
         break;
     }
 

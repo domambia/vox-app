@@ -22,6 +22,7 @@ export type VoiceCommandAction =
   | 'send_message'
   | 'like_profile'
   | 'pass_profile'
+  | 'super_like'
   | 'search'
   | 'filter'
   | 'refresh'
@@ -152,6 +153,12 @@ class VoiceCommandService {
         keywords: ['pass', 'skip', 'next', 'no', 'not interested'],
         action: 'pass_profile',
         description: 'Pass on current profile',
+      },
+      {
+        id: 'super_like',
+        keywords: ['super like', 'star', 'favorite', 'superlike'],
+        action: 'super_like',
+        description: 'Super like current profile',
       },
       {
         id: 'send_message',

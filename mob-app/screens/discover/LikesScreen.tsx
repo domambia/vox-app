@@ -7,16 +7,20 @@ import {
     FlatList,
     TouchableOpacity,
     RefreshControl,
+    ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
+import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { discoveryService, Like } from '../../services/api/discoveryService';
 
 type LikesScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').DiscoverStackParamList, 'Likes'>;
 
-interface Like {
+interface LikeRow {
     likeId: string;
     userId: string;
     firstName: string;
@@ -29,99 +33,78 @@ interface Like {
     type: 'given' | 'received';
 }
 
-// Mock likes data
-const mockLikes: Like[] = [
-    {
-        likeId: '1',
-        userId: '1',
-        firstName: 'Sarah',
-        lastName: 'Johnson',
-        bio: 'Music enthusiast and accessibility advocate.',
-        interests: ['Music', 'Technology', 'Accessibility'],
-        location: 'Valletta, Malta',
-        likedAt: '2025-01-20T10:30:00Z',
-        isMatch: true,
-        type: 'given',
-    },
-    {
-        likeId: '2',
-        userId: '2',
-        firstName: 'Mike',
-        lastName: 'Chen',
-        bio: 'Tech professional passionate about accessibility.',
-        interests: ['Technology', 'Coding', 'Accessibility'],
-        location: 'Sliema, Malta',
-        likedAt: '2025-01-19T14:20:00Z',
+function mapApiLikeToRow(raw: any, type: 'given' | 'received'): LikeRow {
+    const profile = raw.profile ?? raw;
+    const userId = profile?.user_id ?? profile?.userId ?? '';
+    const firstName = profile?.first_name ?? profile?.firstName ?? '';
+    const lastName = profile?.last_name ?? profile?.lastName ?? '';
+    const p = profile?.profile ?? profile;
+    const interests = Array.isArray(p?.interests) ? p.interests : [];
+    return {
+        likeId: raw.like_id ?? raw.likeId ?? userId,
+        userId,
+        firstName,
+        lastName,
+        bio: p?.bio ?? undefined,
+        interests,
+        location: p?.location ?? undefined,
+        likedAt: raw.created_at ?? raw.createdAt ?? raw.likedAt ?? '',
         isMatch: false,
-        type: 'given',
-    },
-    {
-        likeId: '3',
-        userId: '3',
-        firstName: 'Emma',
-        lastName: 'Davis',
-        bio: 'Outdoor enthusiast and nature lover.',
-        interests: ['Hiking', 'Nature', 'Photography'],
-        location: 'St. Julian\'s, Malta',
-        likedAt: '2025-01-18T09:15:00Z',
-        isMatch: false,
-        type: 'received',
-    },
-    {
-        likeId: '4',
-        userId: '4',
-        firstName: 'James',
-        lastName: 'Wilson',
-        bio: 'Gamer and tech enthusiast.',
-        interests: ['Gaming', 'Technology', 'Music'],
-        location: 'Birgu, Malta',
-        likedAt: '2025-01-17T16:45:00Z',
-        isMatch: false,
-        type: 'received',
-    },
-];
+        type,
+    };
+}
 
 /**
- * Likes Screen - View likes given and received
- * Voice-first design for accessible like management
+ * Likes Screen - View likes given and received (real data from API)
  */
 export const LikesScreen: React.FC = () => {
     const navigation = useNavigation<LikesScreenNavigationProp>();
-    const [likes, setLikes] = useState<Like[]>(mockLikes);
+    const [givenLikes, setGivenLikes] = useState<LikeRow[]>([]);
+    const [receivedLikes, setReceivedLikes] = useState<LikeRow[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'given' | 'received'>('received');
 
-    // Filter likes by type
-    const givenLikes = likes.filter(like => like.type === 'given');
-    const receivedLikes = likes.filter(like => like.type === 'received');
+    const loadLikes = async () => {
+        setLoading(true);
+        try {
+            const [given, received] = await Promise.all([
+                discoveryService.getLikes({ type: 'given' }),
+                discoveryService.getLikes({ type: 'received' }),
+            ]);
+            setGivenLikes(Array.isArray(given.data) ? given.data.map((r: any) => mapApiLikeToRow(r, 'given')) : []);
+            setReceivedLikes(Array.isArray(received.data) ? received.data.map((r: any) => mapApiLikeToRow(r, 'received')) : []);
+        } catch {
+            setGivenLikes([]);
+            setReceivedLikes([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadLikes();
+    }, []);
 
     const displayedLikes = activeTab === 'given' ? givenLikes : receivedLikes;
 
-    // Announce screen on load
     useEffect(() => {
-        const announceScreen = async () => {
-            setTimeout(async () => {
-                await announceToScreenReader(
-                    `Likes screen. ${activeTab === 'given' ? 'Likes you gave' : 'Likes you received'}. ${displayedLikes.length} ${displayedLikes.length === 1 ? 'like' : 'likes'}.`
-                );
-            }, 500);
-        };
-
-        announceScreen();
-    }, [activeTab, displayedLikes.length]);
+        if (displayedLikes.length > 0 || !loading) {
+            setTimeout(() => announceToScreenReader(
+                `Likes. ${activeTab === 'given' ? 'Likes you gave' : 'Likes you received'}. ${displayedLikes.length} ${displayedLikes.length === 1 ? 'like' : 'likes'}.`
+            ), 500);
+        }
+    }, [activeTab, displayedLikes.length, loading]);
 
     const handleRefresh = async () => {
         setRefreshing(true);
         await announceToScreenReader('Refreshing likes');
-
-        // Simulate API call
-        setTimeout(() => {
-            setRefreshing(false);
-            announceToScreenReader('Likes updated');
-        }, 1000);
+        await loadLikes();
+        setRefreshing(false);
+        announceToScreenReader('Likes updated');
     };
 
-    const handleLikePress = async (like: Like) => {
+    const handleLikePress = async (like: LikeRow) => {
         await announceToScreenReader(`Opening ${like.firstName} ${like.lastName}'s profile`);
         navigation.navigate('ProfileDetail', { userId: like.userId });
     };
@@ -149,7 +132,7 @@ export const LikesScreen: React.FC = () => {
         }
     };
 
-    const renderLikeItem = ({ item }: { item: Like }) => (
+    const renderLikeItem = ({ item }: { item: LikeRow }) => (
         <TouchableOpacity
             style={styles.likeItem}
             onPress={() => handleLikePress(item)}
@@ -163,7 +146,7 @@ export const LikesScreen: React.FC = () => {
                 </Text>
                 {item.isMatch && (
                     <View style={styles.matchIndicator}>
-                        <Ionicons name="heart" size={16} color="#FFFFFF" />
+                        <Ionicons name="heart" size={16} color={AppColors.white} />
                     </View>
                 )}
             </View>
@@ -203,7 +186,7 @@ export const LikesScreen: React.FC = () => {
             <Ionicons
                 name={item.type === 'given' ? 'heart' : 'heart-outline'}
                 size={24}
-                color={item.type === 'given' ? '#34C759' : '#007AFF'}
+                color={item.type === 'given' ? AppColors.success : AppColors.primary}
                 style={styles.likeIcon}
             />
         </TouchableOpacity>
@@ -214,7 +197,7 @@ export const LikesScreen: React.FC = () => {
             <Ionicons
                 name={activeTab === 'given' ? 'heart-outline' : 'heart'}
                 size={64}
-                color="#CCCCCC"
+                color={AppColors.textSecondary}
             />
             <Text style={styles.emptyTitle} accessibilityRole="header">
                 {activeTab === 'given' ? 'No likes given yet' : 'No likes received yet'}
@@ -260,6 +243,7 @@ export const LikesScreen: React.FC = () => {
 
     return (
         <SafeAreaView style={styles.container}>
+            <OfflineBanner />
             <View style={styles.header}>
                 <Text style={styles.title} accessibilityRole="header">
                     Likes
@@ -292,23 +276,30 @@ export const LikesScreen: React.FC = () => {
                 </TouchableOpacity>
             </View>
 
-            <FlatList
-                data={displayedLikes}
-                keyExtractor={(item) => item.likeId}
-                renderItem={renderLikeItem}
-                ListEmptyComponent={renderEmptyState}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        accessibilityLabel="Pull to refresh likes"
-                    />
-                }
-                style={styles.likesList}
-                showsVerticalScrollIndicator={false}
-                accessibilityLabel={`${activeTab === 'given' ? 'Likes you gave' : 'Likes you received'} list`}
-                contentContainerStyle={displayedLikes.length === 0 ? { flex: 1 } : undefined}
-            />
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={AppColors.primary} />
+                    <Text style={styles.loadingText}>Loading likes...</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={displayedLikes}
+                    keyExtractor={(item) => item.likeId}
+                    renderItem={renderLikeItem}
+                    ListEmptyComponent={renderEmptyState}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            accessibilityLabel="Pull to refresh likes"
+                        />
+                    }
+                    style={styles.likesList}
+                    showsVerticalScrollIndicator={false}
+                    accessibilityLabel={`${activeTab === 'given' ? 'Likes you gave' : 'Likes you received'} list`}
+                    contentContainerStyle={displayedLikes.length === 0 ? { flex: 1 } : undefined}
+                />
+            )}
         </SafeAreaView>
     );
 };
@@ -316,22 +307,22 @@ export const LikesScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
     },
     header: {
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
     title: {
         fontSize: 28,
         fontWeight: '700',
-        color: '#000000',
+        color: AppColors.text,
     },
     tabContainer: {
         flexDirection: 'row',
-        backgroundColor: '#F8F9FA',
+        backgroundColor: AppColors.inputBg,
         marginHorizontal: 16,
         marginVertical: 8,
         borderRadius: 8,
@@ -345,8 +336,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     activeTab: {
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#000000',
+        backgroundColor: AppColors.background,
+        shadowColor: AppColors.text,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
@@ -355,10 +346,10 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     activeTabText: {
-        color: '#007AFF',
+        color: AppColors.primary,
     },
     likesList: {
         flex: 1,
@@ -368,7 +359,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 0.5,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
         alignItems: 'center',
         minHeight: 80,
     },
@@ -377,7 +368,7 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -385,7 +376,7 @@ const styles = StyleSheet.create({
     likeAvatarText: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     matchIndicator: {
         position: 'absolute',
@@ -394,11 +385,11 @@ const styles = StyleSheet.create({
         width: 20,
         height: 20,
         borderRadius: 10,
-        backgroundColor: '#34C759',
+        backgroundColor: AppColors.success,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
-        borderColor: '#FFFFFF',
+        borderColor: AppColors.white,
     },
     likeContent: {
         flex: 1,
@@ -413,12 +404,12 @@ const styles = StyleSheet.create({
     likeName: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         flex: 1,
         marginRight: 8,
     },
     matchBadge: {
-        backgroundColor: '#34C759',
+        backgroundColor: AppColors.success,
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
@@ -426,11 +417,11 @@ const styles = StyleSheet.create({
     matchBadgeText: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     likeBio: {
         fontSize: 14,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         marginBottom: 8,
         lineHeight: 20,
     },
@@ -446,15 +437,15 @@ const styles = StyleSheet.create({
     },
     interestTag: {
         fontSize: 12,
-        color: '#007AFF',
-        backgroundColor: '#E3F2FD',
+        color: AppColors.primary,
+        backgroundColor: AppColors.borderLight,
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 8,
     },
     likeDate: {
         fontSize: 12,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     likeIcon: {
         marginLeft: 8,
@@ -468,14 +459,14 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         textAlign: 'center',
         marginTop: 16,
         marginBottom: 8,
     },
     emptyDescription: {
         fontSize: 16,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         textAlign: 'center',
         lineHeight: 22,
         marginBottom: 24,
@@ -495,13 +486,23 @@ const styles = StyleSheet.create({
     tipTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         marginBottom: 8,
     },
     tipItem: {
         fontSize: 14,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         lineHeight: 20,
         marginBottom: 4,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+    },
+    loadingText: {
+        fontSize: 16,
+        color: AppColors.textSecondary,
     },
 });

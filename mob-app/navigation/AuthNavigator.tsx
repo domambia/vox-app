@@ -5,25 +5,14 @@ import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { HelpScreen } from '../screens/auth/HelpScreen';
 import { OTPVerificationScreen } from '../screens/auth/OTPVerificationScreen';
-import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
-import { VerifyResetTokenScreen } from '../screens/auth/VerifyResetTokenScreen';
-import { CompletePasswordResetScreen } from '../screens/auth/CompletePasswordResetScreen';
 
+/** Auth flow is OTP-only (no password login or password reset). */
 export type AuthStackParamList = {
   Welcome: undefined;
   Login: undefined;
   Register: undefined;
   OTPVerification: undefined;
   Help: undefined;
-  ForgotPassword: undefined;
-  VerifyResetToken: {
-    phoneNumber: string;
-    email?: string;
-    resetToken?: string;
-  };
-  CompletePasswordReset: {
-    token: string;
-  };
 };
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
@@ -74,27 +63,6 @@ export const AuthNavigator: React.FC = () => {
         component={HelpScreen}
         options={{
           title: 'How VOX Works',
-        }}
-      />
-      <Stack.Screen
-        name="ForgotPassword"
-        component={ForgotPasswordScreen}
-        options={{
-          title: 'Reset Password',
-        }}
-      />
-      <Stack.Screen
-        name="VerifyResetToken"
-        component={VerifyResetTokenScreen}
-        options={{
-          title: 'Verify Code',
-        }}
-      />
-      <Stack.Screen
-        name="CompletePasswordReset"
-        component={CompletePasswordResetScreen}
-        options={{
-          title: 'Set New Password',
         }}
       />
     </Stack.Navigator>

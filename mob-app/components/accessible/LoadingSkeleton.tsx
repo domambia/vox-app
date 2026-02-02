@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { AppColors } from '../../constants/theme';
 
 interface SkeletonItemProps {
     width?: number | string;
@@ -53,7 +54,7 @@ export const SkeletonItem: React.FC<SkeletonItemProps> = ({
                     width,
                     height,
                     borderRadius,
-                    backgroundColor: '#E5E5E5',
+                    backgroundColor: AppColors.border,
                     opacity,
                 },
                 style,
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingVertical: 12,
         borderBottomWidth: 0.5,
-        borderBottomColor: '#E5E5E5',
+        borderBottomColor: AppColors.border,
     },
     listContent: {
         flex: 1,

@@ -166,6 +166,53 @@ export class GroupController {
   }
 
   /**
+   * Get group messages
+   * GET /api/v1/groups/:groupId/messages
+   */
+  async getGroupMessages(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const userId = req.user!.userId;
+      const { limit, offset } = extractPaginationFromQuery(req.query);
+
+      const result = await groupService.getGroupMessages(groupId, userId, limit, offset);
+      sendSuccess(res, result);
+    } catch (error: any) {
+      if (error.message === 'Not a member of this group') {
+        sendError(res, 'FORBIDDEN', error.message, 403);
+        return;
+      }
+      sendError(res, 'GROUP_MESSAGES_FETCH_ERROR', error.message || 'Failed to fetch group messages', 400);
+    }
+  }
+
+  /**
+   * Send group message
+   * POST /api/v1/groups/:groupId/messages
+   */
+  async sendGroupMessage(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const userId = req.user!.userId;
+      const { content, message_type } = req.body;
+
+      const message = await groupService.sendGroupMessage(
+        groupId,
+        userId,
+        content,
+        message_type || 'TEXT'
+      );
+      sendSuccess(res, message, 201);
+    } catch (error: any) {
+      if (error.message === 'Not a member of this group') {
+        sendError(res, 'FORBIDDEN', error.message, 403);
+        return;
+      }
+      sendError(res, 'SEND_GROUP_MESSAGE_ERROR', error.message || 'Failed to send message', 400);
+    }
+  }
+
+  /**
    * Get group members
    * GET /api/v1/groups/:groupId/members
    */

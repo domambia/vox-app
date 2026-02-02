@@ -7,11 +7,11 @@ import {
     FlatList,
     TouchableOpacity,
     RefreshControl,
-    Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAppSelector } from '../../hooks';
+import { useAppDispatch, useAppSelector } from '../../hooks';
+import { listConversations } from '../../store/slices/messagesSlice';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { AccessibleSearchInput } from '../../components/accessible/AccessibleSearchInput';
@@ -19,98 +19,97 @@ import { LoadingSkeleton } from '../../components/accessible/LoadingSkeleton';
 import { ErrorView } from '../../components/accessible/ErrorView';
 import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 
 type ConversationsScreenNavigationProp = NativeStackNavigationProp<import('../../navigation/MainNavigator').MessagesStackParamList>;
 
-// Mock data for conversations
-interface Conversation {
+/** UI row for a conversation (from API or mapped) */
+interface ConversationRow {
     id: string;
+    participantId: string;
     participantName: string;
     lastMessage: string;
     lastMessageTime: string;
     unreadCount: number;
-    isOnline: boolean;
-    avatar?: string;
 }
 
-const mockConversations: Conversation[] = [
-    {
-        id: '1',
-        participantName: 'Sarah Johnson',
-        lastMessage: 'Hey! How are you doing?',
-        lastMessageTime: '2:30 PM',
-        unreadCount: 2,
-        isOnline: true,
-    },
-    {
-        id: '2',
-        participantName: 'Mike Chen',
-        lastMessage: 'Thanks for the great conversation!',
-        lastMessageTime: '1:15 PM',
-        unreadCount: 0,
-        isOnline: false,
-    },
-    {
-        id: '3',
-        participantName: 'Emma Davis',
-        lastMessage: 'See you at the event tomorrow!',
-        lastMessageTime: 'Yesterday',
-        unreadCount: 1,
-        isOnline: true,
-    },
-    {
-        id: '4',
-        participantName: 'James Wilson',
-        lastMessage: 'Voice message',
-        lastMessageTime: 'Yesterday',
-        unreadCount: 0,
-        isOnline: false,
-    },
-];
+function formatConversationTime(dateStr: string | undefined): string {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days === 0) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString();
+}
+
+function mapConversationFromApi(conv: any): ConversationRow {
+    const id = conv.conversationId ?? conv.conversation_id ?? '';
+    const other = conv.other_user ?? conv.participant;
+    const firstName = other?.first_name ?? other?.firstName ?? '';
+    const lastName = other?.last_name ?? other?.lastName ?? '';
+    const participantName = [firstName, lastName].filter(Boolean).join(' ') || 'Unknown';
+    const participantId = other?.user_id ?? other?.userId ?? '';
+    const lastMsg = conv.last_message ?? conv.lastMessage;
+    const lastMessage = lastMsg?.content ?? '';
+    const lastMessageAt = conv.last_message_at ?? conv.lastMessageAt ?? lastMsg?.created_at ?? lastMsg?.createdAt;
+    const unreadCount = conv.unread_count ?? conv.unreadCount ?? 0;
+    return {
+        id,
+        participantId,
+        participantName,
+        lastMessage,
+        lastMessageTime: formatConversationTime(lastMessageAt),
+        unreadCount,
+    };
+}
 
 /**
- * Conversations Screen - WhatsApp-style chat list
- * Voice-first design for accessible messaging
+ * Conversations Screen - WhatsApp-style chat list (real data from API)
  */
 export const ConversationsScreen: React.FC = () => {
     const navigation = useNavigation<ConversationsScreenNavigationProp>();
-    const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
+    const dispatch = useAppDispatch();
+    const { conversations: rawConversations, isLoading, error } = useAppSelector((state) => state.messages);
     const [refreshing, setRefreshing] = useState(false);
     const [searchMode, setSearchMode] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
-    // Announce screen on load
+    const conversations: ConversationRow[] = useMemo(
+        () => (Array.isArray(rawConversations) ? rawConversations.map(mapConversationFromApi) : []),
+        [rawConversations]
+    );
+
     useEffect(() => {
-        const announceScreen = async () => {
-            setTimeout(async () => {
-                await announceToScreenReader(
+        dispatch(listConversations({ limit: 50 }));
+    }, [dispatch]);
+
+    useEffect(() => {
+        if (conversations.length > 0 || !isLoading) {
+            setTimeout(() => {
+                announceToScreenReader(
                     `Messages. ${conversations.length} conversations. Double tap any conversation to open chat.`
                 );
             }, 500);
-        };
-
-        announceScreen();
-    }, [conversations.length]);
+        }
+    }, [conversations.length, isLoading]);
 
     const handleRefresh = async () => {
         setRefreshing(true);
         await announceToScreenReader('Refreshing conversations');
-
-        // Simulate API call
-        setTimeout(() => {
-            setRefreshing(false);
-            announceToScreenReader('Conversations updated');
-        }, 1000);
+        await dispatch(listConversations({ limit: 50 }));
+        setRefreshing(false);
+        announceToScreenReader('Conversations updated');
     };
 
-    const handleConversationPress = async (conversation: Conversation) => {
+    const handleConversationPress = async (conversation: ConversationRow) => {
         await announceToScreenReader(`Opening chat with ${conversation.participantName}`);
-        // Navigate to chat screen
         navigation.navigate('Chat', {
             conversationId: conversation.id,
             participantName: conversation.participantName,
+            participantId: conversation.participantId,
         });
     };
 
@@ -148,21 +147,20 @@ export const ConversationsScreen: React.FC = () => {
         }
     }, [filteredConversations.length, searchQuery, searchMode]);
 
-    const renderConversationItem = ({ item }: { item: Conversation }) => (
+    const renderConversationItem = ({ item }: { item: ConversationRow }) => (
         <TouchableOpacity
             style={styles.conversationItem}
             onPress={() => handleConversationPress(item)}
             accessibilityRole="button"
-            accessibilityLabel={`${item.participantName}. ${item.unreadCount > 0 ? `${item.unreadCount} unread messages. ` : ''}Last message: ${item.lastMessage}. ${item.lastMessageTime}. ${item.isOnline ? 'Online' : 'Offline'}`}
+            accessibilityLabel={`${item.participantName}. ${item.unreadCount > 0 ? `${item.unreadCount} unread messages. ` : ''}Last message: ${item.lastMessage || 'No messages'}. ${item.lastMessageTime}`}
             accessibilityHint="Double tap to open conversation"
         >
             <View style={styles.avatarContainer}>
-                <View style={[styles.avatar, item.isOnline && styles.onlineIndicator]}>
+                <View style={styles.avatar}>
                     <Text style={styles.avatarText}>
-                        {item.participantName.charAt(0).toUpperCase()}
+                        {item.participantName.charAt(0).toUpperCase() || '?'}
                     </Text>
                 </View>
-                {item.isOnline && <View style={styles.onlineDot} />}
             </View>
 
             <View style={styles.conversationContent}>
@@ -193,7 +191,7 @@ export const ConversationsScreen: React.FC = () => {
 
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
-            <Ionicons name="chatbubbles-outline" size={64} color="#CCCCCC" />
+            <Ionicons name="chatbubbles-outline" size={64} color={AppColors.textSecondary} />
             <Text style={styles.emptyTitle} accessibilityRole="header">
                 No conversations yet
             </Text>
@@ -235,6 +233,8 @@ export const ConversationsScreen: React.FC = () => {
         </View>
     );
 
+
+
     return (
         <SafeAreaView style={styles.container}>
             <OfflineBanner />
@@ -267,7 +267,7 @@ export const ConversationsScreen: React.FC = () => {
             {isLoading ? (
                 <LoadingSkeleton type="list" />
             ) : error ? (
-                <ErrorView message={error} onRetry={() => setError(null)} />
+                <ErrorView message={error} onRetry={handleRefresh} />
             ) : (
                 <FlatList
                     data={filteredConversations}
@@ -311,59 +311,61 @@ export const ConversationsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppColors.background,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        paddingVertical: 14,
+        backgroundColor: AppColors.primaryDark,
+        borderBottomWidth: 0,
     },
     title: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#000000',
+        fontSize: 22,
+        fontWeight: '600',
+        color: AppColors.white,
     },
     headerButton: {
         minWidth: 60,
     },
     headerButtonText: {
         fontSize: 14,
+        color: AppColors.white,
     },
     conversationsList: {
         flex: 1,
+        backgroundColor: AppColors.background,
     },
     conversationItem: {
         flexDirection: 'row',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#E5E5E5',
-        minHeight: 72, // Ensure touch targets are adequate
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: AppColors.border,
+        minHeight: 72,
     },
     avatarContainer: {
         position: 'relative',
-        marginRight: 12,
+        marginRight: 14,
     },
     avatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#007AFF',
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        backgroundColor: AppColors.borderLight,
         justifyContent: 'center',
         alignItems: 'center',
     },
     avatarText: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#FFFFFF',
+        color: AppColors.textSecondary,
     },
     onlineIndicator: {
         borderWidth: 2,
-        borderColor: '#34C759',
+        borderColor: AppColors.primary,
     },
     onlineDot: {
         position: 'absolute',
@@ -372,9 +374,9 @@ const styles = StyleSheet.create({
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: '#34C759',
+        backgroundColor: AppColors.primary,
         borderWidth: 2,
-        borderColor: '#FFFFFF',
+        borderColor: AppColors.white,
     },
     conversationContent: {
         flex: 1,
@@ -387,15 +389,15 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     participantName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000000',
+        fontSize: 17,
+        fontWeight: '500',
+        color: AppColors.text,
         flex: 1,
         marginRight: 8,
     },
     timestamp: {
         fontSize: 12,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
     },
     messageRow: {
         flexDirection: 'row',
@@ -404,12 +406,12 @@ const styles = StyleSheet.create({
     },
     lastMessage: {
         fontSize: 14,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         flex: 1,
         marginRight: 8,
     },
     unreadBadge: {
-        backgroundColor: '#007AFF',
+        backgroundColor: AppColors.primary,
         borderRadius: 10,
         minWidth: 20,
         height: 20,
@@ -420,7 +422,7 @@ const styles = StyleSheet.create({
     unreadCount: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#FFFFFF',
+        color: AppColors.white,
     },
     emptyState: {
         flex: 1,
@@ -431,13 +433,13 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         textAlign: 'center',
         marginBottom: 8,
     },
     emptyDescription: {
         fontSize: 16,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         textAlign: 'center',
         lineHeight: 22,
         marginBottom: 16,
@@ -452,12 +454,12 @@ const styles = StyleSheet.create({
     tipTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#000000',
+        color: AppColors.text,
         marginBottom: 8,
     },
     tipItem: {
         fontSize: 14,
-        color: '#6C757D',
+        color: AppColors.textSecondary,
         lineHeight: 20,
         marginBottom: 4,
     },

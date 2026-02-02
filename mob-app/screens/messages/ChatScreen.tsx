@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
     View,
     Text,
@@ -9,27 +9,30 @@ import {
     Platform,
     TouchableOpacity,
     TextInput,
-    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { AppColors } from '../../constants/theme';
 import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { OfflineBanner } from '../../components/accessible/OfflineBanner';
 import { websocketService, MessageEvent, TypingEvent } from '../../services/websocket/websocketService';
 import { voiceRecordingService } from '../../services/audio/voiceRecordingService';
 import { useVoiceCommands } from '../../hooks/useVoiceCommands';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
+import { useAppDispatch, useAppSelector } from '../../hooks';
+import { getMessages, sendMessage, markAsRead } from '../../store/slices/messagesSlice';
 
 type MainTabParamList = {
     Messages: undefined;
-    Chat: { conversationId: string; participantName: string };
+    Chat: { conversationId?: string; participantName: string; participantId?: string };
 };
 
 type ChatScreenNavigationProp = NativeStackNavigationProp<MainTabParamList, 'Chat'>;
 type ChatScreenRouteProp = RouteProp<MainTabParamList, 'Chat'>;
 
-interface Message {
+interface MessageRow {
     id: string;
     content: string;
     senderId: string;
@@ -39,180 +42,122 @@ interface Message {
     status: 'sent' | 'delivered' | 'read';
 }
 
-// Mock data for chat
-const mockMessages: Message[] = [
-    {
-        id: '1',
-        content: 'Hi there! How are you doing?',
-        senderId: 'other',
-        timestamp: '2:30 PM',
-        messageType: 'text',
-        isMine: false,
-        status: 'read',
-    },
-    {
-        id: '2',
-        content: 'I\'m doing great! Thanks for asking. How about you?',
-        senderId: 'me',
-        timestamp: '2:31 PM',
-        messageType: 'text',
-        isMine: true,
-        status: 'read',
-    },
-    {
-        id: '3',
-        content: 'Pretty good! Just finished some work. Want to chat about the upcoming event?',
-        senderId: 'other',
-        timestamp: '2:32 PM',
-        messageType: 'text',
-        isMine: false,
-        status: 'read',
-    },
-    {
-        id: '4',
-        content: 'Absolutely! I\'m really looking forward to it.',
-        senderId: 'me',
-        timestamp: '2:33 PM',
-        messageType: 'text',
-        isMine: true,
-        status: 'delivered',
-    },
-];
+function mapApiMessageToRow(raw: any, currentUserId: string): MessageRow {
+    const id = raw.messageId ?? raw.message_id ?? raw.id ?? '';
+    const senderId = raw.senderId ?? raw.sender_id ?? '';
+    const isMine = senderId === currentUserId;
+    const content = raw.content ?? '';
+    const createdAt = raw.createdAt ?? raw.created_at;
+    const timestamp = createdAt ? new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const readAt = raw.readAt ?? raw.read_at;
+    const status: 'sent' | 'delivered' | 'read' = readAt ? 'read' : isMine ? 'delivered' : 'sent';
+    const type = (raw.messageType ?? raw.message_type ?? 'TEXT').toLowerCase();
+    return {
+        id,
+        content,
+        senderId,
+        timestamp,
+        messageType: type === 'image' ? 'image' : type === 'audio' ? 'voice' : 'text',
+        isMine,
+        status,
+    };
+}
 
 /**
- * Chat Screen - WhatsApp-style individual conversation
- * Voice-first design with accessible messaging interface
+ * Chat Screen - Individual conversation (real data from API)
  */
 export const ChatScreen: React.FC = () => {
     const navigation = useNavigation<ChatScreenNavigationProp>();
     const route = useRoute<ChatScreenRouteProp>();
-    const { conversationId, participantName } = route.params;
+    const { conversationId: paramConversationId, participantName, participantId } = route.params;
+    const dispatch = useAppDispatch();
+    const currentUserId = useAppSelector((state) => state.auth.user?.userId) ?? '';
+    const rawMessages = useAppSelector((state) => state.messages.messages);
+    const [localConversationId, setLocalConversationId] = useState<string | undefined>(paramConversationId);
+    const conversationId = localConversationId ?? paramConversationId;
 
-    const [messages, setMessages] = useState<Message[]>(mockMessages);
+    const messagesForConversation = conversationId ? (rawMessages[conversationId] ?? []) : [];
+    const messages: MessageRow[] = useMemo(
+        () => messagesForConversation.map((m: any) => mapApiMessageToRow(m, currentUserId)),
+        [messagesForConversation, currentUserId]
+    );
+
     const [newMessage, setNewMessage] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
-    const [recordingDuration, setRecordingDuration] = useState(0);
+    const [sending, setSending] = useState(false);
     const flatListRef = useRef<FlatList>(null);
 
-    // Voice commands integration
+    useEffect(() => {
+        if (conversationId) {
+            dispatch(getMessages({ conversationId, limit: 100 }));
+            dispatch(markAsRead(conversationId));
+        }
+    }, [conversationId, dispatch]);
+
     const { registerCommand } = useVoiceCommands('Chat');
 
-    // Register screen-specific voice commands
     useEffect(() => {
-        const unsubscribes: (() => void)[] = [];
-
-        // Send message command
-        unsubscribes.push(
-            registerCommand('send_message', () => {
-                if (newMessage.trim()) {
-                    handleSendMessage();
-                } else {
-                    announceToScreenReader('No message to send. Type a message first.');
-                }
-            })
-        );
-
-        return () => {
-            unsubscribes.forEach((unsubscribe) => unsubscribe());
-        };
+        const unsub = registerCommand('send_message', () => {
+            if (newMessage.trim()) handleSendMessage();
+            else announceToScreenReader('No message to send. Type a message first.');
+        });
+        return () => { unsub?.(); };
     }, [newMessage, registerCommand]);
 
-    // WebSocket integration
     useEffect(() => {
-        // Subscribe to new messages
-        const unsubscribeMessage = websocketService.onMessage((event: MessageEvent) => {
+        if (!conversationId) return;
+        const unsubMsg = websocketService.onMessage((event: MessageEvent) => {
             if (event.conversationId === conversationId) {
-                const newMsg: Message = {
-                    id: event.messageId,
-                    content: event.content,
-                    senderId: event.senderId,
-                    timestamp: new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    messageType: event.messageType,
-                    isMine: event.senderId === 'me', // TODO: Get actual user ID
-                    status: 'read',
-                };
-                setMessages((prev) => [...prev, newMsg]);
+                dispatch(getMessages({ conversationId, limit: 100 }));
                 announceToScreenReader(`New message from ${participantName}`);
             }
         });
-
-        // Subscribe to typing indicators
-        const unsubscribeTyping = websocketService.onTyping((event: TypingEvent) => {
-            if (event.conversationId === conversationId && event.userId !== 'me') {
+        const unsubTyping = websocketService.onTyping((event: TypingEvent) => {
+            if (event.conversationId === conversationId && event.userId !== currentUserId) {
                 setIsTyping(event.isTyping);
-                if (event.isTyping) {
-                    announceToScreenReader(`${participantName} is typing`);
-                }
+                if (event.isTyping) announceToScreenReader(`${participantName} is typing`);
             }
         });
+        return () => { unsubMsg?.(); unsubTyping?.(); };
+    }, [conversationId, participantName, currentUserId, dispatch]);
 
-        // Cleanup on unmount
-        return () => {
-            unsubscribeMessage();
-            unsubscribeTyping();
-        };
-    }, [conversationId, participantName]);
-
-    // Announce screen on load
     useEffect(() => {
-        const announceScreen = async () => {
-            setTimeout(async () => {
-                await announceToScreenReader(
-                    `Chat with ${participantName}. ${messages.length} messages.`
-                );
-            }, 500);
-        };
-
-        announceScreen();
-    }, [participantName, messages.length]);
-
-    // Scroll to bottom when new messages arrive
-    useEffect(() => {
-        if (messages.length > 0) {
-            setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
+        if (participantName && (messages.length > 0 || !conversationId)) {
+            setTimeout(() => announceToScreenReader(`Chat with ${participantName}. ${messages.length} messages.`), 500);
         }
-    }, [messages]);
+    }, [participantName, messages.length, conversationId]);
+
+    useEffect(() => {
+        if (messages.length > 0) setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }, [messages.length]);
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim()) return;
-
-        const message: Message = {
-            id: Date.now().toString(),
-            content: newMessage.trim(),
-            senderId: 'me',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            messageType: 'text',
-            isMine: true,
-            status: 'sent',
-        };
-
-        setMessages(prev => [...prev, message]);
-        const messageContent = newMessage.trim();
+        const content = newMessage.trim();
+        if (!content || !participantId) return;
+        setSending(true);
         setNewMessage('');
-
-        // Send via WebSocket
-        websocketService.sendMessage(conversationId, messageContent, 'text');
-
-        await announceToScreenReader('Message sent');
-
-        // Update status when delivered
-        setTimeout(() => {
-            setMessages(prev =>
-                prev.map(msg =>
-                    msg.id === message.id ? { ...msg, status: 'delivered' as const } : msg
-                )
-            );
-        }, 1000);
+        try {
+            const result = await dispatch(sendMessage({ recipientId: participantId, content })).unwrap();
+            const convId = (result as any)?.conversationId ?? (result as any)?.conversation_id;
+            if (convId && !conversationId) {
+                setLocalConversationId(convId);
+                dispatch(getMessages({ conversationId: convId, limit: 100 }));
+            }
+            if (conversationId) websocketService.sendMessage(conversationId, content, 'text');
+            await announceToScreenReader('Message sent');
+        } catch {
+            setNewMessage(content);
+            announceToScreenReader('Failed to send message');
+        } finally {
+            setSending(false);
+        }
     };
 
     const handleVoiceRecord = async () => {
         if (isRecording) {
             const uri = await voiceRecordingService.stopRecording();
             setIsRecording(false);
-            setRecordingDuration(0);
 
             if (uri) {
                 await announceToScreenReader('Voice recording stopped. Sending voice message.');
@@ -221,7 +166,7 @@ export const ChatScreen: React.FC = () => {
             }
         } else {
             const started = await voiceRecordingService.startRecording((status) => {
-                setRecordingDuration(status.duration);
+                // setRecordingDuration(status.duration);
             });
 
             if (started) {
@@ -236,12 +181,28 @@ export const ChatScreen: React.FC = () => {
         navigation.goBack();
     };
 
+    const handleCall = () => {
+        if (!participantId) {
+            announceToScreenReader('Cannot start call until conversation is started');
+            return;
+        }
+        const rootNav = (navigation.getParent() as any)?.getParent()?.getParent();
+        if (rootNav) {
+            rootNav.navigate('Call', {
+                receiverId: participantId,
+                receiverName: participantName || 'User',
+                direction: 'outgoing' as const,
+            });
+            announceToScreenReader(`Starting voice call with ${participantName}`);
+        }
+    };
+
     const handleAttachment = () => {
         announceToScreenReader('Attachment options');
         // TODO: Show attachment picker
     };
 
-    const renderMessage = ({ item }: { item: Message }) => (
+    const renderMessage = ({ item }: { item: MessageRow }) => (
         <View style={[
             styles.messageContainer,
             item.isMine ? styles.myMessageContainer : styles.otherMessageContainer
@@ -285,13 +246,10 @@ export const ChatScreen: React.FC = () => {
         );
     };
 
-    // Handle typing indicator
     useEffect(() => {
-        if (newMessage.trim()) {
-            websocketService.sendTyping(conversationId, true);
-        } else {
-            websocketService.sendTyping(conversationId, false);
-        }
+        if (!conversationId) return;
+        if (newMessage.trim()) websocketService.sendTyping(conversationId, true);
+        else websocketService.sendTyping(conversationId, false);
     }, [newMessage, conversationId]);
 
     return (
@@ -319,12 +277,12 @@ export const ChatScreen: React.FC = () => {
                 <View style={styles.headerActions}>
                     <TouchableOpacity
                         style={styles.headerAction}
-                        onPress={() => announceToScreenReader('Call options')}
+                        onPress={handleCall}
                         accessibilityRole="button"
-                        accessibilityLabel="Call options"
-                        accessibilityHint="Open call options menu"
+                        accessibilityLabel="Start voice call"
+                        accessibilityHint="Double tap to start a voice call"
                     >
-                        <Ionicons name="call" size={20} color="#007AFF" />
+                        <Ionicons name="call" size={22} color={AppColors.white} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.headerAction}
@@ -333,7 +291,7 @@ export const ChatScreen: React.FC = () => {
                         accessibilityLabel="More options"
                         accessibilityHint="Open conversation options menu"
                     >
-                        <Ionicons name="ellipsis-vertical" size={20} color="#007AFF" />
+                        <Ionicons name="ellipsis-vertical" size={22} color={AppColors.white} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -364,7 +322,7 @@ export const ChatScreen: React.FC = () => {
                         accessibilityLabel="Add attachment"
                         accessibilityHint="Add photo, document, or other attachment"
                     >
-                        <Ionicons name="add" size={24} color="#007AFF" />
+                        <Ionicons name="add" size={24} color={AppColors.primary} />
                     </TouchableOpacity>
 
                     <View style={styles.textInputContainer}>
@@ -372,10 +330,10 @@ export const ChatScreen: React.FC = () => {
                             style={styles.textInput}
                             value={newMessage}
                             onChangeText={setNewMessage}
-                            placeholder="Type a message..."
-                            placeholderTextColor="#6C757D"
+                            placeholder="Message"
+                            placeholderTextColor={AppColors.placeholder}
                             multiline
-                            maxLength={1000}
+                            maxLength={4000}
                             accessibilityLabel="Message input"
                             accessibilityHint="Type your message here"
                         />
@@ -402,8 +360,8 @@ export const ChatScreen: React.FC = () => {
                         >
                             <Ionicons
                                 name={isRecording ? "stop" : "mic"}
-                                size={20}
-                                color={isRecording ? "#FF3B30" : "#007AFF"}
+                                size={22}
+                                color={isRecording ? AppColors.error : AppColors.primary}
                             />
                         </TouchableOpacity>
                     )}
@@ -414,178 +372,114 @@ export const ChatScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#E5E5E5',
-    },
+    container: { flex: 1, backgroundColor: AppColors.background },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E5E5',
+        backgroundColor: AppColors.primaryDark,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: AppColors.primary,
     },
-    backButton: {
-        marginRight: 12,
-    },
-    backButtonText: {
-        fontSize: 14,
-    },
-    headerContent: {
-        flex: 1,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#000000',
-    },
-    headerSubtitle: {
-        fontSize: 12,
-        color: '#6C757D',
-        marginTop: 2,
-    },
-    headerActions: {
-        flexDirection: 'row',
-    },
+    backButton: { marginRight: 12 },
+    backButtonText: { fontSize: 14, color: AppColors.white },
+    headerContent: { flex: 1 },
+    headerTitle: { fontSize: 18, fontWeight: '600', color: AppColors.white },
+    headerSubtitle: { fontSize: 12, color: AppColors.white, opacity: 0.9, marginTop: 2 },
+    headerActions: { flexDirection: 'row' },
     headerAction: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
         marginLeft: 8,
     },
-    messagesList: {
-        flex: 1,
-    },
-    messagesContainer: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-    },
-    messageContainer: {
-        marginVertical: 2,
-        maxWidth: '80%',
-    },
-    myMessageContainer: {
-        alignSelf: 'flex-end',
-        alignItems: 'flex-end',
-    },
-    otherMessageContainer: {
-        alignSelf: 'flex-start',
-        alignItems: 'flex-start',
-    },
+    messagesList: { flex: 1 },
+    messagesContainer: { paddingHorizontal: 12, paddingVertical: 8, paddingBottom: 16 },
+    messageContainer: { marginVertical: 2, maxWidth: '82%' },
+    myMessageContainer: { alignSelf: 'flex-end', alignItems: 'flex-end' },
+    otherMessageContainer: { alignSelf: 'flex-start', alignItems: 'flex-start' },
     messageBubble: {
         paddingHorizontal: 12,
         paddingVertical: 8,
-        borderRadius: 18,
+        borderRadius: 8,
         maxWidth: 280,
     },
-    myMessageBubble: {
-        backgroundColor: '#007AFF',
-    },
-    otherMessageBubble: {
-        backgroundColor: '#FFFFFF',
-    },
-    messageText: {
-        fontSize: 16,
-        lineHeight: 20,
-    },
-    myMessageText: {
-        color: '#FFFFFF',
-    },
-    otherMessageText: {
-        color: '#000000',
-    },
+    myMessageBubble: { backgroundColor: AppColors.primary, borderTopRightRadius: 2 },
+    otherMessageBubble: { backgroundColor: AppColors.borderLight, borderTopLeftRadius: 2 },
+    messageText: { fontSize: 15, lineHeight: 20 },
+    myMessageText: { color: AppColors.white },
+    otherMessageText: { color: AppColors.text },
     messageFooter: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
         marginTop: 4,
     },
-    messageTime: {
-        fontSize: 11,
-        marginRight: 4,
-    },
-    myMessageTime: {
-        color: 'rgba(255, 255, 255, 0.7)',
-    },
-    otherMessageTime: {
-        color: '#6C757D',
-    },
-    messageStatus: {
-        fontSize: 11,
-        color: 'rgba(255, 255, 255, 0.7)',
-    },
-    typingContainer: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        alignSelf: 'flex-start',
-    },
-    typingText: {
-        fontSize: 14,
-        color: '#6C757D',
-        fontStyle: 'italic',
-    },
+    messageTime: { fontSize: 11, marginRight: 4 },
+    myMessageTime: { color: 'rgba(255,255,255,0.85)' },
+    otherMessageTime: { color: AppColors.textSecondary },
+    messageStatus: { fontSize: 11, color: 'rgba(255,255,255,0.85)' },
+    typingContainer: { paddingHorizontal: 12, paddingVertical: 8, alignSelf: 'flex-start' },
+    typingText: { fontSize: 14, color: AppColors.textSecondary, fontStyle: 'italic' },
     inputContainer: {
-        backgroundColor: '#FFFFFF',
-        borderTopWidth: 1,
-        borderTopColor: '#E5E5E5',
+        backgroundColor: AppColors.background,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: AppColors.border,
+        paddingBottom: Platform.OS === 'ios' ? 24 : 8,
     },
     inputRow: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        paddingHorizontal: 16,
+        paddingHorizontal: 12,
         paddingVertical: 8,
     },
     attachmentButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: AppColors.inputBg,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 8,
     },
     textInputContainer: {
         flex: 1,
-        backgroundColor: '#F8F9FA',
-        borderRadius: 20,
+        backgroundColor: AppColors.inputBg,
+        borderRadius: 24,
         borderWidth: 1,
-        borderColor: '#E5E5E5',
+        borderColor: AppColors.border,
         marginRight: 8,
-        maxHeight: 100,
+        maxHeight: 120,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
     },
     textInput: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
         fontSize: 16,
-        color: '#000000',
-        minHeight: 36,
-        maxHeight: 80,
+        color: AppColors.text,
+        minHeight: 24,
+        maxHeight: 100,
+        padding: 0,
     },
     sendButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-    },
-    sendButtonText: {
-        fontSize: 12,
-    },
-    voiceButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: AppColors.primary,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    recordingButton: {
-        backgroundColor: '#FF3B30',
+    sendButtonText: { fontSize: 12, color: AppColors.white },
+    voiceButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: AppColors.inputBg,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    recordingDuration: {
-        fontSize: 10,
-        color: '#FFFFFF',
-        marginLeft: 4,
-        fontWeight: '600',
-    },
+    recordingButton: { backgroundColor: AppColors.error },
+    recordingDuration: { fontSize: 10, color: AppColors.white, marginLeft: 4, fontWeight: '600' },
 });
