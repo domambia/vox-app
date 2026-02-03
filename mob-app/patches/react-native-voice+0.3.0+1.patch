@@ -1,0 +1,12 @@
+diff --git a/node_modules/react-native-voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java b/node_modules/react-native-voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java
+--- a/node_modules/react-native-voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java
++++ b/node_modules/react-native-voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java
+@@ -11,7 +11,7 @@ import android.speech.RecognitionListener;
+ import android.speech.RecognitionService;
+ import android.speech.RecognizerIntent;
+ import android.speech.SpeechRecognizer;
+-import android.support.annotation.NonNull;
++import androidx.annotation.NonNull;
+ import android.util.Log;
+
+ import com.facebook.react.bridge.Arguments;
