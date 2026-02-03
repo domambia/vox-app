@@ -1,7 +1,7 @@
 # Missing UI Features for Visually Impaired Users
 
 ## Overview
-This document identifies UI features that are missing or incomplete in the VOX mobile app, with special focus on accessibility features for blind and visually impaired users.
+This document identifies UI features that are missing or incomplete in the LiamApp mobile app, with special focus on accessibility features for blind and visually impaired users.
 
 ---
 

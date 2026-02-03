@@ -20,7 +20,7 @@ interface AccessibleModalProps extends ModalProps {
 }
 
 /**
- * Accessible modal component for VOX
+ * Accessible modal component for LiamApp
  * Properly manages focus and screen reader announcements
  */
 export const AccessibleModal: React.FC<AccessibleModalProps> = ({

@@ -18,7 +18,7 @@ import { announceToScreenReader } from '../../services/accessibility/accessibili
 type HelpScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Help'>;
 
 /**
- * Help Screen - How VOX Works
+ * Help Screen - How LiamApp Works
  * Educational content about the platform
  */
 export const HelpScreen: React.FC = () => {
@@ -27,7 +27,7 @@ export const HelpScreen: React.FC = () => {
   useEffect(() => {
     const announceScreen = async () => {
       setTimeout(async () => {
-        await announceToScreenReader('How VOX works. Learn about our community platform for blind and visually impaired people.');
+        await announceToScreenReader('How LiamApp works. Learn about our community platform for blind and visually impaired people.');
       }, 500);
     };
 
@@ -64,17 +64,17 @@ export const HelpScreen: React.FC = () => {
 
             <View style={styles.logoBubble}>
               <Image
-                source={require('../../assets/images/icon.png')}
+                source={require('../../assets/images/logo.png')}
                 style={styles.logoIcon}
                 accessibilityIgnoresInvertColors
               />
             </View>
             <Text style={styles.logoText} accessibilityRole="header">
-              VOX
+              LiamApp
             </Text>
 
             <Text style={styles.title} accessibilityRole="header">
-              How VOX Works
+              How LiamApp Works
             </Text>
           </View>
 
@@ -84,7 +84,7 @@ export const HelpScreen: React.FC = () => {
                 Our Mission
               </Text>
               <Text style={styles.paragraph} accessibilityRole="text">
-                VOX is a community platform designed exclusively for blind and visually impaired people.
+                LiamApp is a community platform designed exclusively for blind and visually impaired people.
                 We connect you through authentic community, not just technology.
               </Text>
             </View>
@@ -94,7 +94,7 @@ export const HelpScreen: React.FC = () => {
                 Voice-First Design
               </Text>
               <Text style={styles.paragraph} accessibilityRole="text">
-                Every feature in VOX works with screen readers like VoiceOver and TalkBack.
+                Every feature in LiamApp works with screen readers like VoiceOver and TalkBack.
                 You can use the entire app without ever looking at the screen.
               </Text>
             </View>

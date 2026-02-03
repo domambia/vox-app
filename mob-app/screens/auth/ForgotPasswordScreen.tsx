@@ -69,7 +69,7 @@ export const ForgotPasswordScreen: React.FC = () => {
     useEffect(() => {
         const announceScreen = async () => {
             setTimeout(async () => {
-            await announceToScreenReader('Forgot password screen. Enter your phone number to reset your password.');
+                await announceToScreenReader('Forgot password screen. Enter your phone number to reset your password.');
             }, 500);
         };
 
@@ -147,13 +147,13 @@ export const ForgotPasswordScreen: React.FC = () => {
                             />
                             <View style={styles.logoBubble}>
                                 <Image
-                                    source={require('../../assets/images/icon.png')}
+                                    source={require('../../assets/images/logo.png')}
                                     style={styles.logoIcon}
                                     accessibilityIgnoresInvertColors
                                 />
                             </View>
                             <Text style={styles.logoText} accessibilityRole="header">
-                                VOX
+                                LiamApp
                             </Text>
                         </View>
 

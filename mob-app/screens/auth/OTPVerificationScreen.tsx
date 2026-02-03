@@ -116,8 +116,8 @@ export const OTPVerificationScreen: React.FC = () => {
 
             if (verifyOTP.fulfilled.match(result)) {
                 const successMessage = otpPurpose === 'REGISTRATION'
-                    ? 'Account created successfully. Welcome to VOX!'
-                    : 'Login successful. Welcome back to VOX!';
+                    ? 'Account created successfully. Welcome to LiamApp!'
+                    : 'Login successful. Welcome back to LiamApp!';
                 await announceToScreenReader(successMessage, { isAlert: true });
                 // Navigation to Profile is handled by auth state change in root navigator
             } else {
@@ -208,13 +208,13 @@ export const OTPVerificationScreen: React.FC = () => {
                             />
                             <View style={styles.logoBubble}>
                                 <Image
-                                    source={require('../../assets/images/icon.png')}
+                                    source={require('../../assets/images/logo.png')}
                                     style={styles.logoIcon}
                                     accessibilityIgnoresInvertColors
                                 />
                             </View>
                             <Text style={styles.logoText} accessibilityRole="header">
-                                VOX
+                                LiamApp
                             </Text>
                         </View>
 

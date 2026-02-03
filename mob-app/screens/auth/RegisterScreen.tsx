@@ -142,13 +142,13 @@ export const RegisterScreen: React.FC = () => {
               />
               <View style={styles.logoBubble}>
                 <Image
-                  source={require('../../assets/images/icon.png')}
+                  source={require('../../assets/images/logo.png')}
                   style={styles.logoIcon}
                   accessibilityIgnoresInvertColors
                 />
               </View>
               <Text style={styles.logoText} accessibilityRole="header">
-                VOX
+                LiamApp
               </Text>
             </View>
 
@@ -158,7 +158,7 @@ export const RegisterScreen: React.FC = () => {
                   Create Account
                 </Text>
                 <Text style={styles.description} accessibilityRole="text">
-                  Enter your phone number to get started with VOX.
+                  Enter your phone number to get started with LiamApp.
                 </Text>
                 {allowedCountriesLoaded && allowedCountries.length > 0 && (
                   <Text

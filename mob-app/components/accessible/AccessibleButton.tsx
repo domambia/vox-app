@@ -24,7 +24,7 @@ interface AccessibleButtonProps extends TouchableOpacityProps {
 }
 
 /**
- * Accessible button component for VOX
+ * Accessible button component for LiamApp
  * Follows WCAG 2.2 AA guidelines and provides voice feedback
  */
 export const AccessibleButton: React.FC<AccessibleButtonProps> = ({

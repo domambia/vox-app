@@ -1,7 +1,7 @@
 # Voice Commands Implementation
 
 ## Overview
-Voice commands have been enabled throughout the VOX app, allowing users to navigate and interact with the app using voice commands. This is a critical accessibility feature for blind and visually impaired users.
+Voice commands have been enabled throughout the LiamApp app, allowing users to navigate and interact with the app using voice commands. This is a critical accessibility feature for blind and visually impaired users.
 
 ## ✅ Implementation Complete
 
@@ -197,7 +197,7 @@ await voiceCommandService.processManualCommand('like');
 
 ## 🎉 Summary
 
-Voice commands are now fully enabled throughout the VOX app:
+Voice commands are now fully enabled throughout the LiamApp app:
 
 ✅ Voice recognition service (cross-platform)
 ✅ Voice command button and overlay
@@ -231,5 +231,5 @@ Voice commands are now fully enabled throughout the VOX app:
    - "Messages" - Navigate to messages
    - "Help" - See all available commands
 
-Voice commands make the VOX app truly hands-free and accessible! 🎤
+Voice commands make the LiamApp app truly hands-free and accessible! 🎤
 

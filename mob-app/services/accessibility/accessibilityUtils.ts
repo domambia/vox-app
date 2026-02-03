@@ -1,7 +1,7 @@
 import { AccessibilityInfo, Platform } from 'react-native';
 
 /**
- * Accessibility utilities for voice-first design in VOX
+ * Accessibility utilities for voice-first design in LiamApp
  * All functions prioritize screen reader users and provide voice feedback
  */
 

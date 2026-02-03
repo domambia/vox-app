@@ -34,7 +34,7 @@ export const AuthNavigator: React.FC = () => {
         name="Welcome"
         component={WelcomeScreen}
         options={{
-          title: 'Welcome to VOX',
+          title: 'Welcome to LiamApp',
         }}
       />
       <Stack.Screen
@@ -62,7 +62,7 @@ export const AuthNavigator: React.FC = () => {
         name="Help"
         component={HelpScreen}
         options={{
-          title: 'How VOX Works',
+          title: 'How LiamApp Works',
         }}
       />
     </Stack.Navigator>

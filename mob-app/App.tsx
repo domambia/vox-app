@@ -37,7 +37,7 @@ function AppNavigator({ navigationRef }: { navigationRef: ReturnType<typeof useN
   }, [dispatch]);
 
   useEffect(() => {
-    announceToScreenReader('VOX app launched. A community for blind and visually impaired people.');
+    announceToScreenReader('LiamApp app launched. A community for blind and visually impaired people.');
   }, []);
 
   useEffect(() => {
@@ -62,7 +62,7 @@ function AppNavigator({ navigationRef }: { navigationRef: ReturnType<typeof useN
           style={{ marginTop: 16, fontSize: 16, color: AppColors.text }}
           accessibilityRole="text"
         >
-          Loading VOX...
+          Loading LiamApp...
         </Text>
       </View>
     );

@@ -64,7 +64,7 @@ export const WelcomeScreen: React.FC = () => {
       // Give screen time to render
       setTimeout(async () => {
         await announceToScreenReader(
-          'Welcome to VOX. A community platform designed exclusively for blind and visually impaired people. Connecting you through community, not technology.'
+          'Welcome to LiamApp. A community platform designed exclusively for blind and visually impaired people. Connecting you through community, not technology.'
         );
       }, 500);
     };
@@ -141,7 +141,7 @@ export const WelcomeScreen: React.FC = () => {
           <View style={styles.hero}>
             <View style={styles.logoBubble}>
               <Image
-                source={require('../../assets/images/icon.png')}
+                source={require('../../assets/images/logo.png')}
                 style={styles.logoIcon}
                 accessibilityIgnoresInvertColors
               />
@@ -149,9 +149,9 @@ export const WelcomeScreen: React.FC = () => {
             <Text
               style={styles.title}
               accessibilityRole="header"
-              accessibilityLabel="VOX - Community for Blind and Visually Impaired People"
+              accessibilityLabel="LiamApp - Community for Blind and Visually Impaired People"
             >
-              VOX
+              LiamApp
             </Text>
             <Text style={styles.subtitle} accessibilityRole="text">
               Swipe. Chat. Connect.
@@ -167,7 +167,7 @@ export const WelcomeScreen: React.FC = () => {
               onPress={handleRegister}
               variant="primary"
               size="large"
-              accessibilityHint="Create a new VOX account to join the community"
+              accessibilityHint="Create a new LiamApp account to join the community"
               style={styles.primaryButton}
               textStyle={styles.primaryButtonText}
             />
@@ -177,17 +177,17 @@ export const WelcomeScreen: React.FC = () => {
               onPress={handleLogin}
               variant="secondary"
               size="large"
-              accessibilityHint="Sign in to your existing VOX account"
+              accessibilityHint="Sign in to your existing LiamApp account"
               style={styles.secondaryButton}
               textStyle={styles.secondaryButtonText}
             />
 
             <AccessibleButton
-              title="How VOX works"
+              title="How LiamApp works"
               onPress={handleHelp}
               variant="outline"
               size="medium"
-              accessibilityHint="Learn more about how VOX works and what to expect"
+              accessibilityHint="Learn more about how LiamApp works and what to expect"
               style={styles.helpButton}
               textStyle={styles.helpButtonText}
             />
@@ -195,7 +195,7 @@ export const WelcomeScreen: React.FC = () => {
 
           <View style={styles.footer}>
             <Text style={styles.footerText} accessibilityRole="text">
-              VOX is designed with accessibility first.{'\n'}
+              LiamApp is designed with accessibility first.{'\n'}
             </Text>
           </View>
         </ScrollView>

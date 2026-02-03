@@ -81,7 +81,7 @@ export const LoginScreen: React.FC = () => {
   useEffect(() => {
     const announceScreen = async () => {
       setTimeout(async () => {
-        await announceToScreenReader('Log in to VOX screen. Enter your phone number to sign in.');
+        await announceToScreenReader('Log in to LiamApp screen. Enter your phone number to sign in.');
 
         // Announce offline status if applicable
         if (isOffline) {
@@ -166,13 +166,13 @@ export const LoginScreen: React.FC = () => {
             <View style={styles.header}>
               <View style={styles.logoBubble}>
                 <Image
-                  source={require('../../assets/images/icon.png')}
+                  source={require('../../assets/images/logo.png')}
                   style={styles.logoIcon}
                   accessibilityIgnoresInvertColors
                 />
               </View>
               <Text style={styles.logoText} accessibilityRole="header">
-                VOX
+                LiamApp
               </Text>
             </View>
 
@@ -181,7 +181,7 @@ export const LoginScreen: React.FC = () => {
                 <Text
                   style={styles.title}
                   accessibilityRole="header"
-                  accessibilityLabel="Log in to VOX"
+                  accessibilityLabel="Log in to LiamApp"
                 >
                   Log in
                 </Text>
@@ -238,7 +238,7 @@ export const LoginScreen: React.FC = () => {
                     onPress={handleCreateAccount}
                     variant="secondary"
                     size="medium"
-                    accessibilityHint="Create a new VOX account"
+                    accessibilityHint="Create a new LiamApp account"
                     style={styles.createAccountButton}
                     textStyle={styles.createAccountButtonText}
                   />

@@ -1,7 +1,7 @@
-# UX Improvements for VOX Mobile App
+# UX Improvements for LiamApp Mobile App
 
 ## Overview
-This document outlines comprehensive UX improvements needed across all screens in the VOX mobile app. The app is designed for blind and visually impaired users, so all improvements must prioritize accessibility and voice-first interactions.
+This document outlines comprehensive UX improvements needed across all screens in the LiamApp mobile app. The app is designed for blind and visually impaired users, so all improvements must prioritize accessibility and voice-first interactions.
 
 ---
 

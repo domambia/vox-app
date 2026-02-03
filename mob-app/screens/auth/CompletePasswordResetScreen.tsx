@@ -187,13 +187,13 @@ export const CompletePasswordResetScreen: React.FC = () => {
                         <View style={styles.header}>
                             <View style={styles.logoBubble}>
                                 <Image
-                                    source={require('../../assets/images/icon.png')}
+                                    source={require('../../assets/images/logo.png')}
                                     style={styles.logoIcon}
                                     accessibilityIgnoresInvertColors
                                 />
                             </View>
                             <Text style={styles.logoText} accessibilityRole="header">
-                                VOX
+                                LiamApp
                             </Text>
                             <Text style={styles.headerTitle} accessibilityRole="header">
                                 Reset Password

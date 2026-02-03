@@ -26,7 +26,7 @@ interface AccessibleInputProps extends TextInputProps {
 }
 
 /**
- * Accessible input component for VOX
+ * Accessible input component for LiamApp
  * CRITICAL: Always provides explicit labels, never relies on placeholders
  * Follows WCAG 2.2 AA guidelines for form accessibility
  */
