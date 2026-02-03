@@ -1,9 +1,9 @@
 diff --git a/node_modules/react-native-voice/android/build.gradle b/node_modules/react-native-voice/android/build.gradle
-index 1234567..abcdefg 100644
+index c0484f8..8024a49 100644
 --- a/node_modules/react-native-voice/android/build.gradle
 +++ b/node_modules/react-native-voice/android/build.gradle
-@@ -58,7 +58,7 @@ def supportVersion = rootProject.hasProperty('supportLibVersion') ? rootProject.s
- }
+@@ -58,8 +58,8 @@ allprojects {
+ def supportVersion = rootProject.hasProperty('supportLibVersion') ? rootProject.supportLibVersion : DEFAULT_SUPPORT_LIB_VERSION
  
  dependencies {
 -    compile fileTree(dir: 'libs', include: ['*.jar'])
