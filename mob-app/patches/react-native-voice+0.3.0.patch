@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-voice/android/build.gradle b/node_modules/react-native-voice/android/build.gradle
-index c0484f8..8024a49 100644
+index c0484f8..f4505d7 100644
 --- a/node_modules/react-native-voice/android/build.gradle
 +++ b/node_modules/react-native-voice/android/build.gradle
 @@ -58,8 +58,8 @@ allprojects {
@@ -12,6 +12,6 @@ index c0484f8..8024a49 100644
 -    compile 'com.facebook.react:react-native:+'
 +    implementation fileTree(dir: 'libs', include: ['*.jar'])
 +    testImplementation 'junit:junit:4.12'
-+    implementation 'com.android.support:appcompat-v7:${supportVersion}'
++    implementation 'androidx.appcompat:appcompat:1.6.1'
 +    implementation 'com.facebook.react:react-native:+'
  }
