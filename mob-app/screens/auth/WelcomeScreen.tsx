@@ -141,7 +141,7 @@ export const WelcomeScreen: React.FC = () => {
           <View style={styles.hero}>
             <View style={styles.logoBubble}>
               <Image
-                source={require('../../assets/images/splash-icon.png')}
+                source={require('../../assets/images/icon.png')}
                 style={styles.logoIcon}
                 accessibilityIgnoresInvertColors
               />

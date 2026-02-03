@@ -1,0 +1,66 @@
+❯ npx expo prebuild --platform android --clean
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL EXPO_PUBLIC_WS_BASE_URL EXPO_PUBLIC_ENVIRONMENT
+! Git branch has uncommitted file changes
+› It's recommended to commit all changes before proceeding in case you want to revert generated changes.
+
+✔ Continue with uncommitted changes? … yes
+
+✔ Cleared android code
+
+✔ Created native directory
+✔ Updated package.json | no changes
+✔ Finished prebuild
+❯ 
+❯ cd android && ./gradlew :app:assembleRelease
+Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Configure project :expo-module-gradle-plugin
+w: file:///Users/omambia/workspaces/europe-clients/vox-app/mob-app/node_modules/expo-modules-core/expo-module-gradle-plugin/build.gradle.kts:58:3: 'kotlinOptions(KotlinJvmOptionsDeprecated /* = KotlinJvmOptions */.() -> Unit): Unit' is deprecated. Please migrate to the compilerOptions DSL. More details are here: https://kotl.in/u1r8ln
+
+> Task :expo-module-gradle-plugin:compileKotlin
+w: file:///Users/omambia/workspaces/europe-clients/vox-app/mob-app/node_modules/expo-modules-core/expo-module-gradle-plugin/src/main/kotlin/expo/modules/plugin/android/AndroidLibraryExtension.kt:9:24 'var targetSdk: Int?' is deprecated. Will be removed from library DSL in v9.0. Use testOptions.targetSdk or/and lint.targetSdk instead.
+
+> Configure project :
+[ExpoRootProject] Using the following versions:
+  - buildTools:  35.0.0
+  - minSdk:      24
+  - compileSdk:  35
+  - targetSdk:   35
+  - ndk:         27.1.12297006
+  - kotlin:      2.1.20
+  - ksp:         2.1.20-2.0.1
+
+[Incubating] Problems report is available at: file:///Users/omambia/workspaces/europe-clients/vox-app/mob-app/android/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file '/Users/omambia/workspaces/europe-clients/vox-app/mob-app/android/app/build.gradle' line: 1
+
+* What went wrong:
+A problem occurred evaluating project ':app'.
+> Failed to apply plugin 'com.android.internal.application'.
+   > Android Gradle plugin requires Java 17 to run. You are currently using Java 11.
+      Your current JDK is located in /Library/Java/JavaVirtualMachines/zulu-11.jdk/Contents/Home
+      You can try some of the following options:
+       - changing the IDE settings.
+       - changing the JAVA_HOME environment variable.
+       - changing `org.gradle.java.home` in `gradle.properties`.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 3m 19s
+24 actionable tasks: 12 executed, 12 up-to-date
+
+      ~/wo/eu/vox-app/mob-app/android     main !6 ?3  

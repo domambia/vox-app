@@ -57,7 +57,7 @@ export const VerifyResetTokenScreen: React.FC = () => {
     resolver: yupResolver(verifyTokenSchema),
     mode: 'onChange',
     defaultValues: {
-      token: route.params?.resetToken || '',
+      token: (route.params as unknown as { resetToken: string })?.resetToken || '',
     },
   });
 
@@ -97,7 +97,7 @@ export const VerifyResetTokenScreen: React.FC = () => {
 
       // Navigate to complete reset screen
       setTimeout(() => {
-        navigation.navigate('CompletePasswordReset', { token: data.token });
+        navigation.navigate('CompletePasswordReset' as keyof AuthStackParamList);
       }, 1000);
 
     } catch (error) {
@@ -113,13 +113,13 @@ export const VerifyResetTokenScreen: React.FC = () => {
     try {
       await announceToScreenReader('Resending reset token. Please wait.');
 
-      if (!route.params?.phoneNumber) {
+      if (!(route.params as unknown as { phoneNumber: string })?.phoneNumber) {
         throw new Error('Phone number is missing. Please restart password reset.');
       }
 
       await apiClient.post('/auth/password-reset/request', {
-        phoneNumber: route.params.phoneNumber,
-        email: route.params.email || undefined,
+        phoneNumber: (route.params as unknown as { phoneNumber: string }).phoneNumber,
+        email: (route.params as unknown as { email: string })?.email || undefined,
       });
 
       await announceToScreenReader('New reset token sent.', { isAlert: true });
@@ -175,7 +175,7 @@ export const VerifyResetTokenScreen: React.FC = () => {
               />
               <View style={styles.logoBubble}>
                 <Image
-                  source={require('../../assets/images/splash-icon.png')}
+                  source={require('../../assets/images/icon.png')}
                   style={styles.logoIcon}
                   accessibilityIgnoresInvertColors
                 />

@@ -1,0 +1,6 @@
+# Exclude Expo cache (can contain stale assets and inflate upload)
+.expo/
+
+# Exclude local Android/iOS builds (EAS runs prebuild on server)
+android/
+ios/

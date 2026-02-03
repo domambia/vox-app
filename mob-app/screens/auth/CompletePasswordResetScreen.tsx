@@ -187,7 +187,7 @@ export const CompletePasswordResetScreen: React.FC = () => {
                         <View style={styles.header}>
                             <View style={styles.logoBubble}>
                                 <Image
-                                    source={require('../../assets/images/splash-icon.png')}
+                                    source={require('../../assets/images/icon.png')}
                                     style={styles.logoIcon}
                                     accessibilityIgnoresInvertColors
                                 />

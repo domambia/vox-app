@@ -35,6 +35,37 @@ npm run reset-project
 
 This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
+## Building for Android (faster, no EAS queue)
+
+To avoid waiting in the EAS free-tier queue, build on your machine:
+
+### Option 1: EAS local build (same as cloud, runs locally)
+
+**Prerequisites:** Node.js, Java JDK 17+, [Android SDK and NDK](https://developer.android.com/studio) (e.g. via Android Studio).
+
+```bash
+# Preview APK (internal)
+npm run build:android:local
+
+# Production APK
+npm run build:android:prod:local
+```
+
+Log in first if needed: `eas login`. The APK is written to the project directory.
+
+### Option 2: Fully local (prebuild + Gradle, no EAS)
+
+No EAS account needed. You need Android Studio / Android SDK and JDK.
+
+```bash
+npx expo prebuild --platform android --clean
+cd android && ./gradlew :app:assembleRelease
+```
+
+The unsigned APK is at `android/app/build/outputs/apk/release/app-release-unsigned.apk`. For a signed release build, configure signing in `android/` or use Option 1 with EAS credentials.
+
+---
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:
