@@ -64,6 +64,21 @@ cd android && ./gradlew :app:assembleRelease
 
 The unsigned APK is at `android/app/build/outputs/apk/release/app-release-unsigned.apk`. For a signed release build, configure signing in `android/` or use Option 1 with EAS credentials.
 
+### Running on a physical Android device
+
+The app works on the **emulator** with the default `localhost` API URL because the emulator rewrites it to your host machine. On a **physical device**, `localhost` is the phone itself, so the app cannot reach your backend.
+
+**Fix:** Set your machine’s LAN IP when building so the device can reach your dev server:
+
+```bash
+# Replace 192.168.1.100 with your machine's IP (same Wi‑Fi as the phone)
+export EXPO_PUBLIC_API_BASE_URL=http://192.168.1.100:3000/api/v1
+export EXPO_PUBLIC_WS_BASE_URL=http://192.168.1.100:3000
+./scripts/build-android.sh
+```
+
+Or with EAS local build: pass the same env vars before `npm run build:android:local`. For production, point these to your deployed API (HTTPS).
+
 ---
 
 ## Learn more

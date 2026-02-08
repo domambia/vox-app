@@ -29,11 +29,12 @@ interface AccountInfoFormData {
   phoneNumber: string;
 }
 
-// Validation schema
+// Validation schema – normalize by stripping spaces so "+1 234 567 8900" is accepted
 const accountInfoSchema = yup.object().shape({
   phoneNumber: yup
     .string()
     .required('Phone number is required')
+    .transform((val) => (typeof val === 'string' ? val.replace(/\s/g, '') : val))
     .matches(/^\+[1-9]\d{1,14}$/, 'Phone number must be in international format (e.g., +1234567890)'),
 });
 
