@@ -130,6 +130,10 @@ export const GroupsScreen: React.FC = () => {
     };
 
     const handleGroupPress = async (group: GroupRow) => {
+        if (!group.id) {
+            await announceToScreenReader('Unable to open group chat. Missing group ID.');
+            return;
+        }
         await announceToScreenReader(`Opening ${group.name} group chat`);
         navigation.navigate('GroupChat', {
             groupId: group.id,
@@ -315,24 +319,24 @@ export const GroupsScreen: React.FC = () => {
                     <Text style={styles.loadingText}>Loading groups...</Text>
                 </View>
             ) : (
-            <SectionList
-                sections={activeTab === 'joined' ? sections.slice(0, 1) : sections.slice(-1)}
-                keyExtractor={(item) => item.id}
-                renderItem={renderGroupItem}
-                renderSectionHeader={renderSectionHeader}
-                ListEmptyComponent={renderEmptyState}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        accessibilityLabel="Pull to refresh groups"
-                    />
-                }
-                style={styles.groupsList}
-                showsVerticalScrollIndicator={false}
-                stickySectionHeadersEnabled={false}
-                accessibilityLabel="Groups list"
-            />
+                <SectionList
+                    sections={activeTab === 'joined' ? sections.slice(0, 1) : sections.slice(-1)}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderGroupItem}
+                    renderSectionHeader={renderSectionHeader}
+                    ListEmptyComponent={renderEmptyState}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            accessibilityLabel="Pull to refresh groups"
+                        />
+                    }
+                    style={styles.groupsList}
+                    showsVerticalScrollIndicator={false}
+                    stickySectionHeadersEnabled={false}
+                    accessibilityLabel="Groups list"
+                />
             )}
         </SafeAreaView>
     );

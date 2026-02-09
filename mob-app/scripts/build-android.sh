@@ -52,4 +52,4 @@ echo "Building release APK..."
 cd "$ROOT/android"
 ./gradlew assembleRelease
 
-echo "APK: $ROOT/android/app/build/outputs/apk/release/app-release.apk"
+echo "APK: $ROOT/android/app/build/outputs/apk/release/liam-app.apk"

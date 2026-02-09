@@ -45,13 +45,24 @@ export const GroupChatScreen: React.FC = () => {
     const flatListRef = useRef<FlatList>(null);
 
     const loadMessages = async () => {
-        if (!groupId) return;
+        if (!groupId) {
+            setLoading(false);
+            setRefreshing(false);
+            setMessages([]);
+            setError('Invalid group. Missing groupId.');
+            return;
+        }
         try {
             setError(null);
             const res = await groupsService.getGroupMessages({ groupId, limit: 100, offset: 0 });
             setMessages(res.items ?? []);
         } catch (e: any) {
-            setError(e.message ?? 'Failed to load messages');
+            const message =
+                e?.response?.data?.error?.message ??
+                e?.response?.data?.message ??
+                e?.message ??
+                'Failed to load messages';
+            setError(message);
             setMessages([]);
         } finally {
             setLoading(false);
@@ -67,7 +78,7 @@ export const GroupChatScreen: React.FC = () => {
         if (messages.length > 0 || !loading) {
             setTimeout(() =>
                 announceToScreenReader(`Group: ${groupName}. ${messages.length} messages.`)
-            , 500);
+                , 500);
         }
     }, [groupName, messages.length, loading]);
 
@@ -92,7 +103,12 @@ export const GroupChatScreen: React.FC = () => {
             setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         } catch (e: any) {
             setNewMessage(content);
-            setError(e.message ?? 'Failed to send');
+            const message =
+                e?.response?.data?.error?.message ??
+                e?.response?.data?.message ??
+                e?.message ??
+                'Failed to send';
+            setError(message);
             announceToScreenReader('Failed to send message');
         } finally {
             setSending(false);
