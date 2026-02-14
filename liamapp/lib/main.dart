@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'screens/landing_screen.dart';
 import 'screens/splash_screen.dart';
 import 'core/api_client.dart';
+import 'core/config.dart';
 import 'core/socket_service.dart';
 import 'core/token_storage.dart';
 import 'features/app/app_gate.dart';
@@ -23,6 +25,11 @@ Future<void> main() async {
     await dotenv.load(fileName: '.env');
   } catch (_) {
     // Ignore missing .env in dev; AppConfig will fall back to defaults.
+  }
+
+  if (!kReleaseMode) {
+    debugPrint('[AppConfig] apiBaseUrl: ${AppConfig.apiBaseUrl}');
+    debugPrint('[AppConfig] socketBaseUrl: ${AppConfig.socketBaseUrl}');
   }
   runApp(const MyApp());
 }

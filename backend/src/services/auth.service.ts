@@ -1,7 +1,11 @@
-import prisma from '@/config/database';
-import { hashPassword, comparePassword } from '@/utils/password';
-import { generateToken, generateRefreshToken, verifyRefreshToken } from '@/utils/jwt';
-import { logger } from '@/utils/logger';
+import prisma from "@/config/database";
+import { hashPassword, comparePassword } from "@/utils/password";
+import {
+  generateToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} from "@/utils/jwt";
+import { logger } from "@/utils/logger";
 import {
   RegisterInput,
   LoginInput,
@@ -10,13 +14,21 @@ import {
   ChangePasswordInput,
   SendOTPInput,
   VerifyOTPInput,
-} from '@/validations/auth.validation';
-import { Prisma } from '@prisma/client';
-import { generateSecureToken, hashToken } from '@/utils/token';
-import { config } from '@/config/env';
-import { sendSms } from '@/utils/sms';
+} from "@/validations/auth.validation";
+import { Prisma } from "@prisma/client";
+import { generateSecureToken, hashToken } from "@/utils/token";
+import { config } from "@/config/env";
+import { sendSms } from "@/utils/sms";
 
 export class AuthService {
+  private async ensureProfileExists(userId: string) {
+    await prisma.profile.upsert({
+      where: { user_id: userId },
+      update: {},
+      create: { user_id: userId },
+    });
+  }
+
   /**
    * Send OTP for phone number verification.
    * In development, if devBypassOtp is true, skips OTP and returns tokens directly (same shape as verify-otp).
@@ -26,8 +38,10 @@ export class AuthService {
       const { phoneNumber, purpose, devBypassOtp } = data;
 
       // Development-only: bypass OTP and return tokens directly for easier testing
-      if (config.nodeEnv === 'development' && devBypassOtp === true) {
-        logger.info(`[DEV] send-otp bypass for ${phoneNumber}, purpose=${purpose}`);
+      if (config.nodeEnv === "development" && devBypassOtp === true) {
+        logger.info(
+          `[DEV] send-otp bypass for ${phoneNumber}, purpose=${purpose}`,
+        );
         return this.devBypassOtpAndReturnTokens(phoneNumber, purpose);
       }
 
@@ -50,35 +64,48 @@ export class AuthService {
 
       const otpMessage = `Your VOX verification code is ${otpCode}. It expires in 10 minutes.`;
 
-      if (config.nodeEnv === 'production') {
+      if (config.nodeEnv === "production") {
         await sendSms({ to: phoneNumber, message: otpMessage });
       } else {
-        logger.info(`OTP for ${phoneNumber}: ${otpCode} (expires: ${expiresAt.toISOString()})`);
+        logger.info(
+          `OTP for ${phoneNumber}: ${otpCode} (expires: ${expiresAt.toISOString()})`,
+        );
       }
 
       return {
-        message: 'OTP sent successfully',
+        message: "OTP sent successfully",
         expiresIn: 600, // 10 minutes in seconds
       };
     } catch (error) {
-      logger.error('Error sending OTP', error);
-      throw new Error('Failed to send OTP');
+      logger.error("Error sending OTP", error);
+      throw new Error("Failed to send OTP");
     }
   }
 
   /**
    * Development-only: find or create user and return tokens (same shape as verify-otp).
    */
-  private async devBypassOtpAndReturnTokens(phoneNumber: string, purpose: string) {
-    if (purpose === 'LOGIN') {
+  private async devBypassOtpAndReturnTokens(
+    phoneNumber: string,
+    purpose: string,
+  ) {
+    if (purpose === "LOGIN") {
       const user = await prisma.user.findUnique({
         where: { phone_number: phoneNumber },
       });
       if (!user || !user.is_active) {
-        throw new Error('Account not found or inactive');
+        throw new Error("Account not found or inactive");
       }
-      const token = generateToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
-      const refreshToken = generateRefreshToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+      const token = generateToken({
+        userId: user.user_id,
+        phoneNumber: user.phone_number,
+        verified: user.verified,
+      });
+      const refreshToken = generateRefreshToken({
+        userId: user.user_id,
+        phoneNumber: user.phone_number,
+        verified: user.verified,
+      });
       await prisma.user.update({
         where: { user_id: user.user_id },
         data: { last_active: new Date() },
@@ -113,11 +140,26 @@ export class AuthService {
     } else {
       user = await prisma.user.update({
         where: { user_id: user.user_id },
-        data: { verified: true, verification_date: new Date(), is_active: true },
+        data: {
+          verified: true,
+          verification_date: new Date(),
+          is_active: true,
+        },
       });
     }
-    const token = generateToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
-    const refreshToken = generateRefreshToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+
+    await this.ensureProfileExists(user.user_id);
+
+    const token = generateToken({
+      userId: user.user_id,
+      phoneNumber: user.phone_number,
+      verified: user.verified,
+    });
+    const refreshToken = generateRefreshToken({
+      userId: user.user_id,
+      phoneNumber: user.phone_number,
+      verified: user.verified,
+    });
     return {
       user: {
         userId: user.user_id,
@@ -151,7 +193,7 @@ export class AuthService {
       });
 
       if (!otpToken) {
-        throw new Error('Invalid or expired OTP');
+        throw new Error("Invalid or expired OTP");
       }
 
       // Mark OTP as used
@@ -164,7 +206,7 @@ export class AuthService {
       });
 
       // Handle different purposes
-      if (purpose === 'REGISTRATION') {
+      if (purpose === "REGISTRATION") {
         // Create new user account
         let user = await prisma.user.findUnique({
           where: { phone_number: phoneNumber },
@@ -192,9 +234,19 @@ export class AuthService {
           });
         }
 
+        await this.ensureProfileExists(user.user_id);
+
         // Generate tokens
-        const token = generateToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
-        const refreshToken = generateRefreshToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+        const token = generateToken({
+          userId: user.user_id,
+          phoneNumber: user.phone_number,
+          verified: user.verified,
+        });
+        const refreshToken = generateRefreshToken({
+          userId: user.user_id,
+          phoneNumber: user.phone_number,
+          verified: user.verified,
+        });
 
         return {
           user: {
@@ -206,19 +258,27 @@ export class AuthService {
           refreshToken,
           expiresIn: 3600, // 1 hour
         };
-      } else if (purpose === 'LOGIN') {
+      } else if (purpose === "LOGIN") {
         // Find existing user
         const user = await prisma.user.findUnique({
           where: { phone_number: phoneNumber },
         });
 
         if (!user || !user.is_active) {
-          throw new Error('Account not found or inactive');
+          throw new Error("Account not found or inactive");
         }
 
         // Generate tokens
-        const token = generateToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
-        const refreshToken = generateRefreshToken({ userId: user.user_id, phoneNumber: user.phone_number, verified: user.verified });
+        const token = generateToken({
+          userId: user.user_id,
+          phoneNumber: user.phone_number,
+          verified: user.verified,
+        });
+        const refreshToken = generateRefreshToken({
+          userId: user.user_id,
+          phoneNumber: user.phone_number,
+          verified: user.verified,
+        });
 
         // Update last active
         await prisma.user.update({
@@ -241,9 +301,9 @@ export class AuthService {
         };
       }
 
-      throw new Error('Invalid OTP purpose');
+      throw new Error("Invalid OTP purpose");
     } catch (error) {
-      logger.error('Error verifying OTP', error);
+      logger.error("Error verifying OTP", error);
       throw error;
     }
   }
@@ -256,7 +316,7 @@ export class AuthService {
     try {
       const countries = await prisma.country.findMany({
         where: { is_allowed: true },
-        orderBy: { name: 'asc' },
+        orderBy: { name: "asc" },
         select: {
           code: true,
           name: true,
@@ -265,7 +325,7 @@ export class AuthService {
 
       return countries;
     } catch (error) {
-      logger.error('Error getting allowed countries for registration', error);
+      logger.error("Error getting allowed countries for registration", error);
       throw error;
     }
   }
@@ -284,12 +344,14 @@ export class AuthService {
       });
 
       if (!country) {
-        throw new Error(`Invalid country code: ${normalizedCountryCode}. Please use a valid ISO 3166-1 alpha-2 code (e.g., MT, US, GB)`);
+        throw new Error(
+          `Invalid country code: ${normalizedCountryCode}. Please use a valid ISO 3166-1 alpha-2 code (e.g., MT, US, GB)`,
+        );
       }
 
       if (!country.is_allowed) {
         throw new Error(
-          `Registration is not currently allowed for ${country.name} (${normalizedCountryCode}). Please contact support for more information.`
+          `Registration is not currently allowed for ${country.name} (${normalizedCountryCode}). Please contact support for more information.`,
         );
       }
 
@@ -299,17 +361,17 @@ export class AuthService {
       });
 
       if (existingUserByPhone) {
-        throw new Error('User with this phone number already exists');
+        throw new Error("User with this phone number already exists");
       }
 
       // Check if email is provided and if user exists by email
-      if (data.email && data.email.trim() !== '') {
+      if (data.email && data.email.trim() !== "") {
         const existingUserByEmail = await prisma.user.findUnique({
           where: { email: data.email },
         });
 
         if (existingUserByEmail) {
-          throw new Error('User with this email already exists');
+          throw new Error("User with this email already exists");
         }
       }
 
@@ -323,7 +385,7 @@ export class AuthService {
           password_hash: passwordHash,
           first_name: data.firstName,
           last_name: data.lastName,
-          email: data.email && data.email.trim() !== '' ? data.email : null,
+          email: data.email && data.email.trim() !== "" ? data.email : null,
           country_code: normalizedCountryCode,
           verified: false,
           is_active: true,
@@ -340,7 +402,12 @@ export class AuthService {
         },
       });
 
-      logger.info('User registered successfully', { userId: user.user_id, countryCode: user.country_code });
+      await this.ensureProfileExists(user.user_id);
+
+      logger.info("User registered successfully", {
+        userId: user.user_id,
+        countryCode: user.country_code,
+      });
 
       return {
         userId: user.user_id,
@@ -353,22 +420,22 @@ export class AuthService {
       };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
+        if (error.code === "P2002") {
           // Check which unique constraint was violated
           const target = (error.meta?.target as string[]) || [];
-          if (target.includes('phone_number')) {
-            throw new Error('User with this phone number already exists');
+          if (target.includes("phone_number")) {
+            throw new Error("User with this phone number already exists");
           }
-          if (target.includes('email')) {
-            throw new Error('User with this email already exists');
+          if (target.includes("email")) {
+            throw new Error("User with this email already exists");
           }
-          throw new Error('User with this information already exists');
+          throw new Error("User with this information already exists");
         }
-        if (error.code === 'P2003') {
-          throw new Error('Invalid country code');
+        if (error.code === "P2003") {
+          throw new Error("Invalid country code");
         }
       }
-      logger.error('Registration error', error);
+      logger.error("Registration error", error);
       throw error;
     }
   }
@@ -391,18 +458,21 @@ export class AuthService {
       });
 
       if (!user) {
-        throw new Error('Invalid phone number or password');
+        throw new Error("Invalid phone number or password");
       }
 
       if (!user.is_active) {
-        throw new Error('Account is inactive');
+        throw new Error("Account is inactive");
       }
 
       // Verify password
-      const isPasswordValid = await comparePassword(data.password, user.password_hash || '');
+      const isPasswordValid = await comparePassword(
+        data.password,
+        user.password_hash || "",
+      );
 
       if (!isPasswordValid) {
-        throw new Error('Invalid phone number or password');
+        throw new Error("Invalid phone number or password");
       }
 
       // Update last active
@@ -421,7 +491,7 @@ export class AuthService {
       const token = generateToken(tokenPayload);
       const refreshToken = generateRefreshToken(tokenPayload);
 
-      logger.info('User logged in successfully', { userId: user.user_id });
+      logger.info("User logged in successfully", { userId: user.user_id });
 
       return {
         token,
@@ -433,7 +503,7 @@ export class AuthService {
         },
       };
     } catch (error) {
-      logger.error('Login error', error);
+      logger.error("Login error", error);
       throw error;
     }
   }
@@ -458,7 +528,7 @@ export class AuthService {
       });
 
       if (!user || !user.is_active) {
-        throw new Error('User not found or inactive');
+        throw new Error("User not found or inactive");
       }
 
       // Generate new access token
@@ -470,14 +540,14 @@ export class AuthService {
 
       const token = generateToken(tokenPayload);
 
-      logger.info('Token refreshed successfully', { userId: user.user_id });
+      logger.info("Token refreshed successfully", { userId: user.user_id });
 
       return {
         token,
         expiresIn: 3600,
       };
     } catch (error) {
-      logger.error('Token refresh error', error);
+      logger.error("Token refresh error", error);
       throw error;
     }
   }
@@ -493,11 +563,11 @@ export class AuthService {
         data: { last_active: new Date() },
       });
 
-      logger.info('User logged out', { userId });
+      logger.info("User logged out", { userId });
 
-      return { message: 'Logged out successfully' };
+      return { message: "Logged out successfully" };
     } catch (error) {
-      logger.error('Logout error', error);
+      logger.error("Logout error", error);
       throw error;
     }
   }
@@ -520,22 +590,23 @@ export class AuthService {
 
       if (!user) {
         // Don't reveal if user exists - security best practice
-        logger.warn('Password reset requested for non-existent phone number', {
+        logger.warn("Password reset requested for non-existent phone number", {
           phoneNumber: data.phoneNumber,
         });
         // Return success even if user doesn't exist (security)
         return {
-          message: 'If an account exists with this phone number, a password reset link has been sent.',
+          message:
+            "If an account exists with this phone number, a password reset link has been sent.",
         };
       }
 
       if (!user.is_active) {
-        throw new Error('Account is inactive');
+        throw new Error("Account is inactive");
       }
 
       // If email provided, verify it matches
       if (data.email && user.email && user.email !== data.email) {
-        throw new Error('Email does not match account');
+        throw new Error("Email does not match account");
       }
 
       // Generate reset token
@@ -568,18 +639,19 @@ export class AuthService {
         },
       });
 
-      logger.info('Password reset token created', { userId: user.user_id });
+      logger.info("Password reset token created", { userId: user.user_id });
 
       // In production, send token via SMS or email
       // For now, return token (in production, this should be sent via SMS/email)
       return {
-        message: 'Password reset token generated',
+        message: "Password reset token generated",
         // TODO: Remove this in production - send via SMS/email instead
-        resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined,
+        resetToken:
+          process.env.NODE_ENV === "development" ? resetToken : undefined,
         expiresIn: 3600, // 1 hour in seconds
       };
     } catch (error) {
-      logger.error('Password reset request error', error);
+      logger.error("Password reset request error", error);
       throw error;
     }
   }
@@ -604,19 +676,19 @@ export class AuthService {
       });
 
       if (!resetToken) {
-        throw new Error('Invalid reset token');
+        throw new Error("Invalid reset token");
       }
 
       if (resetToken.used) {
-        throw new Error('Reset token has already been used');
+        throw new Error("Reset token has already been used");
       }
 
       if (resetToken.expires_at < new Date()) {
-        throw new Error('Reset token has expired');
+        throw new Error("Reset token has expired");
       }
 
       if (!resetToken.user.is_active) {
-        throw new Error('Account is inactive');
+        throw new Error("Account is inactive");
       }
 
       return {
@@ -624,7 +696,7 @@ export class AuthService {
         userId: resetToken.user_id,
       };
     } catch (error) {
-      logger.error('Password reset token verification error', error);
+      logger.error("Password reset token verification error", error);
       throw error;
     }
   }
@@ -638,7 +710,7 @@ export class AuthService {
       const verification = await this.verifyPasswordResetToken(data.token);
 
       if (!verification.valid) {
-        throw new Error('Invalid reset token');
+        throw new Error("Invalid reset token");
       }
 
       const hashedToken = hashToken(data.token);
@@ -664,13 +736,13 @@ export class AuthService {
         },
       });
 
-      logger.info('Password reset completed', { userId: verification.userId });
+      logger.info("Password reset completed", { userId: verification.userId });
 
       return {
-        message: 'Password has been reset successfully',
+        message: "Password has been reset successfully",
       };
     } catch (error) {
-      logger.error('Password reset completion error', error);
+      logger.error("Password reset completion error", error);
       throw error;
     }
   }
@@ -691,17 +763,17 @@ export class AuthService {
       });
 
       if (!user || !user.is_active) {
-        throw new Error('User not found or inactive');
+        throw new Error("User not found or inactive");
       }
 
       // Verify current password
       const isCurrentPasswordValid = await comparePassword(
         data.currentPassword,
-        user.password_hash || '' as string
+        user.password_hash || ("" as string),
       );
 
       if (!isCurrentPasswordValid) {
-        throw new Error('Current password is incorrect');
+        throw new Error("Current password is incorrect");
       }
 
       // Hash new password
@@ -716,13 +788,13 @@ export class AuthService {
         },
       });
 
-      logger.info('Password changed successfully', { userId });
+      logger.info("Password changed successfully", { userId });
 
       return {
-        message: 'Password has been changed successfully',
+        message: "Password has been changed successfully",
       };
     } catch (error) {
-      logger.error('Change password error', error);
+      logger.error("Change password error", error);
       throw error;
     }
   }
