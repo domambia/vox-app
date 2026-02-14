@@ -1,8 +1,8 @@
-import { Response } from 'express';
-import { sendSuccess, sendError } from '@/utils/response';
-import messagingService from '@/services/messaging.service';
-import { AuthRequest } from '@/types';
-import { extractPaginationFromQuery } from '@/utils/pagination';
+import { Response } from "express";
+import { sendSuccess, sendError } from "@/utils/response";
+import messagingService from "@/services/messaging.service";
+import { AuthRequest } from "@/types";
+import { extractPaginationFromQuery } from "@/utils/pagination";
 
 export class MessagingController {
   /**
@@ -17,11 +17,16 @@ export class MessagingController {
       const message = await messagingService.sendMessage(senderId, data);
       sendSuccess(res, message, 201);
     } catch (error: any) {
-      if (error.message === 'User not found') {
-        sendError(res, 'USER_NOT_FOUND', error.message, 404);
+      if (error.message === "User not found") {
+        sendError(res, "USER_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'MESSAGE_SEND_ERROR', error.message || 'Failed to send message', 400);
+      sendError(
+        res,
+        "MESSAGE_SEND_ERROR",
+        error.message || "Failed to send message",
+        400,
+      );
     }
   }
 
@@ -34,18 +39,26 @@ export class MessagingController {
       const { conversationId } = req.params;
       const userId = req.user!.userId;
 
-      const conversation = await messagingService.getConversation(conversationId, userId);
+      const conversation = await messagingService.getConversation(
+        conversationId,
+        userId,
+      );
       sendSuccess(res, conversation);
     } catch (error: any) {
-      if (error.message === 'Conversation not found') {
-        sendError(res, 'CONVERSATION_NOT_FOUND', error.message, 404);
+      if (error.message === "Conversation not found") {
+        sendError(res, "CONVERSATION_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message === 'Unauthorized access to conversation') {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message === "Unauthorized access to conversation") {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'CONVERSATION_FETCH_ERROR', error.message || 'Failed to fetch conversation', 400);
+      sendError(
+        res,
+        "CONVERSATION_FETCH_ERROR",
+        error.message || "Failed to fetch conversation",
+        400,
+      );
     }
   }
 
@@ -58,10 +71,18 @@ export class MessagingController {
       const userId = req.user!.userId;
       const { limit, offset } = extractPaginationFromQuery(req.query);
 
-      const result = await messagingService.listConversations(userId, { limit, offset });
+      const result = await messagingService.listConversations(userId, {
+        limit,
+        offset,
+      });
       sendSuccess(res, result);
     } catch (error: any) {
-      sendError(res, 'CONVERSATIONS_LIST_ERROR', error.message || 'Failed to list conversations', 400);
+      sendError(
+        res,
+        "CONVERSATIONS_LIST_ERROR",
+        error.message || "Failed to list conversations",
+        400,
+      );
     }
   }
 
@@ -74,25 +95,36 @@ export class MessagingController {
       const { conversationId } = req.params;
       const userId = req.user!.userId;
       const { limit, offset } = extractPaginationFromQuery(req.query);
-      const before = req.query.before ? new Date(req.query.before as string) : undefined;
+      const before = req.query.before
+        ? new Date(req.query.before as string)
+        : undefined;
 
-      const result = await messagingService.getMessages(conversationId, userId, {
-        limit,
-        offset,
-        before,
-      });
+      const result = await messagingService.getMessages(
+        conversationId,
+        userId,
+        {
+          limit,
+          offset,
+          before,
+        },
+      );
 
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Conversation not found') {
-        sendError(res, 'CONVERSATION_NOT_FOUND', error.message, 404);
+      if (error.message === "Conversation not found") {
+        sendError(res, "CONVERSATION_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message === 'Unauthorized access to conversation') {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message === "Unauthorized access to conversation") {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'MESSAGES_FETCH_ERROR', error.message || 'Failed to fetch messages', 400);
+      sendError(
+        res,
+        "MESSAGES_FETCH_ERROR",
+        error.message || "Failed to fetch messages",
+        400,
+      );
     }
   }
 
@@ -106,18 +138,27 @@ export class MessagingController {
       const userId = req.user!.userId;
       const { messageIds } = req.body;
 
-      const result = await messagingService.markAsRead(conversationId, userId, messageIds);
+      const result = await messagingService.markAsRead(
+        conversationId,
+        userId,
+        messageIds,
+      );
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Conversation not found') {
-        sendError(res, 'CONVERSATION_NOT_FOUND', error.message, 404);
+      if (error.message === "Conversation not found") {
+        sendError(res, "CONVERSATION_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message === 'Unauthorized access to conversation') {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message === "Unauthorized access to conversation") {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'MARK_READ_ERROR', error.message || 'Failed to mark messages as read', 400);
+      sendError(
+        res,
+        "MARK_READ_ERROR",
+        error.message || "Failed to mark messages as read",
+        400,
+      );
     }
   }
 
@@ -132,7 +173,12 @@ export class MessagingController {
       const result = await messagingService.getUnreadCount(userId);
       sendSuccess(res, result);
     } catch (error: any) {
-      sendError(res, 'UNREAD_COUNT_ERROR', error.message || 'Failed to get unread count', 400);
+      sendError(
+        res,
+        "UNREAD_COUNT_ERROR",
+        error.message || "Failed to get unread count",
+        400,
+      );
     }
   }
 
@@ -145,18 +191,26 @@ export class MessagingController {
       const { conversationId } = req.params;
       const userId = req.user!.userId;
 
-      const result = await messagingService.deleteConversation(conversationId, userId);
+      const result = await messagingService.deleteConversation(
+        conversationId,
+        userId,
+      );
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Conversation not found') {
-        sendError(res, 'CONVERSATION_NOT_FOUND', error.message, 404);
+      if (error.message === "Conversation not found") {
+        sendError(res, "CONVERSATION_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message === 'Unauthorized access to conversation') {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message === "Unauthorized access to conversation") {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'CONVERSATION_DELETE_ERROR', error.message || 'Failed to delete conversation', 400);
+      sendError(
+        res,
+        "CONVERSATION_DELETE_ERROR",
+        error.message || "Failed to delete conversation",
+        400,
+      );
     }
   }
 
@@ -170,18 +224,25 @@ export class MessagingController {
       const userId = req.user!.userId;
       const { content } = req.body;
 
-      const message = await messagingService.editMessage(messageId, userId, { content });
+      const message = await messagingService.editMessage(messageId, userId, {
+        content,
+      });
       sendSuccess(res, message);
     } catch (error: any) {
-      if (error.message === 'Message not found') {
-        sendError(res, 'MESSAGE_NOT_FOUND', error.message, 404);
+      if (error.message === "Message not found") {
+        sendError(res, "MESSAGE_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Unauthorized')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Unauthorized")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'MESSAGE_EDIT_ERROR', error.message || 'Failed to edit message', 400);
+      sendError(
+        res,
+        "MESSAGE_EDIT_ERROR",
+        error.message || "Failed to edit message",
+        400,
+      );
     }
   }
 
@@ -197,15 +258,20 @@ export class MessagingController {
       const result = await messagingService.deleteMessage(messageId, userId);
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Message not found') {
-        sendError(res, 'MESSAGE_NOT_FOUND', error.message, 404);
+      if (error.message === "Message not found") {
+        sendError(res, "MESSAGE_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Unauthorized')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Unauthorized")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'MESSAGE_DELETE_ERROR', error.message || 'Failed to delete message', 400);
+      sendError(
+        res,
+        "MESSAGE_DELETE_ERROR",
+        error.message || "Failed to delete message",
+        400,
+      );
     }
   }
 
@@ -219,18 +285,27 @@ export class MessagingController {
       const userId = req.user!.userId;
       const { emoji } = req.body;
 
-      const reaction = await messagingService.addReaction(messageId, userId, emoji);
+      const reaction = await messagingService.addReaction(
+        messageId,
+        userId,
+        emoji,
+      );
       sendSuccess(res, reaction, 201);
     } catch (error: any) {
-      if (error.message === 'Message not found') {
-        sendError(res, 'MESSAGE_NOT_FOUND', error.message, 404);
+      if (error.message === "Message not found") {
+        sendError(res, "MESSAGE_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Unauthorized')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Unauthorized")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'REACTION_ADD_ERROR', error.message || 'Failed to add reaction', 400);
+      sendError(
+        res,
+        "REACTION_ADD_ERROR",
+        error.message || "Failed to add reaction",
+        400,
+      );
     }
   }
 
@@ -246,11 +321,16 @@ export class MessagingController {
       const result = await messagingService.removeReaction(messageId, userId);
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Reaction not found') {
-        sendError(res, 'REACTION_NOT_FOUND', error.message, 404);
+      if (error.message === "Reaction not found") {
+        sendError(res, "REACTION_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'REACTION_REMOVE_ERROR', error.message || 'Failed to remove reaction', 400);
+      sendError(
+        res,
+        "REACTION_REMOVE_ERROR",
+        error.message || "Failed to remove reaction",
+        400,
+      );
     }
   }
 
@@ -263,8 +343,8 @@ export class MessagingController {
       const userId = req.user!.userId;
       const { query, conversationId, limit, offset } = req.query;
 
-      if (!query || typeof query !== 'string') {
-        sendError(res, 'INVALID_QUERY', 'Search query is required', 400);
+      if (!query || typeof query !== "string") {
+        sendError(res, "INVALID_QUERY", "Search query is required", 400);
         return;
       }
 
@@ -277,15 +357,20 @@ export class MessagingController {
 
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Conversation not found') {
-        sendError(res, 'CONVERSATION_NOT_FOUND', error.message, 404);
+      if (error.message === "Conversation not found") {
+        sendError(res, "CONVERSATION_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Unauthorized')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Unauthorized")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'MESSAGE_SEARCH_ERROR', error.message || 'Failed to search messages', 400);
+      sendError(
+        res,
+        "MESSAGE_SEARCH_ERROR",
+        error.message || "Failed to search messages",
+        400,
+      );
     }
   }
 
@@ -301,15 +386,23 @@ export class MessagingController {
       const result = await messagingService.markAsDelivered(messageId, userId);
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Message not found') {
-        sendError(res, 'MESSAGE_NOT_FOUND', error.message, 404);
+      if (error.message === "Message not found") {
+        sendError(res, "MESSAGE_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Unauthorized') || error.message.includes('Cannot mark')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (
+        error.message.includes("Unauthorized") ||
+        error.message.includes("Cannot mark")
+      ) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'MARK_DELIVERED_ERROR', error.message || 'Failed to mark as delivered', 400);
+      sendError(
+        res,
+        "MARK_DELIVERED_ERROR",
+        error.message || "Failed to mark as delivered",
+        400,
+      );
     }
   }
 
@@ -320,21 +413,37 @@ export class MessagingController {
   async uploadAttachment(req: AuthRequest, res: Response): Promise<void> {
     try {
       if (!req.file) {
-        sendError(res, 'NO_FILE', 'No file uploaded', 400);
+        sendError(res, "NO_FILE", "No file uploaded", 400);
         return;
       }
 
-      const fileUrl = `/api/${process.env.API_VERSION || 'v1'}/files/messages/${req.file.filename}`;
+      const fileUrl = `/api/${process.env.API_VERSION || "v1"}/files/messages/${req.file.filename}`;
 
-      sendSuccess(res, {
-        attachment_id: req.file.filename, // Temporary ID, will be replaced when message is created
-        file_url: fileUrl,
-        file_type: req.file.mimetype,
-        file_name: req.file.originalname,
-        file_size: req.file.size,
-      }, 201);
+      const attachment = await messagingService.createAttachment({
+        fileUrl,
+        fileType: req.file.mimetype,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+      });
+
+      sendSuccess(
+        res,
+        {
+          attachment_id: attachment.attachment_id,
+          file_url: attachment.file_url,
+          file_type: attachment.file_type,
+          file_name: attachment.file_name,
+          file_size: attachment.file_size,
+        },
+        201,
+      );
     } catch (error: any) {
-      sendError(res, 'ATTACHMENT_UPLOAD_ERROR', error.message || 'Failed to upload attachment', 400);
+      sendError(
+        res,
+        "ATTACHMENT_UPLOAD_ERROR",
+        error.message || "Failed to upload attachment",
+        400,
+      );
     }
   }
 }
@@ -342,4 +451,3 @@ export class MessagingController {
 // Export singleton instance
 const messagingController = new MessagingController();
 export default messagingController;
-

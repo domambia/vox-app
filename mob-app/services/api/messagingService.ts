@@ -1,5 +1,5 @@
-import { apiClient } from './apiClient';
-import { AxiosResponse } from 'axios';
+import { apiClient } from "./apiClient";
+import { AxiosResponse } from "axios";
 
 export interface Message {
   messageId: string;
@@ -7,7 +7,7 @@ export interface Message {
   senderId: string;
   recipientId?: string;
   content: string;
-  messageType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE';
+  messageType: "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE";
   readAt?: string;
   deliveredAt?: string;
   editedAt?: string;
@@ -56,7 +56,7 @@ export interface Conversation {
 export interface SendMessageData {
   recipientId: string;
   content: string;
-  messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE';
+  messageType?: "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE";
 }
 
 export interface GetMessagesParams {
@@ -85,7 +85,7 @@ class MessagingService {
    * Send a message
    */
   async sendMessage(data: SendMessageData): Promise<Message> {
-    const response: AxiosResponse = await apiClient.post('/messages', data);
+    const response: AxiosResponse = await apiClient.post("/messages", data);
     return response.data.data;
   }
 
@@ -93,7 +93,9 @@ class MessagingService {
    * Get conversation by ID
    */
   async getConversation(conversationId: string): Promise<Conversation> {
-    const response: AxiosResponse = await apiClient.get(`/conversations/${conversationId}`);
+    const response: AxiosResponse = await apiClient.get(
+      `/conversations/${conversationId}`,
+    );
     return response.data.data;
   }
 
@@ -101,17 +103,27 @@ class MessagingService {
    * List conversations
    * GET /api/v1/conversations
    */
-  async listConversations(params?: ListConversationsParams): Promise<PaginatedResponse<Conversation>> {
+  async listConversations(
+    params?: ListConversationsParams,
+  ): Promise<PaginatedResponse<Conversation>> {
     const queryParams = new URLSearchParams();
-    if (params?.page) queryParams.append('page', params.page.toString());
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    const limit = params?.limit;
+    const page = params?.page;
+    if (limit) queryParams.append("limit", limit.toString());
+    if (page && limit)
+      queryParams.append("offset", ((page - 1) * limit).toString());
 
-    const url = `/conversations${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = `/conversations${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
     const response: AxiosResponse = await apiClient.get(url);
     const data = response.data?.data ?? response.data;
     // Backend returns { items, pagination }
     const items = data?.items ?? data?.conversations ?? data?.data ?? [];
-    const pagination = data?.pagination ?? { page: 1, limit: 20, total: items.length, totalPages: 1 };
+    const pagination = data?.pagination ?? {
+      page: 1,
+      limit: 20,
+      total: items.length,
+      totalPages: 1,
+    };
     return { data: items, pagination };
   }
 
@@ -119,17 +131,27 @@ class MessagingService {
    * Get messages for a conversation
    * GET /api/v1/conversations/:conversationId/messages
    */
-  async getMessages(params: GetMessagesParams): Promise<PaginatedResponse<Message>> {
+  async getMessages(
+    params: GetMessagesParams,
+  ): Promise<PaginatedResponse<Message>> {
     const queryParams = new URLSearchParams();
-    if (params.page) queryParams.append('page', params.page.toString());
-    if (params.limit) queryParams.append('limit', params.limit.toString());
+    const limit = params.limit;
+    const page = params.page;
+    if (limit) queryParams.append("limit", limit.toString());
+    if (page && limit)
+      queryParams.append("offset", ((page - 1) * limit).toString());
 
-    const url = `/conversations/${params.conversationId}/messages${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = `/conversations/${params.conversationId}/messages${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
     const response: AxiosResponse = await apiClient.get(url);
     const data = response.data?.data ?? response.data;
     // Backend returns { items, pagination }
     const items = data?.items ?? data?.messages ?? data?.data ?? [];
-    const pagination = data?.pagination ?? { page: 1, limit: 20, total: items.length, totalPages: 1 };
+    const pagination = data?.pagination ?? {
+      page: 1,
+      limit: 20,
+      total: items.length,
+      totalPages: 1,
+    };
     return { data: items, pagination };
   }
 
@@ -144,7 +166,10 @@ class MessagingService {
    * Edit a message
    */
   async editMessage(messageId: string, content: string): Promise<Message> {
-    const response: AxiosResponse = await apiClient.put(`/messages/${messageId}`, { content });
+    const response: AxiosResponse = await apiClient.put(
+      `/messages/${messageId}`,
+      { content },
+    );
     return response.data.data;
   }
 
@@ -158,8 +183,14 @@ class MessagingService {
   /**
    * Add reaction to a message
    */
-  async addReaction(messageId: string, emoji: string): Promise<MessageReaction> {
-    const response: AxiosResponse = await apiClient.post(`/messages/${messageId}/reactions`, { emoji });
+  async addReaction(
+    messageId: string,
+    emoji: string,
+  ): Promise<MessageReaction> {
+    const response: AxiosResponse = await apiClient.post(
+      `/messages/${messageId}/reactions`,
+      { emoji },
+    );
     return response.data.data;
   }
 
@@ -167,7 +198,7 @@ class MessagingService {
    * Remove reaction from a message
    */
   async removeReaction(messageId: string, reactionId: string): Promise<void> {
-    await apiClient.delete(`/messages/${messageId}/reactions/${reactionId}`);
+    await apiClient.delete(`/messages/${messageId}/reactions`);
   }
 
   /**

@@ -1,18 +1,18 @@
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
-import { config } from '@/config/env';
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { v4 as uuidv4 } from "uuid";
+import { config } from "@/config/env";
 
 // Ensure upload directories exist
 const ensureUploadDirs = () => {
   const dirs = [
     config.upload.uploadDir,
-    path.join(config.upload.uploadDir, 'profiles'),
-    path.join(config.upload.uploadDir, 'kyc'),
-    path.join(config.upload.uploadDir, 'voice-bios'),
-    path.join(config.upload.uploadDir, 'events'),
-    path.join(config.upload.uploadDir, 'messages'),
+    path.join(config.upload.uploadDir, "profiles"),
+    path.join(config.upload.uploadDir, "kyc"),
+    path.join(config.upload.uploadDir, "voice-bios"),
+    path.join(config.upload.uploadDir, "events"),
+    path.join(config.upload.uploadDir, "messages"),
   ];
 
   dirs.forEach((dir) => {
@@ -30,16 +30,16 @@ const storage = multer.diskStorage({
     let uploadPath = config.upload.uploadDir;
 
     // Determine upload path based on field name or file type
-    if (file.fieldname === 'profilePicture') {
-      uploadPath = path.join(config.upload.uploadDir, 'profiles');
-    } else if (file.fieldname === 'kycDocument') {
-      uploadPath = path.join(config.upload.uploadDir, 'kyc');
-    } else if (file.fieldname === 'voiceBio') {
-      uploadPath = path.join(config.upload.uploadDir, 'voice-bios');
-    } else if (file.fieldname === 'eventImage') {
-      uploadPath = path.join(config.upload.uploadDir, 'events');
-    } else if (file.fieldname === 'messageAttachment') {
-      uploadPath = path.join(config.upload.uploadDir, 'messages');
+    if (file.fieldname === "profilePicture") {
+      uploadPath = path.join(config.upload.uploadDir, "profiles");
+    } else if (file.fieldname === "kycDocument") {
+      uploadPath = path.join(config.upload.uploadDir, "kyc");
+    } else if (file.fieldname === "voiceBio") {
+      uploadPath = path.join(config.upload.uploadDir, "voice-bios");
+    } else if (file.fieldname === "eventImage") {
+      uploadPath = path.join(config.upload.uploadDir, "events");
+    } else if (file.fieldname === "messageAttachment") {
+      uploadPath = path.join(config.upload.uploadDir, "messages");
     }
 
     cb(null, uploadPath);
@@ -55,22 +55,25 @@ const storage = multer.diskStorage({
 const fileFilter = (
   _req: any,
   file: Express.Multer.File,
-  cb: multer.FileFilterCallback
+  cb: multer.FileFilterCallback,
 ) => {
   const allowedMimes: { [key: string]: string[] } = {
-    'image/jpeg': ['.jpg', '.jpeg'],
-    'image/png': ['.png'],
-    'image/webp': ['.webp'],
-    'application/pdf': ['.pdf'],
-    'audio/mpeg': ['.mp3'],
-    'audio/wav': ['.wav'],
-    'audio/m4a': ['.m4a'],
-    'audio/ogg': ['.ogg'],
-    'application/msword': ['.doc'],
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-    'text/plain': ['.txt'],
-    'video/mp4': ['.mp4'],
-    'video/quicktime': ['.mov'],
+    "image/jpeg": [".jpg", ".jpeg"],
+    "image/png": [".png"],
+    "image/webp": [".webp"],
+    "application/pdf": [".pdf"],
+    "audio/mpeg": [".mp3"],
+    "audio/wav": [".wav"],
+    "audio/m4a": [".m4a"],
+    "audio/mp4": [".m4a", ".mp4"],
+    "audio/ogg": [".ogg"],
+    "application/msword": [".doc"],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
+      ".docx",
+    ],
+    "text/plain": [".txt"],
+    "video/mp4": [".mp4"],
+    "video/quicktime": [".mov"],
   };
 
   const allowedTypes = Object.keys(allowedMimes);
@@ -84,7 +87,7 @@ const fileFilter = (
     }
   }
 
-  cb(new Error(`Invalid file type. Allowed types: ${allowedTypes.join(', ')}`));
+  cb(new Error(`Invalid file type. Allowed types: ${allowedTypes.join(", ")}`));
 };
 
 // Multer configuration
@@ -103,19 +106,19 @@ export const getFileUrl = (filePath: string): string => {
   // We need: voice-bios/uuid-file.wav
   const normalizedUploadDir = path.normalize(config.upload.uploadDir);
   const normalizedFilePath = path.normalize(filePath);
-  
+
   // Remove upload directory prefix
   let relativePath = normalizedFilePath;
   if (normalizedFilePath.startsWith(normalizedUploadDir)) {
     relativePath = normalizedFilePath.substring(normalizedUploadDir.length);
   }
-  
+
   // Remove leading slashes
-  relativePath = relativePath.replace(/^[\\/]+/, '');
-  
+  relativePath = relativePath.replace(/^[\\/]+/, "");
+
   // Convert backslashes to forward slashes for URL
-  relativePath = relativePath.replace(/\\/g, '/');
-  
+  relativePath = relativePath.replace(/\\/g, "/");
+
   // Return relative URL that can be served by Express
   return `/api/${config.apiVersion}/files/${relativePath}`;
 };
@@ -124,7 +127,7 @@ export const getFileUrl = (filePath: string): string => {
 export const deleteFile = (filePath: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     fs.unlink(filePath, (err) => {
-      if (err && err.code !== 'ENOENT') {
+      if (err && err.code !== "ENOENT") {
         reject(err);
       } else {
         resolve();
@@ -140,16 +143,15 @@ export const getFilePathFromUrl = (url: string): string => {
   if (match) {
     return path.join(config.upload.uploadDir, match[1]);
   }
-  throw new Error('Invalid file URL');
+  throw new Error("Invalid file URL");
 };
 
 // Specific upload handlers
-export const uploadProfilePicture = upload.single('profilePicture');
-export const uploadKYCDocument = upload.single('kycDocument');
-export const uploadVoiceBio = upload.single('voiceBio');
-export const uploadEventImage = upload.single('eventImage');
-export const uploadMessageAttachment = upload.single('messageAttachment');
+export const uploadProfilePicture = upload.single("profilePicture");
+export const uploadKYCDocument = upload.single("kycDocument");
+export const uploadVoiceBio = upload.single("voiceBio");
+export const uploadEventImage = upload.single("eventImage");
+export const uploadMessageAttachment = upload.single("messageAttachment");
 
 // Multiple files upload (for message attachments)
-export const uploadMessageAttachments = upload.array('attachments', 5);
-
+export const uploadMessageAttachments = upload.array("attachments", 5);

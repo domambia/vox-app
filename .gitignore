@@ -120,3 +120,17 @@ web-build/
 *.swo
 *~
 
+
+# liamapp (Flutter)
+liamapp/.dart_tool/
+liamapp/.flutter-plugins
+liamapp/.flutter-plugins-dependencies
+liamapp/.pub-cache/
+liamapp/.pub/
+liamapp/build/
+liamapp/coverage/
+liamapp/**/doc/api/
+liamapp/**/ios/Flutter/.last_build_id
+liamapp/android/app/debug/
+liamapp/android/app/profile/
+liamapp/android/app/release/

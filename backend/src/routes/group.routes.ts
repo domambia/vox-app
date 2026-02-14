@@ -1,7 +1,7 @@
-import { Router } from 'express';
-import groupController from '@/controllers/group.controller';
-import eventController from '@/controllers/event.controller';
-import { validate } from '@/middleware/validation.middleware';
+import { Router } from "express";
+import groupController from "@/controllers/group.controller";
+import eventController from "@/controllers/event.controller";
+import { validate } from "@/middleware/validation.middleware";
 import {
   createGroupSchema,
   updateGroupSchema,
@@ -14,9 +14,10 @@ import {
   sendGroupMessageSchema,
   updateMemberRoleSchema,
   removeMemberSchema,
-} from '@/validations/group.validation';
-import { getGroupEventsSchema } from '@/validations/event.validation';
-import { authenticate } from '@/middleware/auth.middleware';
+} from "@/validations/group.validation";
+import { getGroupEventsSchema } from "@/validations/event.validation";
+import { authenticate } from "@/middleware/auth.middleware";
+import { uploadMessageAttachment } from "@/utils/fileUpload";
 
 const router = Router();
 
@@ -68,10 +69,10 @@ const router = Router();
  * @access  Private (Authenticated)
  */
 router.post(
-  '/',
+  "/",
   authenticate,
   validate(createGroupSchema),
-  groupController.createGroup.bind(groupController)
+  groupController.createGroup.bind(groupController),
 );
 
 /**
@@ -131,10 +132,10 @@ router.post(
  * @access  Private (Authenticated)
  */
 router.get(
-  '/',
+  "/",
   authenticate,
   validate(listGroupsSchema),
-  groupController.listGroups.bind(groupController)
+  groupController.listGroups.bind(groupController),
 );
 
 /**
@@ -172,10 +173,10 @@ router.get(
  * @access  Private (Authenticated)
  */
 router.get(
-  '/:groupId',
+  "/:groupId",
   authenticate,
   validate(getGroupSchema),
-  groupController.getGroup.bind(groupController)
+  groupController.getGroup.bind(groupController),
 );
 
 /**
@@ -184,10 +185,10 @@ router.get(
  * @access  Private (Authenticated)
  */
 router.get(
-  '/:groupId/messages',
+  "/:groupId/messages",
   authenticate,
   validate(getGroupMessagesSchema),
-  groupController.getGroupMessages.bind(groupController)
+  groupController.getGroupMessages.bind(groupController),
 );
 
 /**
@@ -196,10 +197,22 @@ router.get(
  * @access  Private (Authenticated)
  */
 router.post(
-  '/:groupId/messages',
+  "/:groupId/messages",
   authenticate,
   validate(sendGroupMessageSchema),
-  groupController.sendGroupMessage.bind(groupController)
+  groupController.sendGroupMessage.bind(groupController),
+);
+
+/**
+ * @route   POST /api/v1/groups/:groupId/attachments
+ * @desc    Upload group message attachment
+ * @access  Private (Authenticated)
+ */
+router.post(
+  "/:groupId/attachments",
+  authenticate,
+  uploadMessageAttachment,
+  groupController.uploadGroupAttachment.bind(groupController),
 );
 
 /**
@@ -253,11 +266,11 @@ router.post(
  * @access  Private (Authenticated)
  */
 router.put(
-  '/:groupId',
+  "/:groupId",
   authenticate,
   validate(getGroupSchema),
   validate(updateGroupSchema),
-  groupController.updateGroup.bind(groupController)
+  groupController.updateGroup.bind(groupController),
 );
 
 /**
@@ -296,10 +309,10 @@ router.put(
  * @access  Private (Authenticated)
  */
 router.delete(
-  '/:groupId',
+  "/:groupId",
   authenticate,
   validate(getGroupSchema),
-  groupController.deleteGroup.bind(groupController)
+  groupController.deleteGroup.bind(groupController),
 );
 
 /**
@@ -338,10 +351,10 @@ router.delete(
  * @access  Private (Authenticated)
  */
 router.post(
-  '/:groupId/join',
+  "/:groupId/join",
   authenticate,
   validate(joinGroupSchema),
-  groupController.joinGroup.bind(groupController)
+  groupController.joinGroup.bind(groupController),
 );
 
 /**
@@ -380,10 +393,10 @@ router.post(
  * @access  Private (Authenticated)
  */
 router.post(
-  '/:groupId/leave',
+  "/:groupId/leave",
   authenticate,
   validate(leaveGroupSchema),
-  groupController.leaveGroup.bind(groupController)
+  groupController.leaveGroup.bind(groupController),
 );
 
 /**
@@ -448,10 +461,10 @@ router.post(
  * @access  Private (Authenticated)
  */
 router.get(
-  '/:groupId/members',
+  "/:groupId/members",
   authenticate,
   validate(getGroupMembersSchema),
-  groupController.getGroupMembers.bind(groupController)
+  groupController.getGroupMembers.bind(groupController),
 );
 
 /**
@@ -509,10 +522,10 @@ router.get(
  * @access  Private (Authenticated)
  */
 router.put(
-  '/:groupId/members/:memberId/role',
+  "/:groupId/members/:memberId/role",
   authenticate,
   validate(updateMemberRoleSchema),
-  groupController.updateMemberRole.bind(groupController)
+  groupController.updateMemberRole.bind(groupController),
 );
 
 /**
@@ -557,10 +570,10 @@ router.put(
  * @access  Private (Authenticated)
  */
 router.delete(
-  '/:groupId/members/:memberId',
+  "/:groupId/members/:memberId",
   authenticate,
   validate(removeMemberSchema),
-  groupController.removeMember.bind(groupController)
+  groupController.removeMember.bind(groupController),
 );
 
 /**
@@ -625,10 +638,10 @@ router.delete(
  * @access  Private (Authenticated)
  */
 router.get(
-  '/:groupId/events',
+  "/:groupId/events",
   authenticate,
   validate(getGroupEventsSchema),
-  eventController.getGroupEvents.bind(eventController)
+  eventController.getGroupEvents.bind(eventController),
 );
 
 export default router;

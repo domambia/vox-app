@@ -1,8 +1,8 @@
-import { Response } from 'express';
-import { sendSuccess, sendError } from '@/utils/response';
-import groupService from '@/services/group.service';
-import { AuthRequest } from '@/types';
-import { extractPaginationFromQuery } from '@/utils/pagination';
+import { Response } from "express";
+import { sendSuccess, sendError } from "@/utils/response";
+import groupService from "@/services/group.service";
+import { AuthRequest } from "@/types";
+import { extractPaginationFromQuery } from "@/utils/pagination";
 
 export class GroupController {
   /**
@@ -17,11 +17,16 @@ export class GroupController {
       const group = await groupService.createGroup(creatorId, data);
       sendSuccess(res, group, 201);
     } catch (error: any) {
-      if (error.message === 'User not found') {
-        sendError(res, 'USER_NOT_FOUND', error.message, 404);
+      if (error.message === "User not found") {
+        sendError(res, "USER_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'GROUP_CREATION_ERROR', error.message || 'Failed to create group', 400);
+      sendError(
+        res,
+        "GROUP_CREATION_ERROR",
+        error.message || "Failed to create group",
+        400,
+      );
     }
   }
 
@@ -37,11 +42,16 @@ export class GroupController {
       const group = await groupService.getGroup(groupId, userId);
       sendSuccess(res, group);
     } catch (error: any) {
-      if (error.message === 'Group not found') {
-        sendError(res, 'GROUP_NOT_FOUND', error.message, 404);
+      if (error.message === "Group not found") {
+        sendError(res, "GROUP_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'GROUP_FETCH_ERROR', error.message || 'Failed to fetch group', 400);
+      sendError(
+        res,
+        "GROUP_FETCH_ERROR",
+        error.message || "Failed to fetch group",
+        400,
+      );
     }
   }
 
@@ -64,7 +74,12 @@ export class GroupController {
 
       sendSuccess(res, result);
     } catch (error: any) {
-      sendError(res, 'GROUPS_LIST_ERROR', error.message || 'Failed to list groups', 400);
+      sendError(
+        res,
+        "GROUPS_LIST_ERROR",
+        error.message || "Failed to list groups",
+        400,
+      );
     }
   }
 
@@ -81,15 +96,20 @@ export class GroupController {
       const group = await groupService.updateGroup(groupId, userId, data);
       sendSuccess(res, group);
     } catch (error: any) {
-      if (error.message === 'Group not found') {
-        sendError(res, 'GROUP_NOT_FOUND', error.message, 404);
+      if (error.message === "Group not found") {
+        sendError(res, "GROUP_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Only group admins')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Only group admins")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'GROUP_UPDATE_ERROR', error.message || 'Failed to update group', 400);
+      sendError(
+        res,
+        "GROUP_UPDATE_ERROR",
+        error.message || "Failed to update group",
+        400,
+      );
     }
   }
 
@@ -105,15 +125,20 @@ export class GroupController {
       const result = await groupService.deleteGroup(groupId, userId);
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Group not found') {
-        sendError(res, 'GROUP_NOT_FOUND', error.message, 404);
+      if (error.message === "Group not found") {
+        sendError(res, "GROUP_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Only group admins')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Only group admins")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'GROUP_DELETE_ERROR', error.message || 'Failed to delete group', 400);
+      sendError(
+        res,
+        "GROUP_DELETE_ERROR",
+        error.message || "Failed to delete group",
+        400,
+      );
     }
   }
 
@@ -129,15 +154,20 @@ export class GroupController {
       const membership = await groupService.joinGroup(groupId, userId);
       sendSuccess(res, membership, 201);
     } catch (error: any) {
-      if (error.message === 'Group not found') {
-        sendError(res, 'GROUP_NOT_FOUND', error.message, 404);
+      if (error.message === "Group not found") {
+        sendError(res, "GROUP_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message === 'Already a member of this group') {
-        sendError(res, 'ALREADY_MEMBER', error.message, 409);
+      if (error.message === "Already a member of this group") {
+        sendError(res, "ALREADY_MEMBER", error.message, 409);
         return;
       }
-      sendError(res, 'JOIN_GROUP_ERROR', error.message || 'Failed to join group', 400);
+      sendError(
+        res,
+        "JOIN_GROUP_ERROR",
+        error.message || "Failed to join group",
+        400,
+      );
     }
   }
 
@@ -153,15 +183,20 @@ export class GroupController {
       const result = await groupService.leaveGroup(groupId, userId);
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Not a member of this group') {
-        sendError(res, 'NOT_MEMBER', error.message, 404);
+      if (error.message === "Not a member of this group") {
+        sendError(res, "NOT_MEMBER", error.message, 404);
         return;
       }
-      if (error.message.includes('Cannot leave group')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Cannot leave group")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'LEAVE_GROUP_ERROR', error.message || 'Failed to leave group', 400);
+      sendError(
+        res,
+        "LEAVE_GROUP_ERROR",
+        error.message || "Failed to leave group",
+        400,
+      );
     }
   }
 
@@ -175,14 +210,24 @@ export class GroupController {
       const userId = req.user!.userId;
       const { limit, offset } = extractPaginationFromQuery(req.query);
 
-      const result = await groupService.getGroupMessages(groupId, userId, limit, offset);
+      const result = await groupService.getGroupMessages(
+        groupId,
+        userId,
+        limit,
+        offset,
+      );
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Not a member of this group') {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message === "Not a member of this group") {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'GROUP_MESSAGES_FETCH_ERROR', error.message || 'Failed to fetch group messages', 400);
+      sendError(
+        res,
+        "GROUP_MESSAGES_FETCH_ERROR",
+        error.message || "Failed to fetch group messages",
+        400,
+      );
     }
   }
 
@@ -194,21 +239,77 @@ export class GroupController {
     try {
       const { groupId } = req.params;
       const userId = req.user!.userId;
-      const { content, message_type } = req.body;
+      const { content, message_type, attachmentIds } = req.body;
 
       const message = await groupService.sendGroupMessage(
         groupId,
         userId,
         content,
-        message_type || 'TEXT'
+        message_type || "TEXT",
+        attachmentIds,
       );
       sendSuccess(res, message, 201);
     } catch (error: any) {
-      if (error.message === 'Not a member of this group') {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message === "Not a member of this group") {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'SEND_GROUP_MESSAGE_ERROR', error.message || 'Failed to send message', 400);
+      sendError(
+        res,
+        "SEND_GROUP_MESSAGE_ERROR",
+        error.message || "Failed to send message",
+        400,
+      );
+    }
+  }
+
+  /**
+   * Upload group message attachment
+   * POST /api/v1/groups/:groupId/attachments
+   */
+  async uploadGroupAttachment(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const userId = req.user!.userId;
+
+      // Ensure membership
+      await groupService.getGroupMessages(groupId, userId, 1, 0);
+
+      if (!req.file) {
+        sendError(res, "NO_FILE", "No file uploaded", 400);
+        return;
+      }
+
+      const fileUrl = `/api/${process.env.API_VERSION || "v1"}/files/messages/${req.file.filename}`;
+      const attachment = await groupService.createGroupMessageAttachment({
+        fileUrl,
+        fileType: req.file.mimetype,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+      });
+
+      sendSuccess(
+        res,
+        {
+          attachment_id: attachment.attachment_id,
+          file_url: attachment.file_url,
+          file_type: attachment.file_type,
+          file_name: attachment.file_name,
+          file_size: attachment.file_size,
+        },
+        201,
+      );
+    } catch (error: any) {
+      if (error.message === "Not a member of this group") {
+        sendError(res, "FORBIDDEN", error.message, 403);
+        return;
+      }
+      sendError(
+        res,
+        "GROUP_ATTACHMENT_UPLOAD_ERROR",
+        error.message || "Failed to upload attachment",
+        400,
+      );
     }
   }
 
@@ -224,11 +325,16 @@ export class GroupController {
       const result = await groupService.getGroupMembers(groupId, limit, offset);
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Group not found') {
-        sendError(res, 'GROUP_NOT_FOUND', error.message, 404);
+      if (error.message === "Group not found") {
+        sendError(res, "GROUP_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'MEMBERS_FETCH_ERROR', error.message || 'Failed to fetch members', 400);
+      sendError(
+        res,
+        "MEMBERS_FETCH_ERROR",
+        error.message || "Failed to fetch members",
+        400,
+      );
     }
   }
 
@@ -242,22 +348,32 @@ export class GroupController {
       const adminId = req.user!.userId;
       const { role } = req.body;
 
-      const membership = await groupService.updateMemberRole(groupId, memberId, role, adminId);
+      const membership = await groupService.updateMemberRole(
+        groupId,
+        memberId,
+        role,
+        adminId,
+      );
       sendSuccess(res, membership);
     } catch (error: any) {
-      if (error.message.includes('Only group admins')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Only group admins")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      if (error.message === 'Member not found') {
-        sendError(res, 'MEMBER_NOT_FOUND', error.message, 404);
+      if (error.message === "Member not found") {
+        sendError(res, "MEMBER_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Cannot remove the last admin')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Cannot remove the last admin")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'ROLE_UPDATE_ERROR', error.message || 'Failed to update member role', 400);
+      sendError(
+        res,
+        "ROLE_UPDATE_ERROR",
+        error.message || "Failed to update member role",
+        400,
+      );
     }
   }
 
@@ -270,22 +386,34 @@ export class GroupController {
       const { groupId, memberId } = req.params;
       const removerId = req.user!.userId;
 
-      const result = await groupService.removeMember(groupId, memberId, removerId);
+      const result = await groupService.removeMember(
+        groupId,
+        memberId,
+        removerId,
+      );
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message.includes('Only admins and moderators')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (error.message.includes("Only admins and moderators")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      if (error.message === 'Member not found') {
-        sendError(res, 'MEMBER_NOT_FOUND', error.message, 404);
+      if (error.message === "Member not found") {
+        sendError(res, "MEMBER_NOT_FOUND", error.message, 404);
         return;
       }
-      if (error.message.includes('Cannot remove the last admin') || error.message.includes('Moderators cannot remove admins')) {
-        sendError(res, 'FORBIDDEN', error.message, 403);
+      if (
+        error.message.includes("Cannot remove the last admin") ||
+        error.message.includes("Moderators cannot remove admins")
+      ) {
+        sendError(res, "FORBIDDEN", error.message, 403);
         return;
       }
-      sendError(res, 'REMOVE_MEMBER_ERROR', error.message || 'Failed to remove member', 400);
+      sendError(
+        res,
+        "REMOVE_MEMBER_ERROR",
+        error.message || "Failed to remove member",
+        400,
+      );
     }
   }
 
@@ -299,14 +427,19 @@ export class GroupController {
 
       // Users can only see their own groups unless admin
       if (userId !== req.user!.userId) {
-        sendError(res, 'FORBIDDEN', 'You can only view your own groups', 403);
+        sendError(res, "FORBIDDEN", "You can only view your own groups", 403);
         return;
       }
 
       const groups = await groupService.getUserGroups(userId);
       sendSuccess(res, { groups });
     } catch (error: any) {
-      sendError(res, 'USER_GROUPS_ERROR', error.message || 'Failed to get user groups', 400);
+      sendError(
+        res,
+        "USER_GROUPS_ERROR",
+        error.message || "Failed to get user groups",
+        400,
+      );
     }
   }
 }
@@ -314,4 +447,3 @@ export class GroupController {
 // Export singleton instance
 const groupController = new GroupController();
 export default groupController;
-

@@ -14,6 +14,7 @@ import { AccessibleButton } from '../../components/accessible/AccessibleButton';
 import { announceToScreenReader } from '../../services/accessibility/accessibilityUtils';
 import { hapticService } from '../../services/accessibility/hapticService';
 import { voiceCallService, CallStatus } from '../../services/api/voiceCallService';
+import { websocketService } from '../../services/websocket/websocketService';
 import type { RootStackParamList } from '../../navigation/types';
 
 type CallScreenRouteProp = RouteProp<RootStackParamList, 'Call'>;
@@ -34,6 +35,16 @@ export const CallScreen: React.FC = () => {
   const endedRef = useRef(false);
 
   useEffect(() => {
+    const unsub = websocketService.onCallStatus((event) => {
+      if (!event.callId || event.callId !== callId) return;
+      if (event.status === 'ANSWERED') setStatus('ANSWERED');
+      if (event.status === 'REJECTED') setStatus('REJECTED');
+      if (event.status === 'ENDED') setStatus('ENDED');
+    });
+    return () => { unsub?.(); };
+  }, [callId]);
+
+  useEffect(() => {
     if (initialCallId) {
       setCallId(initialCallId);
       setLoading(false);
@@ -51,6 +62,10 @@ export const CallScreen: React.FC = () => {
         setCallId(call.callId);
         setStatus(call.status);
         announceToScreenReader(`Calling ${receiverName}`);
+
+        // Also initiate via WebSocket for realtime ringing/answer events.
+        // This is best-effort; REST remains the source of truth for call record.
+        websocketService.initiateCall(receiverId).catch(() => { });
       } catch (e: any) {
         if (!cancelled && !endedRef.current) {
           setError(e.message || 'Failed to start call');
@@ -76,10 +91,31 @@ export const CallScreen: React.FC = () => {
     hapticService.light();
     if (callId) {
       try {
+        websocketService.endCall(callId);
         await voiceCallService.endCall(callId);
       } catch (_) { }
     }
     announceToScreenReader('Call ended');
+    navigation.goBack();
+  };
+
+  const handleAnswer = async () => {
+    if (!callId) return;
+    hapticService.success();
+    websocketService.answerCall(callId);
+    setStatus('ANSWERED');
+    announceToScreenReader('Call answered');
+  };
+
+  const handleReject = async () => {
+    if (!callId) {
+      navigation.goBack();
+      return;
+    }
+    hapticService.light();
+    websocketService.rejectCall(callId);
+    setStatus('REJECTED');
+    announceToScreenReader('Call rejected');
     navigation.goBack();
   };
 
@@ -114,6 +150,26 @@ export const CallScreen: React.FC = () => {
         </Text>
       </View>
       <View style={styles.actions}>
+        {direction === 'incoming' && status !== 'ANSWERED' && (
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+            <AccessibleButton
+              title="Answer"
+              onPress={handleAnswer}
+              variant="primary"
+              accessibilityLabel="Answer call"
+              accessibilityHint="Double tap to answer the incoming call"
+              style={{ flex: 1 }}
+            />
+            <AccessibleButton
+              title="Reject"
+              onPress={handleReject}
+              variant="outline"
+              accessibilityLabel="Reject call"
+              accessibilityHint="Double tap to reject the incoming call"
+              style={{ flex: 1 }}
+            />
+          </View>
+        )}
         <AccessibleButton
           title="End call"
           onPress={handleEndCall}

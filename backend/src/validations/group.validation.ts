@@ -1,21 +1,26 @@
-import { z } from 'zod';
+import { z } from "zod";
+
+const groupIdSchema = z
+  .string()
+  .uuid("Invalid group ID format")
+  .or(z.string().regex(/^seed-[a-z0-9-]+$/i, "Invalid group ID format"));
 
 // Create group schema
 export const createGroupSchema = z.object({
   body: z.object({
     name: z
       .string()
-      .min(1, 'Group name is required')
-      .max(255, 'Group name must be less than 255 characters'),
+      .min(1, "Group name is required")
+      .max(255, "Group name must be less than 255 characters"),
     description: z
       .string()
-      .max(1000, 'Description must be less than 1000 characters')
+      .max(1000, "Description must be less than 1000 characters")
       .optional()
-      .or(z.literal('')),
+      .or(z.literal("")),
     category: z
       .string()
-      .min(1, 'Category is required')
-      .max(50, 'Category must be less than 50 characters'),
+      .min(1, "Category is required")
+      .max(50, "Category must be less than 50 characters"),
     isPublic: z.boolean().optional().default(true),
   }),
 });
@@ -25,18 +30,18 @@ export const updateGroupSchema = z.object({
   body: z.object({
     name: z
       .string()
-      .min(1, 'Group name is required')
-      .max(255, 'Group name must be less than 255 characters')
+      .min(1, "Group name is required")
+      .max(255, "Group name must be less than 255 characters")
       .optional(),
     description: z
       .string()
-      .max(1000, 'Description must be less than 1000 characters')
+      .max(1000, "Description must be less than 1000 characters")
       .optional()
-      .or(z.literal('')),
+      .or(z.literal("")),
     category: z
       .string()
-      .min(1, 'Category is required')
-      .max(50, 'Category must be less than 50 characters')
+      .min(1, "Category is required")
+      .max(50, "Category must be less than 50 characters")
       .optional(),
     isPublic: z.boolean().optional(),
   }),
@@ -45,7 +50,7 @@ export const updateGroupSchema = z.object({
 // Get group schema (params)
 export const getGroupSchema = z.object({
   params: z.object({
-    groupId: z.string().uuid('Invalid group ID format'),
+    groupId: groupIdSchema,
   }),
 });
 
@@ -66,8 +71,8 @@ export const listGroupsSchema = z.object({
       .string()
       .optional()
       .transform((val) => {
-        if (val === 'true') return true;
-        if (val === 'false') return false;
+        if (val === "true") return true;
+        if (val === "false") return false;
         return undefined;
       }),
   }),
@@ -76,21 +81,21 @@ export const listGroupsSchema = z.object({
 // Join group schema
 export const joinGroupSchema = z.object({
   params: z.object({
-    groupId: z.string().uuid('Invalid group ID format'),
+    groupId: groupIdSchema,
   }),
 });
 
 // Leave group schema
 export const leaveGroupSchema = z.object({
   params: z.object({
-    groupId: z.string().uuid('Invalid group ID format'),
+    groupId: groupIdSchema,
   }),
 });
 
 // Get group members schema
 export const getGroupMembersSchema = z.object({
   params: z.object({
-    groupId: z.string().uuid('Invalid group ID format'),
+    groupId: groupIdSchema,
   }),
   query: z.object({
     limit: z
@@ -107,12 +112,12 @@ export const getGroupMembersSchema = z.object({
 // Update member role schema
 export const updateMemberRoleSchema = z.object({
   params: z.object({
-    groupId: z.string().uuid('Invalid group ID format'),
-    memberId: z.string().uuid('Invalid member ID format'),
+    groupId: groupIdSchema,
+    memberId: z.string().uuid("Invalid member ID format"),
   }),
   body: z.object({
-    role: z.enum(['MEMBER', 'MODERATOR', 'ADMIN'], {
-      errorMap: () => ({ message: 'Role must be MEMBER, MODERATOR, or ADMIN' }),
+    role: z.enum(["MEMBER", "MODERATOR", "ADMIN"], {
+      errorMap: () => ({ message: "Role must be MEMBER, MODERATOR, or ADMIN" }),
     }),
   }),
 });
@@ -120,22 +125,22 @@ export const updateMemberRoleSchema = z.object({
 // Remove member schema
 export const removeMemberSchema = z.object({
   params: z.object({
-    groupId: z.string().uuid('Invalid group ID format'),
-    memberId: z.string().uuid('Invalid member ID format'),
+    groupId: groupIdSchema,
+    memberId: z.string().uuid("Invalid member ID format"),
   }),
 });
 
 // Get user groups schema
 export const getUserGroupsSchema = z.object({
   params: z.object({
-    userId: z.string().uuid('Invalid user ID format'),
+    userId: z.string().uuid("Invalid user ID format"),
   }),
 });
 
 // Get group messages schema
 export const getGroupMessagesSchema = z.object({
   params: z.object({
-    groupId: z.string().uuid('Invalid group ID format'),
+    groupId: groupIdSchema,
   }),
   query: z.object({
     limit: z
@@ -152,11 +157,17 @@ export const getGroupMessagesSchema = z.object({
 // Send group message schema
 export const sendGroupMessageSchema = z.object({
   params: z.object({
-    groupId: z.string().uuid('Invalid group ID format'),
+    groupId: groupIdSchema,
   }),
   body: z.object({
-    content: z.string().min(1, 'Message content is required').max(4000, 'Message too long'),
-    message_type: z.enum(['TEXT', 'VOICE', 'IMAGE', 'FILE', 'SYSTEM']).optional().default('TEXT'),
+    content: z
+      .string()
+      .min(1, "Message content is required")
+      .max(4000, "Message too long"),
+    message_type: z
+      .enum(["TEXT", "VOICE", "IMAGE", "FILE", "SYSTEM"])
+      .optional()
+      .default("TEXT"),
+    attachmentIds: z.array(z.string().uuid()).optional(),
   }),
 });
-

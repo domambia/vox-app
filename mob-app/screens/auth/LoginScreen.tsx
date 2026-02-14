@@ -118,9 +118,11 @@ export const LoginScreen: React.FC = () => {
         const payload = result.payload as { token?: string; message?: string };
         // Dev bypass or token in response: we're logged in, app will switch to Main/Profile
         if (payload?.token) {
+          dispatch(showToast({ message: 'Login successful', type: 'success' }));
           await announceToScreenReader('Logged in. Opening profile.', { isAlert: true });
           return;
         }
+        dispatch(showToast({ message: 'Verification code sent', type: 'success' }));
         await announceToScreenReader('Verification code sent. Please check your phone.', { isAlert: true });
         InteractionManager.runAfterInteractions(() => {
           navigation.dispatch(StackActions.push('OTPVerification'));

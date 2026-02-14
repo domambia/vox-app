@@ -144,7 +144,7 @@ export const ChatScreen: React.FC = () => {
                 setLocalConversationId(convId);
                 dispatch(getMessages({ conversationId: convId, limit: 100 }));
             }
-            if (conversationId) websocketService.sendMessage(conversationId, content, 'text');
+            websocketService.sendMessage(participantId, content, 'text');
             await announceToScreenReader('Message sent');
         } catch {
             setNewMessage(content);
@@ -248,9 +248,10 @@ export const ChatScreen: React.FC = () => {
 
     useEffect(() => {
         if (!conversationId) return;
-        if (newMessage.trim()) websocketService.sendTyping(conversationId, true);
-        else websocketService.sendTyping(conversationId, false);
-    }, [newMessage, conversationId]);
+        if (!participantId) return;
+        if (newMessage.trim()) websocketService.sendTyping(conversationId, participantId, true);
+        else websocketService.sendTyping(conversationId, participantId, false);
+    }, [newMessage, conversationId, participantId]);
 
     return (
         <SafeAreaView style={styles.container}>

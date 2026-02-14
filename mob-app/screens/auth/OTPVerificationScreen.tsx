@@ -118,6 +118,7 @@ export const OTPVerificationScreen: React.FC = () => {
                 const successMessage = otpPurpose === 'REGISTRATION'
                     ? 'Account created successfully. Welcome to LiamApp!'
                     : 'Login successful. Welcome back to LiamApp!';
+                dispatch(showToast({ message: successMessage, type: 'success' }));
                 await announceToScreenReader(successMessage, { isAlert: true });
                 // Navigation to Profile is handled by auth state change in root navigator
             } else {

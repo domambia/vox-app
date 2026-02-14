@@ -1,11 +1,11 @@
-import prisma from '@/config/database';
-import { logger } from '@/utils/logger';
-import { Prisma, GroupRole, MessageType } from '@prisma/client';
+import prisma from "@/config/database";
+import { logger } from "@/utils/logger";
+import { Prisma, GroupRole, MessageType } from "@prisma/client";
 import {
   normalizePagination,
   createPaginatedResponse,
   getPaginationMetadata,
-} from '@/utils/pagination';
+} from "@/utils/pagination";
 
 export interface CreateGroupInput {
   name: string;
@@ -29,6 +29,13 @@ export interface ListGroupsParams {
   isPublic?: boolean;
 }
 
+export interface CreateGroupMessageAttachmentInput {
+  fileUrl: string;
+  fileType: string;
+  fileName: string;
+  fileSize: number;
+}
+
 export class GroupService {
   /**
    * Create a new group
@@ -41,7 +48,7 @@ export class GroupService {
       });
 
       if (!user) {
-        throw new Error('User not found');
+        throw new Error("User not found");
       }
 
       // Create group
@@ -71,7 +78,7 @@ export class GroupService {
         data: {
           group_id: group.group_id,
           user_id: creatorId,
-          role: 'ADMIN',
+          role: "ADMIN",
         },
       });
 
@@ -79,7 +86,7 @@ export class GroupService {
 
       return group;
     } catch (error) {
-      logger.error('Error creating group', error);
+      logger.error("Error creating group", error);
       throw error;
     }
   }
@@ -104,7 +111,7 @@ export class GroupService {
       });
 
       if (!group) {
-        throw new Error('Group not found');
+        throw new Error("Group not found");
       }
 
       // Check if user is a member
@@ -133,7 +140,7 @@ export class GroupService {
         role,
       };
     } catch (error) {
-      logger.error('Error getting group', error);
+      logger.error("Error getting group", error);
       throw error;
     }
   }
@@ -143,7 +150,10 @@ export class GroupService {
    */
   async listGroups(params: ListGroupsParams) {
     try {
-      const { limit, offset } = normalizePagination(params.limit, params.offset);
+      const { limit, offset } = normalizePagination(
+        params.limit,
+        params.offset,
+      );
       const { category, search, isPublic } = params;
 
       // Build where clause
@@ -155,8 +165,8 @@ export class GroupService {
 
       if (search) {
         where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
+          { name: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
         ];
       }
 
@@ -170,7 +180,7 @@ export class GroupService {
       // Get groups
       const groups = await prisma.group.findMany({
         where,
-        orderBy: { created_at: 'desc' },
+        orderBy: { created_at: "desc" },
         take: limit,
         skip: offset,
         include: {
@@ -186,7 +196,7 @@ export class GroupService {
 
       const pagination = getPaginationMetadata(total, limit, offset);
 
-      logger.info('Groups listed', {
+      logger.info("Groups listed", {
         total,
         returned: groups.length,
         limit,
@@ -198,7 +208,7 @@ export class GroupService {
         pagination,
       };
     } catch (error) {
-      logger.error('Error listing groups', error);
+      logger.error("Error listing groups", error);
       throw error;
     }
   }
@@ -218,8 +228,8 @@ export class GroupService {
         },
       });
 
-      if (!membership || membership.role !== 'ADMIN') {
-        throw new Error('Only group admins can update the group');
+      if (!membership || membership.role !== "ADMIN") {
+        throw new Error("Only group admins can update the group");
       }
 
       // Build update data
@@ -260,7 +270,7 @@ export class GroupService {
 
       return group;
     } catch (error) {
-      logger.error('Error updating group', error);
+      logger.error("Error updating group", error);
       throw error;
     }
   }
@@ -280,8 +290,8 @@ export class GroupService {
         },
       });
 
-      if (!membership || membership.role !== 'ADMIN') {
-        throw new Error('Only group admins can delete the group');
+      if (!membership || membership.role !== "ADMIN") {
+        throw new Error("Only group admins can delete the group");
       }
 
       // Delete group (cascade will handle members)
@@ -291,9 +301,9 @@ export class GroupService {
 
       logger.info(`Group ${groupId} deleted by user ${userId}`);
 
-      return { message: 'Group deleted successfully' };
+      return { message: "Group deleted successfully" };
     } catch (error) {
-      logger.error('Error deleting group', error);
+      logger.error("Error deleting group", error);
       throw error;
     }
   }
@@ -309,7 +319,7 @@ export class GroupService {
       });
 
       if (!group) {
-        throw new Error('Group not found');
+        throw new Error("Group not found");
       }
 
       // Check if already a member
@@ -323,7 +333,7 @@ export class GroupService {
       });
 
       if (existingMembership) {
-        throw new Error('Already a member of this group');
+        throw new Error("Already a member of this group");
       }
 
       // Add member
@@ -331,7 +341,7 @@ export class GroupService {
         data: {
           group_id: groupId,
           user_id: userId,
-          role: 'MEMBER',
+          role: "MEMBER",
         },
       });
 
@@ -349,7 +359,7 @@ export class GroupService {
 
       return membership;
     } catch (error) {
-      logger.error('Error joining group', error);
+      logger.error("Error joining group", error);
       throw error;
     }
   }
@@ -370,20 +380,22 @@ export class GroupService {
       });
 
       if (!membership) {
-        throw new Error('Not a member of this group');
+        throw new Error("Not a member of this group");
       }
 
       // Prevent admin from leaving if they're the only admin
-      if (membership.role === 'ADMIN') {
+      if (membership.role === "ADMIN") {
         const adminCount = await prisma.groupMember.count({
           where: {
             group_id: groupId,
-            role: 'ADMIN',
+            role: "ADMIN",
           },
         });
 
         if (adminCount === 1) {
-          throw new Error('Cannot leave group. You are the only admin. Transfer admin role or delete the group.');
+          throw new Error(
+            "Cannot leave group. You are the only admin. Transfer admin role or delete the group.",
+          );
         }
       }
 
@@ -409,9 +421,9 @@ export class GroupService {
 
       logger.info(`User ${userId} left group ${groupId}`);
 
-      return { message: 'Left group successfully' };
+      return { message: "Left group successfully" };
     } catch (error) {
-      logger.error('Error leaving group', error);
+      logger.error("Error leaving group", error);
       throw error;
     }
   }
@@ -419,7 +431,11 @@ export class GroupService {
   /**
    * Get group members
    */
-  async getGroupMembers(groupId: string, limit: number = 50, offset: number = 0) {
+  async getGroupMembers(
+    groupId: string,
+    limit: number = 50,
+    offset: number = 0,
+  ) {
     try {
       // Check if group exists
       const group = await prisma.group.findUnique({
@@ -427,7 +443,7 @@ export class GroupService {
       });
 
       if (!group) {
-        throw new Error('Group not found');
+        throw new Error("Group not found");
       }
 
       // Get total count
@@ -439,8 +455,8 @@ export class GroupService {
       const members = await prisma.groupMember.findMany({
         where: { group_id: groupId },
         orderBy: [
-          { role: 'asc' }, // Admins first, then moderators, then members
-          { joined_at: 'asc' },
+          { role: "asc" }, // Admins first, then moderators, then members
+          { joined_at: "asc" },
         ],
         take: limit,
         skip: offset,
@@ -476,7 +492,7 @@ export class GroupService {
         pagination,
       };
     } catch (error) {
-      logger.error('Error getting group members', error);
+      logger.error("Error getting group members", error);
       throw error;
     }
   }
@@ -488,7 +504,7 @@ export class GroupService {
     groupId: string,
     memberId: string,
     newRole: GroupRole,
-    adminId: string
+    adminId: string,
   ) {
     try {
       // Check if admin is actually an admin
@@ -501,8 +517,8 @@ export class GroupService {
         },
       });
 
-      if (!adminMembership || adminMembership.role !== 'ADMIN') {
-        throw new Error('Only group admins can update member roles');
+      if (!adminMembership || adminMembership.role !== "ADMIN") {
+        throw new Error("Only group admins can update member roles");
       }
 
       // Check if member exists
@@ -516,20 +532,22 @@ export class GroupService {
       });
 
       if (!memberMembership) {
-        throw new Error('Member not found');
+        throw new Error("Member not found");
       }
 
       // Prevent removing the last admin
-      if (memberMembership.role === 'ADMIN' && newRole !== 'ADMIN') {
+      if (memberMembership.role === "ADMIN" && newRole !== "ADMIN") {
         const adminCount = await prisma.groupMember.count({
           where: {
             group_id: groupId,
-            role: 'ADMIN',
+            role: "ADMIN",
           },
         });
 
         if (adminCount === 1) {
-          throw new Error('Cannot remove the last admin. Transfer admin role to another member first.');
+          throw new Error(
+            "Cannot remove the last admin. Transfer admin role to another member first.",
+          );
         }
       }
 
@@ -553,11 +571,13 @@ export class GroupService {
         },
       });
 
-      logger.info(`Member ${memberId} role updated to ${newRole} in group ${groupId}`);
+      logger.info(
+        `Member ${memberId} role updated to ${newRole} in group ${groupId}`,
+      );
 
       return updatedMembership;
     } catch (error) {
-      logger.error('Error updating member role', error);
+      logger.error("Error updating member role", error);
       throw error;
     }
   }
@@ -577,8 +597,12 @@ export class GroupService {
         },
       });
 
-      if (!removerMembership || (removerMembership.role !== 'ADMIN' && removerMembership.role !== 'MODERATOR')) {
-        throw new Error('Only admins and moderators can remove members');
+      if (
+        !removerMembership ||
+        (removerMembership.role !== "ADMIN" &&
+          removerMembership.role !== "MODERATOR")
+      ) {
+        throw new Error("Only admins and moderators can remove members");
       }
 
       // Check if member exists
@@ -592,26 +616,31 @@ export class GroupService {
       });
 
       if (!memberMembership) {
-        throw new Error('Member not found');
+        throw new Error("Member not found");
       }
 
       // Prevent removing the last admin
-      if (memberMembership.role === 'ADMIN') {
+      if (memberMembership.role === "ADMIN") {
         const adminCount = await prisma.groupMember.count({
           where: {
             group_id: groupId,
-            role: 'ADMIN',
+            role: "ADMIN",
           },
         });
 
         if (adminCount === 1) {
-          throw new Error('Cannot remove the last admin. Transfer admin role to another member first.');
+          throw new Error(
+            "Cannot remove the last admin. Transfer admin role to another member first.",
+          );
         }
       }
 
       // Prevent moderators from removing admins
-      if (removerMembership.role === 'MODERATOR' && memberMembership.role === 'ADMIN') {
-        throw new Error('Moderators cannot remove admins');
+      if (
+        removerMembership.role === "MODERATOR" &&
+        memberMembership.role === "ADMIN"
+      ) {
+        throw new Error("Moderators cannot remove admins");
       }
 
       // Remove member
@@ -634,11 +663,13 @@ export class GroupService {
         },
       });
 
-      logger.info(`Member ${memberId} removed from group ${groupId} by ${removerId}`);
+      logger.info(
+        `Member ${memberId} removed from group ${groupId} by ${removerId}`,
+      );
 
-      return { message: 'Member removed successfully' };
+      return { message: "Member removed successfully" };
     } catch (error) {
-      logger.error('Error removing member', error);
+      logger.error("Error removing member", error);
       throw error;
     }
   }
@@ -646,14 +677,19 @@ export class GroupService {
   /**
    * Get group messages (members only)
    */
-  async getGroupMessages(groupId: string, userId: string, limit: number = 50, offset: number = 0) {
+  async getGroupMessages(
+    groupId: string,
+    userId: string,
+    limit: number = 50,
+    offset: number = 0,
+  ) {
     const membership = await prisma.groupMember.findUnique({
       where: {
         group_id_user_id: { group_id: groupId, user_id: userId },
       },
     });
     if (!membership) {
-      throw new Error('Not a member of this group');
+      throw new Error("Not a member of this group");
     }
 
     const total = await prisma.groupMessage.count({
@@ -662,7 +698,7 @@ export class GroupService {
 
     const messages = await prisma.groupMessage.findMany({
       where: { group_id: groupId },
-      orderBy: { created_at: 'desc' },
+      orderBy: { created_at: "desc" },
       take: limit,
       skip: offset,
       include: {
@@ -673,6 +709,7 @@ export class GroupService {
             last_name: true,
           },
         },
+        attachments: true,
       },
     });
 
@@ -686,14 +723,20 @@ export class GroupService {
   /**
    * Send a group message (members only)
    */
-  async sendGroupMessage(groupId: string, userId: string, content: string, messageType: MessageType = 'TEXT') {
+  async sendGroupMessage(
+    groupId: string,
+    userId: string,
+    content: string,
+    messageType: MessageType = "TEXT",
+    attachmentIds?: string[],
+  ) {
     const membership = await prisma.groupMember.findUnique({
       where: {
         group_id_user_id: { group_id: groupId, user_id: userId },
       },
     });
     if (!membership) {
-      throw new Error('Not a member of this group');
+      throw new Error("Not a member of this group");
     }
 
     const message = await prisma.groupMessage.create({
@@ -711,8 +754,20 @@ export class GroupService {
             last_name: true,
           },
         },
+        attachments: true,
       },
     });
+
+    if (attachmentIds && attachmentIds.length > 0) {
+      await prisma.groupMessageAttachment.updateMany({
+        where: {
+          attachment_id: { in: attachmentIds },
+        },
+        data: {
+          group_message_id: message.message_id,
+        },
+      });
+    }
 
     const preview = content.trim().slice(0, 100);
     await prisma.group.update({
@@ -725,6 +780,28 @@ export class GroupService {
 
     logger.info(`Group message sent in ${groupId} by ${userId}`);
     return message;
+  }
+
+  /**
+   * Create group message attachment (unlinked) to later attach to a group message.
+   */
+  async createGroupMessageAttachment(data: CreateGroupMessageAttachmentInput) {
+    try {
+      const attachment = await prisma.groupMessageAttachment.create({
+        // Prisma client types might be stale until prisma generate runs after schema migration.
+        data: {
+          group_message_id: null as unknown as string,
+          file_url: data.fileUrl,
+          file_type: data.fileType,
+          file_name: data.fileName,
+          file_size: data.fileSize,
+        } as any,
+      });
+      return attachment;
+    } catch (error) {
+      logger.error("Error creating group message attachment", error);
+      throw error;
+    }
   }
 
   /**
@@ -747,7 +824,7 @@ export class GroupService {
             },
           },
         },
-        orderBy: { joined_at: 'desc' },
+        orderBy: { joined_at: "desc" },
       });
 
       return memberships.map((m) => ({
@@ -757,7 +834,7 @@ export class GroupService {
         group: m.group,
       }));
     } catch (error) {
-      logger.error('Error getting user groups', error);
+      logger.error("Error getting user groups", error);
       throw error;
     }
   }
@@ -766,4 +843,3 @@ export class GroupService {
 // Export singleton instance
 const groupService = new GroupService();
 export default groupService;
-

@@ -1,11 +1,11 @@
-import prisma from '@/config/database';
-import { logger } from '@/utils/logger';
-import { Prisma, MessageType } from '@prisma/client';
+import prisma from "@/config/database";
+import { logger } from "@/utils/logger";
+import { Prisma, MessageType } from "@prisma/client";
 import {
   normalizePagination,
   createPaginatedResponse,
   getPaginationMetadata,
-} from '@/utils/pagination';
+} from "@/utils/pagination";
 
 export interface SendMessageInput {
   recipientId: string;
@@ -34,6 +34,13 @@ export interface GetMessagesParams {
   limit?: number;
   offset?: number;
   before?: Date;
+}
+
+export interface CreateAttachmentInput {
+  fileUrl: string;
+  fileType: string;
+  fileName: string;
+  fileSize: number;
 }
 
 export class MessagingService {
@@ -132,7 +139,10 @@ export class MessagingService {
       }
 
       // Return with other user info
-      const otherUser = conversation.user_a_id === userId1 ? conversation.user_b : conversation.user_a;
+      const otherUser =
+        conversation.user_a_id === userId1
+          ? conversation.user_b
+          : conversation.user_a;
 
       return {
         conversation_id: conversation.conversation_id,
@@ -142,7 +152,7 @@ export class MessagingService {
         updated_at: conversation.updated_at,
       };
     } catch (error) {
-      logger.error('Error getting or creating conversation', error);
+      logger.error("Error getting or creating conversation", error);
       throw error;
     }
   }
@@ -153,7 +163,10 @@ export class MessagingService {
   async sendMessage(senderId: string, data: SendMessageInput) {
     try {
       // Get or create conversation
-      const conversation = await this.getOrCreateConversation(senderId, data.recipientId);
+      const conversation = await this.getOrCreateConversation(
+        senderId,
+        data.recipientId,
+      );
 
       // Create message
       const message = await prisma.message.create({
@@ -161,7 +174,7 @@ export class MessagingService {
           conversation_id: conversation.conversation_id,
           sender_id: senderId,
           content: data.content,
-          message_type: data.messageType || 'TEXT',
+          message_type: data.messageType || "TEXT",
         },
         include: {
           sender: {
@@ -194,7 +207,9 @@ export class MessagingService {
         data: { last_message_at: new Date() },
       });
 
-      logger.info(`Message sent: ${message.message_id} from ${senderId} to ${data.recipientId}`);
+      logger.info(
+        `Message sent: ${message.message_id} from ${senderId} to ${data.recipientId}`,
+      );
 
       return {
         ...message,
@@ -202,7 +217,31 @@ export class MessagingService {
         recipient_id: data.recipientId,
       };
     } catch (error) {
-      logger.error('Error sending message', error);
+      logger.error("Error sending message", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create an attachment record to be linked to a message later.
+   */
+  async createAttachment(data: CreateAttachmentInput) {
+    try {
+      const attachment = await prisma.messageAttachment.create({
+        // Prisma client types may be stale until prisma generate runs after schema migration.
+        // We intentionally create attachments without linking to a message yet.
+        data: {
+          message_id: null as unknown as string,
+          file_url: data.fileUrl,
+          file_type: data.fileType,
+          file_name: data.fileName,
+          file_size: data.fileSize,
+        } as unknown as Prisma.MessageAttachmentUncheckedCreateInput,
+      });
+
+      return attachment;
+    } catch (error) {
+      logger.error("Error creating message attachment", error);
       throw error;
     }
   }
@@ -249,16 +288,22 @@ export class MessagingService {
       });
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error("Conversation not found");
       }
 
       // Verify user is part of conversation
-      if (conversation.user_a_id !== userId && conversation.user_b_id !== userId) {
-        throw new Error('Unauthorized access to conversation');
+      if (
+        conversation.user_a_id !== userId &&
+        conversation.user_b_id !== userId
+      ) {
+        throw new Error("Unauthorized access to conversation");
       }
 
       // Get other user
-      const otherUser = conversation.user_a_id === userId ? conversation.user_b : conversation.user_a;
+      const otherUser =
+        conversation.user_a_id === userId
+          ? conversation.user_b
+          : conversation.user_a;
 
       // Get unread count
       const unreadCount = await prisma.message.count({
@@ -278,7 +323,7 @@ export class MessagingService {
         unread_count: unreadCount,
       };
     } catch (error) {
-      logger.error('Error getting conversation', error);
+      logger.error("Error getting conversation", error);
       throw error;
     }
   }
@@ -288,18 +333,18 @@ export class MessagingService {
    */
   async listConversations(userId: string, params: ListConversationsParams) {
     try {
-      const { limit, offset } = normalizePagination(params.limit, params.offset);
+      const { limit, offset } = normalizePagination(
+        params.limit,
+        params.offset,
+      );
 
       // Get conversations where user is participant
       const conversations = await prisma.conversation.findMany({
         where: {
-          OR: [
-            { user_a_id: userId },
-            { user_b_id: userId },
-          ],
+          OR: [{ user_a_id: userId }, { user_b_id: userId }],
         },
         orderBy: {
-          last_message_at: { sort: 'desc', nulls: 'last' },
+          last_message_at: { sort: "desc", nulls: "last" },
         },
         take: limit,
         skip: offset,
@@ -335,7 +380,7 @@ export class MessagingService {
             },
           },
           messages: {
-            orderBy: { created_at: 'desc' },
+            orderBy: { created_at: "desc" },
             take: 1,
             select: {
               message_id: true,
@@ -350,17 +395,15 @@ export class MessagingService {
       // Get total count
       const total = await prisma.conversation.count({
         where: {
-          OR: [
-            { user_a_id: userId },
-            { user_b_id: userId },
-          ],
+          OR: [{ user_a_id: userId }, { user_b_id: userId }],
         },
       });
 
       // Transform conversations
       const transformedConversations = await Promise.all(
         conversations.map(async (conv) => {
-          const otherUser = conv.user_a_id === userId ? conv.user_b : conv.user_a;
+          const otherUser =
+            conv.user_a_id === userId ? conv.user_b : conv.user_a;
           const lastMessage = conv.messages[0] || null;
 
           // Get unread count
@@ -381,17 +424,22 @@ export class MessagingService {
             created_at: conv.created_at,
             updated_at: conv.updated_at,
           };
-        })
+        }),
       );
 
       const pagination = getPaginationMetadata(total, limit, offset);
 
       return {
-        ...createPaginatedResponse(transformedConversations, total, limit, offset),
+        ...createPaginatedResponse(
+          transformedConversations,
+          total,
+          limit,
+          offset,
+        ),
         pagination,
       };
     } catch (error) {
-      logger.error('Error listing conversations', error);
+      logger.error("Error listing conversations", error);
       throw error;
     }
   }
@@ -399,7 +447,11 @@ export class MessagingService {
   /**
    * Get messages for a conversation
    */
-  async getMessages(conversationId: string, userId: string, params: GetMessagesParams) {
+  async getMessages(
+    conversationId: string,
+    userId: string,
+    params: GetMessagesParams,
+  ) {
     try {
       // Verify user is part of conversation
       const conversation = await prisma.conversation.findUnique({
@@ -407,14 +459,20 @@ export class MessagingService {
       });
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error("Conversation not found");
       }
 
-      if (conversation.user_a_id !== userId && conversation.user_b_id !== userId) {
-        throw new Error('Unauthorized access to conversation');
+      if (
+        conversation.user_a_id !== userId &&
+        conversation.user_b_id !== userId
+      ) {
+        throw new Error("Unauthorized access to conversation");
       }
 
-      const { limit, offset } = normalizePagination(params.limit, params.offset);
+      const { limit, offset } = normalizePagination(
+        params.limit,
+        params.offset,
+      );
       const { before } = params;
 
       // Build where clause
@@ -432,7 +490,7 @@ export class MessagingService {
       // Get messages
       const messages = await prisma.message.findMany({
         where,
-        orderBy: { created_at: 'desc' },
+        orderBy: { created_at: "desc" },
         take: limit,
         skip: offset,
         include: {
@@ -469,7 +527,7 @@ export class MessagingService {
         pagination,
       };
     } catch (error) {
-      logger.error('Error getting messages', error);
+      logger.error("Error getting messages", error);
       throw error;
     }
   }
@@ -477,7 +535,11 @@ export class MessagingService {
   /**
    * Mark messages as read
    */
-  async markAsRead(conversationId: string, userId: string, messageIds?: string[]) {
+  async markAsRead(
+    conversationId: string,
+    userId: string,
+    messageIds?: string[],
+  ) {
     try {
       // Verify user is part of conversation
       const conversation = await prisma.conversation.findUnique({
@@ -485,11 +547,14 @@ export class MessagingService {
       });
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error("Conversation not found");
       }
 
-      if (conversation.user_a_id !== userId && conversation.user_b_id !== userId) {
-        throw new Error('Unauthorized access to conversation');
+      if (
+        conversation.user_a_id !== userId &&
+        conversation.user_b_id !== userId
+      ) {
+        throw new Error("Unauthorized access to conversation");
       }
 
       // Build where clause
@@ -511,11 +576,13 @@ export class MessagingService {
         },
       });
 
-      logger.info(`Marked ${result.count} messages as read in conversation ${conversationId}`);
+      logger.info(
+        `Marked ${result.count} messages as read in conversation ${conversationId}`,
+      );
 
       return { count: result.count };
     } catch (error) {
-      logger.error('Error marking messages as read', error);
+      logger.error("Error marking messages as read", error);
       throw error;
     }
   }
@@ -528,10 +595,7 @@ export class MessagingService {
       const count = await prisma.message.count({
         where: {
           conversation: {
-            OR: [
-              { user_a_id: userId },
-              { user_b_id: userId },
-            ],
+            OR: [{ user_a_id: userId }, { user_b_id: userId }],
           },
           sender_id: { not: userId },
           read_at: null,
@@ -540,7 +604,7 @@ export class MessagingService {
 
       return { unread_count: count };
     } catch (error) {
-      logger.error('Error getting unread count', error);
+      logger.error("Error getting unread count", error);
       throw error;
     }
   }
@@ -556,11 +620,14 @@ export class MessagingService {
       });
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error("Conversation not found");
       }
 
-      if (conversation.user_a_id !== userId && conversation.user_b_id !== userId) {
-        throw new Error('Unauthorized access to conversation');
+      if (
+        conversation.user_a_id !== userId &&
+        conversation.user_b_id !== userId
+      ) {
+        throw new Error("Unauthorized access to conversation");
       }
 
       // Delete conversation (cascade will delete messages)
@@ -570,9 +637,9 @@ export class MessagingService {
 
       logger.info(`Conversation ${conversationId} deleted by user ${userId}`);
 
-      return { message: 'Conversation deleted successfully' };
+      return { message: "Conversation deleted successfully" };
     } catch (error) {
-      logger.error('Error deleting conversation', error);
+      logger.error("Error deleting conversation", error);
       throw error;
     }
   }
@@ -588,17 +655,17 @@ export class MessagingService {
       });
 
       if (!message) {
-        throw new Error('Message not found');
+        throw new Error("Message not found");
       }
 
       // Verify user is the sender
       if (message.sender_id !== userId) {
-        throw new Error('Unauthorized: Only the sender can edit this message');
+        throw new Error("Unauthorized: Only the sender can edit this message");
       }
 
       // Check if message is deleted
       if (message.is_deleted) {
-        throw new Error('Cannot edit deleted message');
+        throw new Error("Cannot edit deleted message");
       }
 
       // Update message
@@ -636,7 +703,7 @@ export class MessagingService {
 
       return updatedMessage;
     } catch (error) {
-      logger.error('Error editing message', error);
+      logger.error("Error editing message", error);
       throw error;
     }
   }
@@ -655,14 +722,17 @@ export class MessagingService {
       });
 
       if (!message) {
-        throw new Error('Message not found');
+        throw new Error("Message not found");
       }
 
       // Verify user is the sender or part of conversation
       if (message.sender_id !== userId) {
         const conversation = message.conversation;
-        if (conversation.user_a_id !== userId && conversation.user_b_id !== userId) {
-          throw new Error('Unauthorized access to message');
+        if (
+          conversation.user_a_id !== userId &&
+          conversation.user_b_id !== userId
+        ) {
+          throw new Error("Unauthorized access to message");
         }
       }
 
@@ -672,7 +742,7 @@ export class MessagingService {
         data: {
           is_deleted: true,
           deleted_at: new Date(),
-          content: '[Message deleted]', // Optionally clear content
+          content: "[Message deleted]", // Optionally clear content
         },
       });
 
@@ -680,7 +750,7 @@ export class MessagingService {
 
       return deletedMessage;
     } catch (error) {
-      logger.error('Error deleting message', error);
+      logger.error("Error deleting message", error);
       throw error;
     }
   }
@@ -699,13 +769,16 @@ export class MessagingService {
       });
 
       if (!message) {
-        throw new Error('Message not found');
+        throw new Error("Message not found");
       }
 
       // Verify user is part of conversation
       const conversation = message.conversation;
-      if (conversation.user_a_id !== userId && conversation.user_b_id !== userId) {
-        throw new Error('Unauthorized access to message');
+      if (
+        conversation.user_a_id !== userId &&
+        conversation.user_b_id !== userId
+      ) {
+        throw new Error("Unauthorized access to message");
       }
 
       // Add or update reaction (upsert)
@@ -739,7 +812,7 @@ export class MessagingService {
 
       return reaction;
     } catch (error) {
-      logger.error('Error adding reaction', error);
+      logger.error("Error adding reaction", error);
       throw error;
     }
   }
@@ -760,7 +833,7 @@ export class MessagingService {
       });
 
       if (!reaction) {
-        throw new Error('Reaction not found');
+        throw new Error("Reaction not found");
       }
 
       // Delete reaction
@@ -773,11 +846,13 @@ export class MessagingService {
         },
       });
 
-      logger.info(`Reaction removed from message ${messageId} by user ${userId}`);
+      logger.info(
+        `Reaction removed from message ${messageId} by user ${userId}`,
+      );
 
-      return { message: 'Reaction removed successfully' };
+      return { message: "Reaction removed successfully" };
     } catch (error) {
-      logger.error('Error removing reaction', error);
+      logger.error("Error removing reaction", error);
       throw error;
     }
   }
@@ -787,7 +862,10 @@ export class MessagingService {
    */
   async searchMessages(userId: string, params: SearchMessagesParams) {
     try {
-      const { limit, offset } = normalizePagination(params.limit, params.offset);
+      const { limit, offset } = normalizePagination(
+        params.limit,
+        params.offset,
+      );
 
       // Build where clause
       const where: Prisma.MessageWhereInput = {
@@ -796,17 +874,14 @@ export class MessagingService {
           // Messages in conversations where user is participant
           {
             conversation: {
-              OR: [
-                { user_a_id: userId },
-                { user_b_id: userId },
-              ],
+              OR: [{ user_a_id: userId }, { user_b_id: userId }],
             },
           },
         ],
         // Text search (using contains for now, can be enhanced with PostgreSQL full-text search)
         content: {
           contains: params.query,
-          mode: 'insensitive',
+          mode: "insensitive",
         },
       };
 
@@ -818,11 +893,14 @@ export class MessagingService {
         });
 
         if (!conversation) {
-          throw new Error('Conversation not found');
+          throw new Error("Conversation not found");
         }
 
-        if (conversation.user_a_id !== userId && conversation.user_b_id !== userId) {
-          throw new Error('Unauthorized access to conversation');
+        if (
+          conversation.user_a_id !== userId &&
+          conversation.user_b_id !== userId
+        ) {
+          throw new Error("Unauthorized access to conversation");
         }
 
         where.conversation_id = params.conversationId;
@@ -834,7 +912,7 @@ export class MessagingService {
       // Get messages
       const messages = await prisma.message.findMany({
         where,
-        orderBy: { created_at: 'desc' },
+        orderBy: { created_at: "desc" },
         take: limit,
         skip: offset,
         include: {
@@ -875,7 +953,7 @@ export class MessagingService {
         pagination,
       };
     } catch (error) {
-      logger.error('Error searching messages', error);
+      logger.error("Error searching messages", error);
       throw error;
     }
   }
@@ -894,18 +972,21 @@ export class MessagingService {
       });
 
       if (!message) {
-        throw new Error('Message not found');
+        throw new Error("Message not found");
       }
 
       // Verify user is the recipient (not the sender)
       if (message.sender_id === userId) {
-        throw new Error('Cannot mark own message as delivered');
+        throw new Error("Cannot mark own message as delivered");
       }
 
       // Verify user is part of conversation
       const conversation = message.conversation;
-      if (conversation.user_a_id !== userId && conversation.user_b_id !== userId) {
-        throw new Error('Unauthorized access to message');
+      if (
+        conversation.user_a_id !== userId &&
+        conversation.user_b_id !== userId
+      ) {
+        throw new Error("Unauthorized access to message");
       }
 
       // Update delivered_at if not already set
@@ -916,37 +997,9 @@ export class MessagingService {
         });
       }
 
-      return { message: 'Message marked as delivered' };
+      return { message: "Message marked as delivered" };
     } catch (error) {
-      logger.error('Error marking message as delivered', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create message attachment
-   */
-  async createAttachment(
-    messageId: string,
-    fileUrl: string,
-    fileType: string,
-    fileName: string,
-    fileSize: number
-  ) {
-    try {
-      const attachment = await prisma.messageAttachment.create({
-        data: {
-          message_id: messageId,
-          file_url: fileUrl,
-          file_type: fileType,
-          file_name: fileName,
-          file_size: fileSize,
-        },
-      });
-
-      return attachment;
-    } catch (error) {
-      logger.error('Error creating attachment', error);
+      logger.error("Error marking message as delivered", error);
       throw error;
     }
   }
@@ -955,4 +1008,3 @@ export class MessagingService {
 // Export singleton instance
 const messagingService = new MessagingService();
 export default messagingService;
-

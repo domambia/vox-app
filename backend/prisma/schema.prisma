@@ -61,7 +61,7 @@ model User {
     conversations_as_user_a Conversation[]       @relation("UserA")
     conversations_as_user_b Conversation[]       @relation("UserB")
     messages_sent           Message[]
-    group_messages_sent    GroupMessage[]
+    group_messages_sent     GroupMessage[]
     messageReactions        MessageReaction[]
     calls_initiated         VoiceCall[]          @relation("Caller")
     calls_received          VoiceCall[]          @relation("Receiver")
@@ -135,21 +135,21 @@ model Profile {
 }
 
 model Group {
-    group_id            String    @id @default(uuid())
-    name                String
-    description         String?
-    creator_id          String
-    category            String
-    member_count        Int       @default(0)
-    is_public           Boolean   @default(true)
-    last_message_at     DateTime?
+    group_id             String    @id @default(uuid())
+    name                 String
+    description          String?
+    creator_id           String
+    category             String
+    member_count         Int       @default(0)
+    is_public            Boolean   @default(true)
+    last_message_at      DateTime?
     last_message_preview String?
-    created_at         DateTime  @default(now())
+    created_at           DateTime  @default(now())
 
     // Relations
-    creator       User           @relation(fields: [creator_id], references: [user_id])
-    members       GroupMember[]
-    events        Event[]
+    creator        User           @relation(fields: [creator_id], references: [user_id])
+    members        GroupMember[]
+    events         Event[]
     group_messages GroupMessage[]
 
     @@index([category])
@@ -186,13 +186,30 @@ model GroupMessage {
     updated_at   DateTime    @updatedAt
 
     // Relations
-    group  Group @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
-    sender User  @relation(fields: [sender_id], references: [user_id], onDelete: Cascade)
+    group       Group                    @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
+    sender      User                     @relation(fields: [sender_id], references: [user_id], onDelete: Cascade)
+    attachments GroupMessageAttachment[]
 
     @@index([group_id])
     @@index([sender_id])
     @@index([created_at])
     @@map("group_messages")
+}
+
+model GroupMessageAttachment {
+    attachment_id    String   @id @default(uuid())
+    group_message_id String?
+    file_url         String
+    file_type        String
+    file_name        String
+    file_size        Int
+    created_at       DateTime @default(now())
+
+    // Relations
+    group_message GroupMessage? @relation(fields: [group_message_id], references: [message_id], onDelete: Cascade)
+
+    @@index([group_message_id])
+    @@map("group_message_attachments")
 }
 
 model Friendship {
@@ -405,7 +422,7 @@ enum MessageType {
 
 model MessageAttachment {
     attachment_id String   @id @default(uuid())
-    message_id    String
+    message_id    String?
     file_url      String
     file_type     String // e.g., 'image/jpeg', 'application/pdf'
     file_name     String
@@ -413,7 +430,7 @@ model MessageAttachment {
     created_at    DateTime @default(now())
 
     // Relations
-    message Message @relation(fields: [message_id], references: [message_id], onDelete: Cascade)
+    message Message? @relation(fields: [message_id], references: [message_id], onDelete: Cascade)
 
     @@index([message_id])
     @@map("message_attachments")

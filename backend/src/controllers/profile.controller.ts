@@ -1,9 +1,9 @@
-import { Response } from 'express';
-import { sendSuccess, sendError } from '@/utils/response';
-import profileService from '@/services/profile.service';
-import { AuthRequest } from '@/types';
-import { getFileUrl, deleteFile, getFilePathFromUrl } from '@/utils/fileUpload';
-import { logger } from '@/utils/logger';
+import { Response } from "express";
+import { sendSuccess, sendError } from "@/utils/response";
+import profileService from "@/services/profile.service";
+import { AuthRequest } from "@/types";
+import { getFileUrl, deleteFile, getFilePathFromUrl } from "@/utils/fileUpload";
+import { logger } from "@/utils/logger";
 
 export class ProfileController {
   /**
@@ -18,15 +18,20 @@ export class ProfileController {
       const profile = await profileService.createProfile(userId, data);
       sendSuccess(res, profile, 201);
     } catch (error: any) {
-      if (error.message === 'Profile already exists for this user') {
-        sendError(res, 'PROFILE_EXISTS', error.message, 409);
+      if (error.message === "Profile already exists for this user") {
+        sendError(res, "PROFILE_EXISTS", error.message, 409);
         return;
       }
-      if (error.message === 'User not found') {
-        sendError(res, 'USER_NOT_FOUND', error.message, 404);
+      if (error.message === "User not found") {
+        sendError(res, "USER_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'PROFILE_CREATION_ERROR', error.message || 'Failed to create profile', 400);
+      sendError(
+        res,
+        "PROFILE_CREATION_ERROR",
+        error.message || "Failed to create profile",
+        400,
+      );
     }
   }
 
@@ -42,11 +47,16 @@ export class ProfileController {
       const profile = await profileService.getProfile(userId, requesterId);
       sendSuccess(res, profile);
     } catch (error: any) {
-      if (error.message === 'Profile not found') {
-        sendError(res, 'PROFILE_NOT_FOUND', error.message, 404);
+      if (error.message === "Profile not found") {
+        sendError(res, "PROFILE_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'PROFILE_FETCH_ERROR', error.message || 'Failed to fetch profile', 400);
+      sendError(
+        res,
+        "PROFILE_FETCH_ERROR",
+        error.message || "Failed to fetch profile",
+        400,
+      );
     }
   }
 
@@ -61,11 +71,21 @@ export class ProfileController {
       const profile = await profileService.getProfile(userId, userId);
       sendSuccess(res, profile);
     } catch (error: any) {
-      if (error.message === 'Profile not found') {
-        sendError(res, 'PROFILE_NOT_FOUND', 'You have not created a profile yet', 404);
+      if (error.message === "Profile not found") {
+        sendError(
+          res,
+          "PROFILE_NOT_FOUND",
+          "You have not created a profile yet",
+          404,
+        );
         return;
       }
-      sendError(res, 'PROFILE_FETCH_ERROR', error.message || 'Failed to fetch profile', 400);
+      sendError(
+        res,
+        "PROFILE_FETCH_ERROR",
+        error.message || "Failed to fetch profile",
+        400,
+      );
     }
   }
 
@@ -80,7 +100,12 @@ export class ProfileController {
 
       // Check if user is updating their own profile
       if (userId !== requesterId) {
-        sendError(res, 'FORBIDDEN', 'You can only update your own profile', 403);
+        sendError(
+          res,
+          "FORBIDDEN",
+          "You can only update your own profile",
+          403,
+        );
         return;
       }
 
@@ -88,11 +113,16 @@ export class ProfileController {
       const profile = await profileService.updateProfile(userId, data);
       sendSuccess(res, profile);
     } catch (error: any) {
-      if (error.message === 'Profile not found') {
-        sendError(res, 'PROFILE_NOT_FOUND', error.message, 404);
+      if (error.message === "Profile not found") {
+        sendError(res, "PROFILE_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'PROFILE_UPDATE_ERROR', error.message || 'Failed to update profile', 400);
+      sendError(
+        res,
+        "PROFILE_UPDATE_ERROR",
+        error.message || "Failed to update profile",
+        400,
+      );
     }
   }
 
@@ -107,7 +137,12 @@ export class ProfileController {
 
       // Check if user is deleting their own profile
       if (userId !== requesterId) {
-        sendError(res, 'FORBIDDEN', 'You can only delete your own profile', 403);
+        sendError(
+          res,
+          "FORBIDDEN",
+          "You can only delete your own profile",
+          403,
+        );
         return;
       }
 
@@ -120,7 +155,7 @@ export class ProfileController {
           const filePath = getFilePathFromUrl(profile.voice_bio_url);
           await deleteFile(filePath);
         } catch (fileError) {
-          logger.warn('Failed to delete voice bio file', fileError);
+          logger.warn("Failed to delete voice bio file", fileError);
           // Continue with profile deletion even if file deletion fails
         }
       }
@@ -128,11 +163,16 @@ export class ProfileController {
       const result = await profileService.deleteProfile(userId);
       sendSuccess(res, result);
     } catch (error: any) {
-      if (error.message === 'Profile not found') {
-        sendError(res, 'PROFILE_NOT_FOUND', error.message, 404);
+      if (error.message === "Profile not found") {
+        sendError(res, "PROFILE_NOT_FOUND", error.message, 404);
         return;
       }
-      sendError(res, 'PROFILE_DELETE_ERROR', error.message || 'Failed to delete profile', 400);
+      sendError(
+        res,
+        "PROFILE_DELETE_ERROR",
+        error.message || "Failed to delete profile",
+        400,
+      );
     }
   }
 
@@ -146,14 +186,25 @@ export class ProfileController {
       const file = req.file;
 
       if (!file) {
-        sendError(res, 'VALIDATION_ERROR', 'Voice bio file is required', 400);
+        sendError(res, "VALIDATION_ERROR", "Voice bio file is required", 400);
         return;
       }
 
       // Validate file type (audio only)
-      const allowedMimes = ['audio/mpeg', 'audio/wav', 'audio/m4a', 'audio/ogg'];
+      const allowedMimes = [
+        "audio/mpeg",
+        "audio/wav",
+        "audio/m4a",
+        "audio/mp4",
+        "audio/ogg",
+      ];
       if (!allowedMimes.includes(file.mimetype)) {
-        sendError(res, 'VALIDATION_ERROR', 'Invalid file type. Only audio files are allowed', 400);
+        sendError(
+          res,
+          "VALIDATION_ERROR",
+          "Invalid file type. Only audio files are allowed",
+          400,
+        );
         return;
       }
 
@@ -168,10 +219,15 @@ export class ProfileController {
       sendSuccess(res, {
         profile,
         voiceBioUrl: fileUrl,
-        message: 'Voice bio uploaded successfully',
+        message: "Voice bio uploaded successfully",
       });
     } catch (error: any) {
-      sendError(res, 'VOICE_BIO_UPLOAD_ERROR', error.message || 'Failed to upload voice bio', 400);
+      sendError(
+        res,
+        "VOICE_BIO_UPLOAD_ERROR",
+        error.message || "Failed to upload voice bio",
+        400,
+      );
     }
   }
 
@@ -187,7 +243,7 @@ export class ProfileController {
       const profile = await profileService.getProfile(userId, userId);
 
       if (!profile.voice_bio_url) {
-        sendError(res, 'NOT_FOUND', 'No voice bio found', 404);
+        sendError(res, "NOT_FOUND", "No voice bio found", 404);
         return;
       }
 
@@ -196,21 +252,26 @@ export class ProfileController {
         const filePath = getFilePathFromUrl(profile.voice_bio_url);
         await deleteFile(filePath);
       } catch (fileError) {
-        logger.warn('Failed to delete voice bio file', fileError);
+        logger.warn("Failed to delete voice bio file", fileError);
         // Continue with profile update even if file deletion fails
       }
 
       // Update profile to remove voice bio URL
       const updatedProfile = await profileService.updateProfile(userId, {
-        voiceBioUrl: '',
+        voiceBioUrl: "",
       });
 
       sendSuccess(res, {
         profile: updatedProfile,
-        message: 'Voice bio deleted successfully',
+        message: "Voice bio deleted successfully",
       });
     } catch (error: any) {
-      sendError(res, 'VOICE_BIO_DELETE_ERROR', error.message || 'Failed to delete voice bio', 400);
+      sendError(
+        res,
+        "VOICE_BIO_DELETE_ERROR",
+        error.message || "Failed to delete voice bio",
+        400,
+      );
     }
   }
 }
@@ -218,4 +279,3 @@ export class ProfileController {
 // Export singleton instance
 const profileController = new ProfileController();
 export default profileController;
-
