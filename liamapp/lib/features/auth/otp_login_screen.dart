@@ -23,7 +23,6 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
   @override
   void initState() {
     super.initState();
-    _phoneController.text = '+35699234567';
   }
 
   @override
