@@ -44,6 +44,39 @@ export interface CreateAttachmentInput {
 }
 
 export class MessagingService {
+  private async canSendMessage(senderId: string, recipientId: string) {
+    if (senderId === recipientId) {
+      return { allowed: false, reason: "Messaging not allowed" } as const;
+    }
+
+    const recipient = await prisma.user.findUnique({
+      where: { user_id: recipientId },
+      select: { user_id: true, is_active: true },
+    });
+
+    if (!recipient || !recipient.is_active) {
+      return { allowed: false, reason: "User not found" } as const;
+    }
+
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { user_a_id: senderId, user_b_id: recipientId },
+          { user_a_id: recipientId, user_b_id: senderId },
+        ],
+      },
+      select: {
+        status: true,
+      },
+    });
+
+    if (friendship?.status === "BLOCKED") {
+      return { allowed: false, reason: "Messaging blocked" } as const;
+    }
+
+    return { allowed: true } as const;
+  }
+
   /**
    * Get or create conversation between two users
    */
@@ -162,6 +195,11 @@ export class MessagingService {
    */
   async sendMessage(senderId: string, data: SendMessageInput) {
     try {
+      const permission = await this.canSendMessage(senderId, data.recipientId);
+      if (!permission.allowed) {
+        throw new Error(permission.reason);
+      }
+
       // Get or create conversation
       const conversation = await this.getOrCreateConversation(
         senderId,
@@ -215,6 +253,7 @@ export class MessagingService {
         ...message,
         conversation_id: conversation.conversation_id,
         recipient_id: data.recipientId,
+        is_mine: true,
       };
     } catch (error) {
       logger.error("Error sending message", error);
@@ -520,10 +559,15 @@ export class MessagingService {
       // Reverse to get chronological order
       messages.reverse();
 
+      const transformedMessages = messages.map((m) => ({
+        ...m,
+        is_mine: m.sender_id === userId,
+      }));
+
       const pagination = getPaginationMetadata(total, limit, offset);
 
       return {
-        ...createPaginatedResponse(messages, total, limit, offset),
+        ...createPaginatedResponse(transformedMessages, total, limit, offset),
         pagination,
       };
     } catch (error) {

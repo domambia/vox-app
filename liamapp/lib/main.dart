@@ -37,6 +37,8 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -66,6 +68,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<SettingsController>(
         builder: (context, settings, _) {
           return MaterialApp(
+            navigatorKey: MyApp.rootNavigatorKey,
             title: 'LiamApp',
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
@@ -91,9 +94,7 @@ class MyApp extends StatelessWidget {
               '/': (_) => const LandingScreen(),
               AppShell.routeName: (_) => const AppShell(),
               OtpLoginScreen.routeName: (_) => const OtpLoginScreen(),
-              OtpVerifyScreen.routeName: (_) => const OtpVerifyScreen(),
               OtpRegisterScreen.routeName: (_) => const OtpRegisterScreen(),
-              OtpRegisterVerifyScreen.routeName: (_) => const OtpRegisterVerifyScreen(),
             },
           );
         },
@@ -128,8 +129,7 @@ class _AuthExpiryListenerState extends State<_AuthExpiryListener> {
         if (!mounted) return;
         Provider.of<AuthController>(context, listen: false).logout().whenComplete(() {
           Provider.of<SocketService>(context, listen: false).disconnect();
-          if (!mounted) return;
-          Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
+          MyApp.rootNavigatorKey.currentState?.pushNamedAndRemoveUntil('/', (r) => false);
           _navigated = false;
         });
       });

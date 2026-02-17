@@ -91,10 +91,16 @@ class ApiClient {
     final statusCode = err.response?.statusCode;
     final requestOptions = err.requestOptions;
 
+    final path = requestOptions.path;
+    final isAuthEndpoint = path.contains('/auth/login') ||
+        path.contains('/auth/register') ||
+        path.contains('/auth/refresh') ||
+        path.contains('/auth/logout');
+
     final isUnauthorized = statusCode == 401;
     final hasNotRetried = requestOptions.extra['retried'] != true;
 
-    if (!isUnauthorized || !hasNotRetried) {
+    if (!isUnauthorized || !hasNotRetried || isAuthEndpoint) {
       handler.next(err);
       return;
     }
@@ -143,14 +149,21 @@ class ApiClient {
 
       final data = resp.data;
       final tokens = (data is Map ? (data['data'] ?? data) : null) as dynamic;
-      final access = tokens?['token'] ?? tokens?['accessToken'] ?? tokens?['tokens']?['token'] ?? tokens?['tokens']?['access_token'];
-      final refresh = tokens?['refreshToken'] ?? tokens?['refresh_token'] ?? tokens?['tokens']?['refresh_token'] ?? tokens?['tokens']?['refreshToken'];
+      final access = tokens?['token'] ??
+          tokens?['accessToken'] ??
+          tokens?['tokens']?['token'] ??
+          tokens?['tokens']?['access_token'];
+      final refresh = tokens?['refreshToken'] ??
+          tokens?['refresh_token'] ??
+          tokens?['tokens']?['refresh_token'] ??
+          tokens?['tokens']?['refreshToken'];
 
-      if (access is! String || refresh is! String) {
+      if (access is! String) {
         throw StateError('Invalid refresh response');
       }
 
-      await _tokenStorage.writeTokens(accessToken: access, refreshToken: refresh);
+      final nextRefresh = (refresh is String && refresh.isNotEmpty) ? refresh : refreshToken;
+      await _tokenStorage.writeTokens(accessToken: access, refreshToken: nextRefresh);
     } catch (e) {
       await _tokenStorage.clear();
       rethrow;

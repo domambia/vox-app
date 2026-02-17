@@ -14,6 +14,8 @@ import {
   sendGroupMessageSchema,
   updateMemberRoleSchema,
   removeMemberSchema,
+  addMemberSchema,
+  searchUsersSchema,
 } from "@/validations/group.validation";
 import { getGroupEventsSchema } from "@/validations/event.validation";
 import { authenticate } from "@/middleware/auth.middleware";
@@ -465,6 +467,30 @@ router.get(
   authenticate,
   validate(getGroupMembersSchema),
   groupController.getGroupMembers.bind(groupController),
+);
+
+/**
+ * @route   POST /api/v1/groups/:groupId/members
+ * @desc    Add member to group (admin/moderator)
+ * @access  Private (Authenticated)
+ */
+router.post(
+  "/:groupId/members",
+  authenticate,
+  validate(addMemberSchema),
+  groupController.addMember.bind(groupController),
+);
+
+/**
+ * @route   GET /api/v1/groups/:groupId/members/search
+ * @desc    Search users to add to group (admin/moderator)
+ * @access  Private (Authenticated)
+ */
+router.get(
+  "/:groupId/members/search",
+  authenticate,
+  validate(searchUsersSchema),
+  groupController.searchUsersToAdd.bind(groupController),
 );
 
 /**

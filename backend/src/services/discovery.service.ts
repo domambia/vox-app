@@ -1,11 +1,12 @@
-import prisma from '@/config/database';
-import { logger } from '@/utils/logger';
-import { Prisma, LookingFor } from '@prisma/client';
+import prisma from "@/config/database";
+import { logger } from "@/utils/logger";
+import { Prisma, LookingFor } from "@prisma/client";
+import { config } from "@/config/env";
 import {
   normalizePagination,
   createPaginatedResponse,
   getPaginationMetadata,
-} from '@/utils/pagination';
+} from "@/utils/pagination";
 
 export interface DiscoverProfilesParams {
   userId: string;
@@ -47,20 +48,37 @@ export class DiscoveryService {
    * - Activity level (10% weight - based on profile age)
    */
   private calculateMatchScore(
-    profile1: { interests: any; location: string | null; looking_for: string; created_at: Date },
-    profile2: { interests: any; location: string | null; looking_for: string; created_at: Date }
+    profile1: {
+      interests: any;
+      location: string | null;
+      looking_for: string;
+      created_at: Date;
+    },
+    profile2: {
+      interests: any;
+      location: string | null;
+      looking_for: string;
+      created_at: Date;
+    },
   ): number {
     let score = 0;
 
     // 1. Common interests (40% weight)
-    const interests1 = Array.isArray(profile1.interests) ? profile1.interests : [];
-    const interests2 = Array.isArray(profile2.interests) ? profile2.interests : [];
+    const interests1 = Array.isArray(profile1.interests)
+      ? profile1.interests
+      : [];
+    const interests2 = Array.isArray(profile2.interests)
+      ? profile2.interests
+      : [];
     const commonInterests = interests1.filter((interest: string) =>
-      interests2.includes(interest)
+      interests2.includes(interest),
     );
-    const interestScore = interests1.length > 0 && interests2.length > 0
-      ? (commonInterests.length / Math.max(interests1.length, interests2.length)) * 0.4
-      : 0;
+    const interestScore =
+      interests1.length > 0 && interests2.length > 0
+        ? (commonInterests.length /
+            Math.max(interests1.length, interests2.length)) *
+          0.4
+        : 0;
     score += interestScore;
 
     // 2. Location match (30% weight)
@@ -69,7 +87,10 @@ export class DiscoveryService {
       const location2 = profile2.location.toLowerCase().trim();
       if (location1 === location2) {
         score += 0.3;
-      } else if (location1.includes(location2) || location2.includes(location1)) {
+      } else if (
+        location1.includes(location2) ||
+        location2.includes(location1)
+      ) {
         score += 0.15; // Partial match
       }
     }
@@ -77,19 +98,18 @@ export class DiscoveryService {
     // 3. Looking for alignment (20% weight)
     const lookingFor1 = profile1.looking_for;
     const lookingFor2 = profile2.looking_for;
-    if (lookingFor1 === 'ALL' || lookingFor2 === 'ALL') {
+    if (lookingFor1 === "ALL" || lookingFor2 === "ALL") {
       score += 0.2;
     } else if (lookingFor1 === lookingFor2) {
       score += 0.2;
     } else {
       // Some compatibility (e.g., FRIENDSHIP and HOBBY)
       const compatiblePairs = [
-        ['FRIENDSHIP', 'HOBBY'],
-        ['DATING', 'FRIENDSHIP'],
+        ["FRIENDSHIP", "HOBBY"],
+        ["DATING", "FRIENDSHIP"],
       ];
       const isCompatible = compatiblePairs.some(
-        (pair) =>
-          (pair.includes(lookingFor1) && pair.includes(lookingFor2))
+        (pair) => pair.includes(lookingFor1) && pair.includes(lookingFor2),
       );
       if (isCompatible) {
         score += 0.1;
@@ -111,7 +131,10 @@ export class DiscoveryService {
    */
   async discoverProfiles(params: DiscoverProfilesParams) {
     try {
-      const { limit, offset } = normalizePagination(params.limit, params.offset);
+      const { limit, offset } = normalizePagination(
+        params.limit,
+        params.offset,
+      );
       const { userId, location, lookingFor, minInterests } = params;
 
       // Get user's profile
@@ -120,7 +143,7 @@ export class DiscoveryService {
       });
 
       if (!userProfile) {
-        throw new Error('Profile not found. Please create a profile first.');
+        throw new Error("Profile not found. Please create a profile first.");
       }
 
       // Get user's interests
@@ -132,24 +155,32 @@ export class DiscoveryService {
       const where: Prisma.ProfileWhereInput = {
         user_id: { not: userId }, // Exclude self
         user: {
-          verified: true, // Only show verified users
           is_active: true,
         },
       };
+
+      // Only show verified users in production. In development/test, allow unverified accounts
+      // to prevent empty discovery lists when seeding/registering locally.
+      if (config.nodeEnv === "production") {
+        where.user = {
+          ...(where.user as Prisma.UserWhereInput),
+          verified: true,
+        };
+      }
 
       // Location filter
       if (location) {
         where.location = {
           contains: location,
-          mode: 'insensitive',
+          mode: "insensitive",
         };
       }
 
       // Looking for filter
-      if (lookingFor && lookingFor !== 'ALL') {
+      if (lookingFor && lookingFor !== "ALL") {
         where.OR = [
           { looking_for: lookingFor as LookingFor },
-          { looking_for: 'ALL' },
+          { looking_for: "ALL" },
         ];
       }
 
@@ -178,10 +209,7 @@ export class DiscoveryService {
         }),
         prisma.match.findMany({
           where: {
-            OR: [
-              { user_a_id: userId },
-              { user_b_id: userId },
-            ],
+            OR: [{ user_a_id: userId }, { user_b_id: userId }],
             is_active: true,
           },
           select: {
@@ -210,7 +238,7 @@ export class DiscoveryService {
               ? (profile.interests as string[])
               : [];
             const commonInterests = userInterests.filter((interest) =>
-              profileInterests.includes(interest)
+              profileInterests.includes(interest),
             );
             if (commonInterests.length < minInterests) {
               return null;
@@ -245,11 +273,14 @@ export class DiscoveryService {
 
       // Apply pagination
       const total = profilesWithScores.length;
-      const paginatedProfiles = profilesWithScores.slice(offset, offset + limit);
+      const paginatedProfiles = profilesWithScores.slice(
+        offset,
+        offset + limit,
+      );
 
       const pagination = getPaginationMetadata(total, limit, offset);
 
-      logger.info('Profiles discovered', {
+      logger.info("Profiles discovered", {
         userId,
         total,
         returned: paginatedProfiles.length,
@@ -262,7 +293,7 @@ export class DiscoveryService {
         pagination,
       };
     } catch (error) {
-      logger.error('Error discovering profiles', error);
+      logger.error("Error discovering profiles", error);
       throw error;
     }
   }
@@ -293,7 +324,7 @@ export class DiscoveryService {
         },
         take: limit,
         orderBy: {
-          created_at: 'desc',
+          created_at: "desc",
         },
       });
 
@@ -303,7 +334,7 @@ export class DiscoveryService {
         matchScore: 0.5, // Default score for random suggestions
       }));
     } catch (error) {
-      logger.error('Error getting random suggestions', error);
+      logger.error("Error getting random suggestions", error);
       throw error;
     }
   }
@@ -312,4 +343,3 @@ export class DiscoveryService {
 // Export singleton instance
 const discoveryService = new DiscoveryService();
 export default discoveryService;
-

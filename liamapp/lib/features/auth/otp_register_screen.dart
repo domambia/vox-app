@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'auth_controller.dart';
@@ -14,13 +15,23 @@ class OtpRegisterScreen extends StatefulWidget {
 
 class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _countryCodeController = TextEditingController(text: 'MT');
 
   bool _isSubmitting = false;
 
   @override
   void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
     _phoneController.dispose();
+    _passwordController.dispose();
+    _countryCodeController.dispose();
     super.dispose();
   }
 
@@ -32,22 +43,17 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
     setState(() => _isSubmitting = true);
     try {
       final auth = Provider.of<AuthController>(context, listen: false);
-      await auth.sendOtp(
-        phoneNumber: _phoneController.text.trim(),
-        purpose: 'REGISTRATION',
-      );
-
-      final hasToken = auth.isAuthenticated;
       if (!mounted) return;
-      if (hasToken) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/app', (r) => false);
-        return;
-      }
-
-      Navigator.of(context).pushNamed(
-        OtpRegisterVerifyScreen.routeName,
-        arguments: _phoneController.text.trim(),
+      await auth.register(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        email: _emailController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+        password: _passwordController.text,
+        countryCode: _countryCodeController.text.trim().toUpperCase(),
       );
+
+      Navigator.of(context).pushNamedAndRemoveUntil('/auth/login', (r) => false);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -58,29 +64,82 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign up')),
+      appBar: AppBar(
+        title: const Text('Sign up'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false),
+        ),
+      ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          children: [
-            Text(
-              'Create an account',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Enter your phone number and we will send you an OTP.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              children: [
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Image.asset('assets/logo.png', height: 72),
+                  ),
+                ),
+                Text(
+                  'Create an account',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Sign up with your details.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                  TextFormField(
+                    controller: _firstNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'First name',
+                    ),
+                    validator: (value) {
+                      final v = (value ?? '').trim();
+                      if (v.isEmpty) return 'First name is required';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _lastNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Last name',
+                    ),
+                    validator: (value) {
+                      final v = (value ?? '').trim();
+                      if (v.isEmpty) return 'Last name is required';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                    ),
+                    validator: (value) {
+                      final v = (value ?? '').trim();
+                      if (v.isEmpty) return 'Email is required';
+                      if (!v.contains('@')) return 'Enter a valid email';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
@@ -88,10 +147,48 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                       labelText: 'Phone number',
                       hintText: '+1234567890',
                     ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+                    ],
+                    onChanged: (raw) {
+                      final v = raw.trim();
+                      if (v.isEmpty) return;
+                      if (!v.startsWith('+')) {
+                        final fixed = '+${v.replaceAll('+', '')}';
+                        _phoneController.value = _phoneController.value.copyWith(
+                          text: fixed,
+                          selection: TextSelection.collapsed(offset: fixed.length),
+                          composing: TextRange.empty,
+                        );
+                      }
+                    },
                     validator: (value) {
                       final v = (value ?? '').trim();
                       if (v.isEmpty) return 'Phone number is required';
                       if (!v.startsWith('+') || v.length < 8) return 'Use international format, e.g. +1234567890';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _countryCodeController,
+                    enabled: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Country code',
+                      hintText: 'MT',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                    ),
+                    validator: (value) {
+                      final v = (value ?? '').trim();
+                      if (v.isEmpty) return 'Password is required';
+                      if (v.length < 8) return 'Password must be at least 8 characters';
                       return null;
                     },
                   ),
@@ -103,112 +200,12 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                       child: Text(_isSubmitting ? 'Registering...' : 'Register'),
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class OtpRegisterVerifyScreen extends StatefulWidget {
-  const OtpRegisterVerifyScreen({super.key});
-
-  static const routeName = '/auth/register/verify-otp';
-
-  @override
-  State<OtpRegisterVerifyScreen> createState() => _OtpRegisterVerifyScreenState();
-}
-
-class _OtpRegisterVerifyScreenState extends State<OtpRegisterVerifyScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _otpController = TextEditingController();
-
-  bool _isSubmitting = false;
-
-  @override
-  void dispose() {
-    _otpController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit(String phoneNumber) async {
-    if (_isSubmitting) return;
-    final isValid = _formKey.currentState?.validate() ?? false;
-    if (!isValid) return;
-
-    setState(() => _isSubmitting = true);
-    try {
-      await Provider.of<AuthController>(context, listen: false).verifyOtp(
-            phoneNumber: phoneNumber,
-            otpCode: _otpController.text.trim(),
-            purpose: 'REGISTRATION',
-          );
-
-      if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/app', (r) => false);
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final phoneNumber = (ModalRoute.of(context)?.settings.arguments as String?) ?? '';
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Verify OTP')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          children: [
-            Text(
-              'Verify your phone',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'We sent an OTP to $phoneNumber',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _otpController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'OTP code',
-                      hintText: '123456',
-                    ),
-                    validator: (value) {
-                      final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'OTP is required';
-                      if (v.length != 6) return 'OTP must be 6 digits';
-                      return null;
-                    },
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _isSubmitting ? null : () => _submit(phoneNumber),
-                      child: Text(_isSubmitting ? 'Verifying...' : 'Verify'),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

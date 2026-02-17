@@ -62,7 +62,8 @@ export class GroupController {
   async listGroups(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { limit, offset } = extractPaginationFromQuery(req.query);
-      const { category, search, isPublic } = req.query;
+      const { category, search, isPublic, memberOnly } = req.query;
+      const userId = req.user?.userId;
 
       const result = await groupService.listGroups({
         limit,
@@ -70,6 +71,8 @@ export class GroupController {
         category: category as string | undefined,
         search: search as string | undefined,
         isPublic: isPublic as boolean | undefined,
+        memberOnly: memberOnly as boolean | undefined,
+        userId,
       });
 
       sendSuccess(res, result);
@@ -412,6 +415,83 @@ export class GroupController {
         res,
         "REMOVE_MEMBER_ERROR",
         error.message || "Failed to remove member",
+        400,
+      );
+    }
+  }
+
+  /**
+   * Add member to group
+   * POST /api/v1/groups/:groupId/members
+   */
+  async addMember(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const actorId = req.user!.userId;
+      const { userId } = req.body;
+
+      const membership = await groupService.addMemberToGroup(
+        groupId,
+        actorId,
+        userId,
+      );
+
+      sendSuccess(res, membership, 201);
+    } catch (error: any) {
+      if (error.message === "Group not found") {
+        sendError(res, "GROUP_NOT_FOUND", error.message, 404);
+        return;
+      }
+      if (error.message === "User not found") {
+        sendError(res, "USER_NOT_FOUND", error.message, 404);
+        return;
+      }
+      if (error.message === "Already a member of this group") {
+        sendError(res, "ALREADY_MEMBER", error.message, 409);
+        return;
+      }
+      if (error.message.includes("Only admins and moderators")) {
+        sendError(res, "FORBIDDEN", error.message, 403);
+        return;
+      }
+      sendError(
+        res,
+        "ADD_MEMBER_ERROR",
+        error.message || "Failed to add member",
+        400,
+      );
+    }
+  }
+
+  /**
+   * Search users for adding to group
+   * GET /api/v1/groups/:groupId/members/search?q=...
+   */
+  async searchUsersToAdd(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { groupId } = req.params;
+      const actorId = req.user!.userId;
+      const q = (req.query.q as string) || "";
+      const limit = req.query.limit
+        ? parseInt(req.query.limit as string, 10)
+        : 20;
+
+      const users = await groupService.searchUsersToAdd(
+        groupId,
+        actorId,
+        q,
+        limit,
+      );
+      sendSuccess(res, { users });
+    } catch (error: any) {
+      if (error.message === "Not a member of this group") {
+        sendError(res, "FORBIDDEN", error.message, 403);
+        return;
+      }
+      sendError(
+        res,
+        "USER_SEARCH_ERROR",
+        error.message || "Failed to search users",
         400,
       );
     }

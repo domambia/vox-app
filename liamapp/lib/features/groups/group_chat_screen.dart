@@ -49,6 +49,61 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   final AudioPlayer _player = AudioPlayer();
   String? _playingUrl;
 
+  String _weekdayLabel(DateTime dt) {
+    switch (dt.weekday) {
+      case DateTime.monday:
+        return 'Mon';
+      case DateTime.tuesday:
+        return 'Tue';
+      case DateTime.wednesday:
+        return 'Wed';
+      case DateTime.thursday:
+        return 'Thu';
+      case DateTime.friday:
+        return 'Fri';
+      case DateTime.saturday:
+        return 'Sat';
+      case DateTime.sunday:
+        return 'Sun';
+      default:
+        return '';
+    }
+  }
+
+  String _formatWhatsAppTimestamp(BuildContext context, DateTime? dt) {
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final now = DateTime.now();
+
+    bool isSameDay(DateTime a, DateTime b) {
+      return a.year == b.year && a.month == b.month && a.day == b.day;
+    }
+
+    final localizations = MaterialLocalizations.of(context);
+    final time = localizations.formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: MediaQuery.of(context).alwaysUse24HourFormat,
+    );
+
+    if (isSameDay(local, now)) {
+      return time;
+    }
+
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (isSameDay(local, yesterday)) {
+      return 'Yesterday $time';
+    }
+
+    final ageDays = now.difference(DateTime(local.year, local.month, local.day)).inDays;
+    if (ageDays >= 0 && ageDays < 7) {
+      final weekday = _weekdayLabel(local);
+      return '$weekday $time';
+    }
+
+    final date = localizations.formatShortDate(local);
+    return '$date $time';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,7 +136,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     setState(() {
       _future = _service.getGroupMessagesTyped(groupId: widget.groupId);
     });
-    await _future;
+    try {
+      await _future;
+    } catch (_) {
+      // Let the FutureBuilder render the error state; avoid crashing callers.
+    }
   }
 
   Future<void> _send() async {
@@ -334,6 +393,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                         final content = m.content;
                         final senderName = m.senderName ?? '';
                         final isMine = (_myUserId.isNotEmpty && m.senderId == _myUserId) || m.isMine;
+                        final timestamp = _formatWhatsAppTimestamp(context, m.createdAt);
 
                         final bubbleColor = isMine
                             ? theme.colorScheme.primary
@@ -373,6 +433,18 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                   content,
                                   style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
                                 ),
+                                if (timestamp.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      timestamp,
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: textColor.withOpacity(0.8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 if (hasAttachments) ...[
                                   const SizedBox(height: 8),
                                   for (final a in attachments)

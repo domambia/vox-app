@@ -34,11 +34,24 @@ class _LikesScreenState extends State<LikesScreen> {
   }
 
   String _name(dynamic l) {
-    final user = l?['user'] ?? l?['profile']?['user'];
-    final first = (user?['first_name'] ?? user?['firstName'] ?? '').toString();
-    final last = (user?['last_name'] ?? user?['lastName'] ?? '').toString();
+    final profile = l?['profile'] ?? l;
+    final user = profile?['user'] ?? l?['user'] ?? l;
+    final first = (user?['first_name'] ?? user?['firstName'] ?? profile?['first_name'] ?? profile?['firstName'] ?? '').toString();
+    final last = (user?['last_name'] ?? user?['lastName'] ?? profile?['last_name'] ?? profile?['lastName'] ?? '').toString();
     final name = ('$first $last').trim();
     return name.isEmpty ? 'User' : name;
+  }
+
+  String _bio(dynamic l) {
+    final profile = l?['profile'] ?? l;
+    final prof = profile?['profile'] ?? {};
+    return (prof?['bio'] ?? '').toString();
+  }
+
+  String _userId(dynamic l) {
+    final profile = l?['profile'] ?? l;
+    final user = profile?['user'] ?? l?['user'] ?? l;
+    return (user?['user_id'] ?? user?['userId'] ?? profile?['user_id'] ?? profile?['userId'] ?? '').toString();
   }
 
   @override
@@ -94,9 +107,22 @@ class _LikesScreenState extends State<LikesScreen> {
                 itemBuilder: (context, index) {
                   final l = items[index];
                   final name = _name(l);
+                  final bio = _bio(l);
                   return ListTile(
                     leading: CircleAvatar(child: Text(name[0].toUpperCase())),
                     title: Text(name),
+                    subtitle: bio.isEmpty ? null : Text(bio, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: IconButton(
+                      onPressed: () async {
+                        final uid = _userId(l);
+                        if (uid.isEmpty) return;
+                        await _service.unlikeProfile(uid);
+                        if (!mounted) return;
+                        await _refresh();
+                      },
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Unlike',
+                    ),
                   );
                 },
               ),

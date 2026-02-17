@@ -11,12 +11,13 @@ class GroupsService {
 
   final ApiClient _apiClient;
 
-  Future<Paginated<Group>> listGroupsTyped({int page = 1, int limit = 20, String? search}) async {
+  Future<Paginated<Group>> listGroupsTyped({int page = 1, int limit = 20, String? search, bool memberOnly = true}) async {
     final query = <String, dynamic>{
       'limit': limit,
       'page': page,
     };
     if (search != null && search.trim().isNotEmpty) query['search'] = search.trim();
+    if (memberOnly) query['memberOnly'] = true;
 
     final resp = await _apiClient.dio.get('/groups', queryParameters: query);
     final items = unwrapList(resp.data, keys: const ['items', 'groups']);
@@ -26,6 +27,37 @@ class GroupsService {
       items: items.map(Group.fromJson).toList(growable: false),
       pagination: paginationJson == null ? null : Pagination.fromJson(paginationJson, fallbackPage: page, fallbackLimit: limit),
     );
+  }
+
+  Future<Map<String, dynamic>> addMemberToGroup({required String groupId, required String userId}) async {
+    final resp = await _apiClient.dio.post(
+      '/groups/$groupId/members',
+      data: {
+        'userId': userId,
+      },
+    );
+
+    final data = resp.data;
+    final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
+    return (root is Map ? Map<String, dynamic>.from(root) : <String, dynamic>{});
+  }
+
+  Future<List<dynamic>> searchUsersForGroupMember({required String groupId, required String query, int limit = 20}) async {
+    final q = query.trim();
+    if (q.isEmpty) return <dynamic>[];
+
+    final resp = await _apiClient.dio.get(
+      '/groups/$groupId/members/search',
+      queryParameters: {
+        'q': q,
+        'limit': limit,
+      },
+    );
+
+    final data = resp.data;
+    final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
+    final items = (root['users'] ?? root['items'] ?? []) as dynamic;
+    return items is List ? items : <dynamic>[];
   }
 
   Future<Paginated<GroupMessage>> getGroupMessagesTyped({required String groupId, int limit = 50, int offset = 0}) async {
@@ -46,13 +78,14 @@ class GroupsService {
     );
   }
 
-  Future<Map<String, dynamic>> listGroups({int page = 1, int limit = 20, String? search}) async {
+  Future<Map<String, dynamic>> listGroups({int page = 1, int limit = 20, String? search, bool memberOnly = true}) async {
     final query = <String, dynamic>{
       'limit': limit,
     };
     // backend uses offset sometimes; mob-app maps page->offset. We'll send page/limit as well.
     query['page'] = page;
     if (search != null && search.trim().isNotEmpty) query['search'] = search.trim();
+    if (memberOnly) query['memberOnly'] = true;
 
     final resp = await _apiClient.dio.get('/groups', queryParameters: query);
     final data = resp.data;

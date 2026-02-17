@@ -5,27 +5,23 @@ class DiscoverService {
 
   final ApiClient _apiClient;
 
-  Future<List<dynamic>> discover({int page = 1, int limit = 10}) async {
+  Future<List<dynamic>> discover({int offset = 0, int limit = 20}) async {
     final resp = await _apiClient.dio.get(
       '/profiles/discover',
       queryParameters: {
-        'page': page,
         'limit': limit,
+        'offset': offset,
       },
     );
     final data = resp.data;
     final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
-    final items = (root['profiles'] ?? root['items'] ?? []) as dynamic;
+    final items = (root['items'] ?? root['profiles'] ?? []) as dynamic;
     return items is List ? items : <dynamic>[];
   }
 
-  Future<List<dynamic>> matches({int page = 1, int limit = 20}) async {
+  Future<List<dynamic>> matches() async {
     final resp = await _apiClient.dio.get(
       '/profiles/matches',
-      queryParameters: {
-        'page': page,
-        'limit': limit,
-      },
     );
     final data = resp.data;
     final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
@@ -33,13 +29,11 @@ class DiscoverService {
     return items is List ? items : <dynamic>[];
   }
 
-  Future<List<dynamic>> likes({required String type, int page = 1, int limit = 20}) async {
+  Future<List<dynamic>> likes({required String type}) async {
     final resp = await _apiClient.dio.get(
       '/profiles/likes',
       queryParameters: {
         'type': type,
-        'page': page,
-        'limit': limit,
       },
     );
     final data = resp.data;

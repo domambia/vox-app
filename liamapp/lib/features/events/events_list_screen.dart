@@ -20,6 +20,18 @@ class _EventsListScreenState extends State<EventsListScreen> {
   late final EventsService _service;
   late Future<Paginated<Event>> _future;
 
+  String _formatStartTime(BuildContext context, DateTime? startTime) {
+    if (startTime == null) return '';
+    final local = startTime.toLocal();
+    final localizations = MaterialLocalizations.of(context);
+    final time = localizations.formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: MediaQuery.of(context).alwaysUse24HourFormat,
+    );
+    final date = localizations.formatFullDate(local);
+    return '$date $time';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -50,7 +62,7 @@ class _EventsListScreenState extends State<EventsListScreen> {
 
         if (items.isEmpty) {
           return _EmptyEvents(onNewEvent: () {
-            Navigator.of(context).pushNamed(CreateEventScreen.routeName);
+            Navigator.of(context).pushNamed(CreateEventScreen.routeName).then((_) => _refresh());
           });
         }
 
@@ -65,7 +77,7 @@ class _EventsListScreenState extends State<EventsListScreen> {
               final eventId = e.eventId;
               final title = e.title;
               final location = e.location ?? '';
-              final start = e.startTime?.toString() ?? '';
+              final start = _formatStartTime(context, e.startTime);
 
               return ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.event)),
@@ -75,13 +87,16 @@ class _EventsListScreenState extends State<EventsListScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                onTap: () {
-                  Navigator.of(context).pushNamed(
+                onTap: () async {
+                  await Navigator.of(context).pushNamed(
                     '/events/detail',
                     arguments: {
                       'eventId': eventId,
                     },
                   );
+
+                  if (!context.mounted) return;
+                  await _refresh();
                 },
               );
             },

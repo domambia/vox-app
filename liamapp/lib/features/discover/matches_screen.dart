@@ -33,7 +33,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
   }
 
   String _name(dynamic m) {
-    final user = m?['user'] ?? m?['profile']?['user'];
+    final user = m?['other_user'] ?? m?['user'] ?? m?['profile']?['user'];
     final first = (user?['first_name'] ?? user?['firstName'] ?? '').toString();
     final last = (user?['last_name'] ?? user?['lastName'] ?? '').toString();
     final name = ('$first $last').trim();
@@ -41,7 +41,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
   }
 
   String _userId(dynamic m) {
-    final user = m?['user'] ?? m?['profile']?['user'];
+    final user = m?['other_user'] ?? m?['user'] ?? m?['profile']?['user'];
     return (user?['user_id'] ?? user?['userId'] ?? m?['user_id'] ?? m?['userId'] ?? '').toString();
   }
 

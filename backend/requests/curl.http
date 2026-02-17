@@ -1,0 +1,293 @@
+@baseUrl = http://localhost:4000
+@apiVersion = v1
+@apiPrefix = /api/{{apiVersion}}
+
+@tokenAlice = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJkNTdhZmNmMy1iYjkwLTQ3YmQtOWExYS1iY2FlNmVlZTMxMDUiLCJwaG9uZU51bWJlciI6IiszNTY3MDAwMDAwMSIsInZlcmlmaWVkIjpmYWxzZSwiaWF0IjoxNzcxMzQxNzUxLCJleHAiOjE3NzEzNDUzNTF9.3DRKAJb_kaaVTSViCC2HCCt4eZgqXTCOsVOYg0NuOwg
+@refreshTokenAlice = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJkNTdhZmNmMy1iYjkwLTQ3YmQtOWExYS1iY2FlNmVlZTMxMDUiLCJwaG9uZU51bWJlciI6IiszNTY3MDAwMDAwMSIsInZlcmlmaWVkIjpmYWxzZSwiaWF0IjoxNzcxMzQxNzUxLCJleHAiOjE3NzE5NDY1NTF9.yGGZSutzoqW2qF_fWpaxJyp801r3aO6GXYdzPqC2NS4 
+@userIdAlice = d57afcf3-bb90-47bd-9a1a-bcae6eee3105
+
+@tokenBob = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwNDYxNDRmNS02YjczLTQ2NzItOTRlMS1mZWU3NTYzYWNiMWMiLCJwaG9uZU51bWJlciI6IiszNTY3MDAwMDAwMiIsInZlcmlmaWVkIjpmYWxzZSwiaWF0IjoxNzcxMzQxODI3LCJleHAiOjE3NzEzNDU0Mjd9.1EC2oDpOEr1dA3jaTOU600YPyHl7oAoXfx1smJrpPGo
+@refreshTokenBob = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIwNDYxNDRmNS02YjczLTQ2NzItOTRlMS1mZWU3NTYzYWNiMWMiLCJwaG9uZU51bWJlciI6IiszNTY3MDAwMDAwMiIsInZlcmlmaWVkIjpmYWxzZSwiaWF0IjoxNzcxMzQxODI3LCJleHAiOjE3NzE5NDY2Mjd9.HCl2vTgaTnLvAbkGu6xjSgKCBDvMJiBNruzspnZydaQ
+@userIdBob = 046144f5-6b73-4672-94e1-fee7563acb1c
+
+@conversationId = 
+@messageId = 
+
+@groupId = 0caab286-32a0-4ea4-9b03-0b6e24237df9
+@groupMemberId = 
+
+@eventId = 1ddd7fe-ea8f-407d-9de1-b71a5ce20fd5
+
+### Health
+GET {{baseUrl}}{{apiPrefix}}/health
+
+### Allowed countries
+GET {{baseUrl}}{{apiPrefix}}/auth/allowed-countries
+
+### Register Alice
+POST {{baseUrl}}{{apiPrefix}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Alice",
+  "lastName": "Tester",
+  "email": "alice.tester+local@vox.dev",
+  "phoneNumber": "+35670000001",
+  "password": "SecurePass123",
+  "countryCode": "MT"
+}
+
+### Register Bob
+POST {{baseUrl}}{{apiPrefix}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Bob",
+  "lastName": "Tester",
+  "email": "bob.tester+local@vox.dev",
+  "phoneNumber": "+35670000002",
+  "password": "SecurePass123",
+  "countryCode": "MT"
+}
+
+### Login Alice (copy token/refreshToken/user.userId into @tokenAlice/@refreshTokenAlice/@userIdAlice)
+POST {{baseUrl}}{{apiPrefix}}/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "+35670000001",
+  "password": "SecurePass123"
+}
+
+### Login Bob (copy token/refreshToken/user.userId into @tokenBob/@refreshTokenBob/@userIdBob)
+POST {{baseUrl}}{{apiPrefix}}/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "+35670000002",
+  "password": "SecurePass123"
+}
+
+### Refresh Alice token (uses refresh token in Authorization header)
+POST {{baseUrl}}{{apiPrefix}}/auth/refresh
+Authorization: Bearer {{refreshTokenAlice}}
+
+### Logout Alice
+POST {{baseUrl}}{{apiPrefix}}/auth/logout
+Authorization: Bearer {{tokenAlice}}
+
+### Create Alice profile
+POST {{baseUrl}}{{apiPrefix}}/profile
+Authorization: Bearer {{tokenAlice}}
+Content-Type: application/json
+
+{
+  "bio": "Hello, I'm Alice.",
+  "interests": ["music", "tech"],
+  "location": "Valletta",
+  "lookingFor": "ALL",
+  "voiceBioUrl": ""
+}
+
+### Get my profile (Alice)
+GET {{baseUrl}}{{apiPrefix}}/profile/me
+Authorization: Bearer {{tokenAlice}}
+
+### Update my profile (Alice) (uses userId in path)
+PUT {{baseUrl}}{{apiPrefix}}/profile/{{userIdAlice}}
+Authorization: Bearer {{tokenAlice}}
+Content-Type: application/json
+
+{
+  "bio": "Updated bio: Alice.",
+  "interests": ["music", "tech", "events"],
+  "location": "Sliema",
+  "lookingFor": "FRIENDSHIP",
+  "voiceBioUrl": ""
+}
+
+### Direct message: Alice -> Bob (copy conversationId + messageId from response into @conversationId/@messageId if present)
+POST {{baseUrl}}{{apiPrefix}}/messages
+Authorization: Bearer {{tokenAlice}}
+Content-Type: application/json
+
+{
+  "recipientId": "{{userIdBob}}",
+  "content": "Hi Bob, this is Alice.",
+  "messageType": "TEXT"
+}
+
+### List Alice conversations
+GET {{baseUrl}}{{apiPrefix}}/conversations?limit=20&offset=0
+Authorization: Bearer {{tokenAlice}}
+
+### Get conversation details
+GET {{baseUrl}}{{apiPrefix}}/conversations/{{conversationId}}
+Authorization: Bearer {{tokenAlice}}
+
+### Get conversation messages
+GET {{baseUrl}}{{apiPrefix}}/conversations/{{conversationId}}/messages?limit=20&offset=0
+Authorization: Bearer {{tokenAlice}}
+
+### Mark conversation as read (all)
+POST {{baseUrl}}{{apiPrefix}}/conversations/{{conversationId}}/read
+Authorization: Bearer {{tokenAlice}}
+Content-Type: application/json
+
+{}
+
+### Edit a message
+PUT {{baseUrl}}{{apiPrefix}}/messages/{{messageId}}
+Authorization: Bearer {{tokenAlice}}
+Content-Type: application/json
+
+{
+  "content": "(edited) Hi Bob, this is Alice."
+}
+
+### Add reaction to message
+POST {{baseUrl}}{{apiPrefix}}/messages/{{messageId}}/reactions
+Authorization: Bearer {{tokenBob}}
+Content-Type: application/json
+
+{
+  "emoji": "👍"
+}
+
+### Remove reaction from message
+DELETE {{baseUrl}}{{apiPrefix}}/messages/{{messageId}}/reactions
+Authorization: Bearer {{tokenBob}}
+
+### Mark message as delivered
+POST {{baseUrl}}{{apiPrefix}}/messages/{{messageId}}/delivered
+Authorization: Bearer {{tokenBob}}
+
+### Search messages (query param name is 'query')
+GET {{baseUrl}}{{apiPrefix}}/messages/search?query=Alice&limit=20&offset=0
+Authorization: Bearer {{tokenAlice}}
+
+### Unread count
+GET {{baseUrl}}{{apiPrefix}}/messages/unread-count
+Authorization: Bearer {{tokenBob}}
+
+### Create group (Alice) (copy id into @groupId)
+POST {{baseUrl}}{{apiPrefix}}/groups
+Authorization: Bearer {{tokenAlice}}
+Content-Type: application/json
+
+{
+  "name": "VOX Test Group",
+  "description": "Group created from curl.http",
+  "category": "testing",
+  "isPublic": true
+}
+
+### List groups
+GET {{baseUrl}}{{apiPrefix}}/groups?limit=20&offset=0
+Authorization: Bearer {{tokenAlice}}
+
+### Get group
+GET {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}
+Authorization: Bearer {{tokenAlice}}
+
+### Join group (Bob)
+POST {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}/join
+Authorization: Bearer {{tokenBob}}
+
+### Get group members (copy Bob memberId into @groupMemberId)
+GET {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}/members?limit=50&offset=0
+Authorization: Bearer {{tokenAlice}}
+
+### Update member role (Alice) (requires admin permissions)
+PUT {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}/members/{{groupMemberId}}/role
+Authorization: Bearer {{tokenAlice}}
+Content-Type: application/json
+
+{
+  "role": "MODERATOR"
+}
+
+### Send group message (Bob) (note body uses message_type)
+POST {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}/messages
+Authorization: Bearer {{tokenBob}}
+Content-Type: application/json
+
+{
+  "content": "Hello group, Bob here.",
+  "message_type": "TEXT"
+}
+
+### Get group messages
+GET {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}/messages?limit=20&offset=0
+Authorization: Bearer {{tokenAlice}}
+
+### Create event (Alice) (copy id into @eventId)
+POST {{baseUrl}}{{apiPrefix}}/events
+Authorization: Bearer {{tokenAlice}}
+Content-Type: application/json
+
+{
+  "groupId": "{{groupId}}",
+  "title": "VOX Test Event",
+  "description": "Event created from curl.http",
+  "dateTime": "2030-01-01T10:00:00Z",
+  "location": "Online",
+  "accessibilityNotes": ""
+}
+
+### List events
+GET {{baseUrl}}{{apiPrefix}}/events?limit=20&offset=0
+Authorization: Bearer {{tokenAlice}}
+
+### Get event
+GET {{baseUrl}}{{apiPrefix}}/events/{{eventId}}
+Authorization: Bearer {{tokenAlice}}
+
+### RSVP Bob -> Event
+POST {{baseUrl}}{{apiPrefix}}/events/{{eventId}}/rsvp
+Authorization: Bearer {{tokenBob}}
+Content-Type: application/json
+
+{
+  "status": "GOING"
+}
+
+### Get event RSVPs
+GET {{baseUrl}}{{apiPrefix}}/events/{{eventId}}/rsvps?limit=50&offset=0
+Authorization: Bearer {{tokenAlice}}
+
+### Get group events
+GET {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}/events?upcomingOnly=true
+Authorization: Bearer {{tokenAlice}}
+
+### Get Alice groups
+GET {{baseUrl}}{{apiPrefix}}/users/{{userIdAlice}}/groups
+Authorization: Bearer {{tokenAlice}}
+
+### Get Alice events
+GET {{baseUrl}}{{apiPrefix}}/users/{{userIdAlice}}/events?upcomingOnly=true
+Authorization: Bearer {{tokenAlice}}
+
+### Delete event (Alice)
+DELETE {{baseUrl}}{{apiPrefix}}/events/{{eventId}}
+Authorization: Bearer {{tokenAlice}}
+
+### Remove member from group (Alice)
+DELETE {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}/members/{{groupMemberId}}
+Authorization: Bearer {{tokenAlice}}
+
+### Leave group (Bob)
+POST {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}/leave
+Authorization: Bearer {{tokenBob}}
+
+### Delete group (Alice)
+DELETE {{baseUrl}}{{apiPrefix}}/groups/{{groupId}}
+Authorization: Bearer {{tokenAlice}}
+
+### Delete direct message
+DELETE {{baseUrl}}{{apiPrefix}}/messages/{{messageId}}
+Authorization: Bearer {{tokenAlice}}
+
+### Delete conversation (Alice)
+DELETE {{baseUrl}}{{apiPrefix}}/conversations/{{conversationId}}
+Authorization: Bearer {{tokenAlice}}

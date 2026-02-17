@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../discover/discover_service.dart';
 import 'chats_service.dart';
 
 class NewChatScreen extends StatefulWidget {
@@ -16,6 +17,7 @@ class NewChatScreen extends StatefulWidget {
 class _NewChatScreenState extends State<NewChatScreen> {
   late final ApiClient _apiClient;
   late final ChatsService _chats;
+  late final DiscoverService _discover;
   late Future<List<dynamic>> _future;
 
   @override
@@ -23,23 +25,32 @@ class _NewChatScreenState extends State<NewChatScreen> {
     super.initState();
     _apiClient = Provider.of<ApiClient>(context, listen: false);
     _chats = ChatsService(_apiClient);
+    _discover = DiscoverService(_apiClient);
     _future = _load();
   }
 
   Future<List<dynamic>> _load() async {
-    final resp = await _apiClient.dio.get('/profiles/discover', queryParameters: {
-      'page': 1,
-      'limit': 25,
-    });
-    final data = resp.data;
-    final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
-    final items = (root['profiles'] ?? root['items'] ?? []) as dynamic;
-    return items is List ? items : <dynamic>[];
+    return _discover.likes(type: 'given');
+  }
+
+  String _userId(dynamic l) {
+    final profile = l?['profile'] ?? l;
+    final user = profile?['user'] ?? l?['user'] ?? l;
+    return (user?['user_id'] ?? user?['userId'] ?? profile?['user_id'] ?? profile?['userId'] ?? '').toString();
+  }
+
+  String _name(dynamic l) {
+    final profile = l?['profile'] ?? l;
+    final user = profile?['user'] ?? l?['user'] ?? l;
+    final first = (user?['first_name'] ?? user?['firstName'] ?? profile?['first_name'] ?? profile?['firstName'] ?? '').toString();
+    final last = (user?['last_name'] ?? user?['lastName'] ?? profile?['last_name'] ?? profile?['lastName'] ?? '').toString();
+    final name = ('$first $last').trim();
+    return name.isEmpty ? 'User' : name;
   }
 
   Future<void> _startChat(dynamic profile) async {
-    final userId = (profile?['user_id'] ?? profile?['userId'] ?? profile?['id'] ?? '').toString();
-    final name = (profile?['first_name'] ?? profile?['firstName'] ?? profile?['name'] ?? 'User').toString();
+    final userId = _userId(profile);
+    final name = _name(profile);
 
     if (userId.isEmpty) return;
 
@@ -139,10 +150,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final p = items[index] as dynamic;
-                final userId = (p?['user_id'] ?? p?['userId'] ?? p?['id'] ?? '').toString();
-                final first = (p?['first_name'] ?? p?['firstName'] ?? '').toString();
-                final last = (p?['last_name'] ?? p?['lastName'] ?? '').toString();
-                final name = ('$first $last').trim().isEmpty ? 'User' : ('$first $last').trim();
+                final userId = _userId(p);
+                final name = _name(p);
 
                 return ListTile(
                   leading: CircleAvatar(
@@ -150,7 +159,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
                   ),
                   title: Text(name),
                   subtitle: const Text('Tap to chat'),
-                  onTap: () => _startChat(p),
+                  onTap: userId.isEmpty ? null : () => _startChat(p),
                 );
               },
             );

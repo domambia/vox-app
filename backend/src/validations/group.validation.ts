@@ -75,6 +75,14 @@ export const listGroupsSchema = z.object({
         if (val === "false") return false;
         return undefined;
       }),
+    memberOnly: z
+      .string()
+      .optional()
+      .transform((val) => {
+        if (val === "true") return true;
+        if (val === "false") return false;
+        return undefined;
+      }),
   }),
 });
 
@@ -127,6 +135,30 @@ export const removeMemberSchema = z.object({
   params: z.object({
     groupId: groupIdSchema,
     memberId: z.string().uuid("Invalid member ID format"),
+  }),
+});
+
+// Add member schema
+export const addMemberSchema = z.object({
+  params: z.object({
+    groupId: groupIdSchema,
+  }),
+  body: z.object({
+    userId: z.string().uuid("Invalid user ID format"),
+  }),
+});
+
+// Search users schema (for adding members)
+export const searchUsersSchema = z.object({
+  params: z.object({
+    groupId: groupIdSchema,
+  }),
+  query: z.object({
+    q: z.string().min(1).max(255),
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val, 10) : undefined)),
   }),
 });
 

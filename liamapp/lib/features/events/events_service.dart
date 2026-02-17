@@ -14,7 +14,8 @@ class EventsService {
       'offset': (page - 1) * limit,
       'page': page,
     };
-    if (status != null && status.trim().isNotEmpty) query['status'] = status.trim();
+    final s = status?.trim().toLowerCase();
+    if (s == 'upcoming') query['upcomingOnly'] = true;
 
     final resp = await _apiClient.dio.get('/events', queryParameters: query);
     final items = unwrapList(resp.data, keys: const ['items', 'events']);
@@ -38,7 +39,8 @@ class EventsService {
       'offset': (page - 1) * limit,
       'page': page,
     };
-    if (status != null && status.trim().isNotEmpty) query['status'] = status.trim();
+    final s = status?.trim().toLowerCase();
+    if (s == 'upcoming') query['upcomingOnly'] = true;
 
     final resp = await _apiClient.dio.get('/events', queryParameters: query);
     final data = resp.data;

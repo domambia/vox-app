@@ -27,6 +27,8 @@ export interface ListGroupsParams {
   category?: string;
   search?: string;
   isPublic?: boolean;
+  memberOnly?: boolean;
+  userId?: string;
 }
 
 export interface CreateGroupMessageAttachmentInput {
@@ -92,6 +94,145 @@ export class GroupService {
   }
 
   /**
+   * Add member to group (admin/moderator only)
+   */
+  async addMemberToGroup(groupId: string, actorId: string, userId: string) {
+    try {
+      const group = await prisma.group.findUnique({
+        where: { group_id: groupId },
+        select: { group_id: true },
+      });
+      if (!group) {
+        throw new Error("Group not found");
+      }
+
+      const actorMembership = await prisma.groupMember.findUnique({
+        where: {
+          group_id_user_id: {
+            group_id: groupId,
+            user_id: actorId,
+          },
+        },
+        select: { role: true },
+      });
+
+      if (
+        !actorMembership ||
+        (actorMembership.role !== "ADMIN" &&
+          actorMembership.role !== "MODERATOR")
+      ) {
+        throw new Error("Only admins and moderators can add members");
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { user_id: true, is_active: true },
+      });
+
+      if (!user || !user.is_active) {
+        throw new Error("User not found");
+      }
+
+      const existingMembership = await prisma.groupMember.findUnique({
+        where: {
+          group_id_user_id: {
+            group_id: groupId,
+            user_id: userId,
+          },
+        },
+        select: { membership_id: true },
+      });
+
+      if (existingMembership) {
+        throw new Error("Already a member of this group");
+      }
+
+      const membership = await prisma.groupMember.create({
+        data: {
+          group_id: groupId,
+          user_id: userId,
+          role: "MEMBER",
+        },
+      });
+
+      await prisma.group.update({
+        where: { group_id: groupId },
+        data: {
+          member_count: {
+            increment: 1,
+          },
+        },
+      });
+
+      logger.info(`User ${userId} added to group ${groupId} by ${actorId}`);
+      return membership;
+    } catch (error) {
+      logger.error("Error adding member to group", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search users that can be added to a group (admin/moderator only)
+   */
+  async searchUsersToAdd(
+    groupId: string,
+    actorId: string,
+    q: string,
+    limit: number = 20,
+  ) {
+    const query = q.trim();
+    if (!query) return [];
+
+    const actorMembership = await prisma.groupMember.findUnique({
+      where: {
+        group_id_user_id: {
+          group_id: groupId,
+          user_id: actorId,
+        },
+      },
+      select: { role: true },
+    });
+
+    if (!actorMembership) {
+      throw new Error("Not a member of this group");
+    }
+
+    const members = await prisma.groupMember.findMany({
+      where: { group_id: groupId },
+      select: { user_id: true },
+    });
+    const memberIds = members.map((m) => m.user_id);
+
+    const users = await prisma.user.findMany({
+      where: {
+        is_active: true,
+        user_id: {
+          notIn: memberIds,
+        },
+        OR: [
+          { first_name: { contains: query, mode: "insensitive" } },
+          { last_name: { contains: query, mode: "insensitive" } },
+          { email: { contains: query, mode: "insensitive" } },
+          { phone_number: { contains: query } },
+        ],
+      },
+      take: Math.min(50, Math.max(1, limit)),
+      orderBy: { created_at: "desc" },
+      select: {
+        user_id: true,
+        first_name: true,
+        last_name: true,
+        email: true,
+        phone_number: true,
+        verified: true,
+      },
+    });
+
+    return users;
+  }
+
+  /**
    * Get group by ID
    */
   async getGroup(groupId: string, userId?: string) {
@@ -154,7 +295,7 @@ export class GroupService {
         params.limit,
         params.offset,
       );
-      const { category, search, isPublic } = params;
+      const { category, search, isPublic, memberOnly, userId } = params;
 
       // Build where clause
       const where: Prisma.GroupWhereInput = {};
@@ -172,6 +313,17 @@ export class GroupService {
 
       if (isPublic !== undefined) {
         where.is_public = isPublic;
+      }
+
+      if (memberOnly) {
+        if (!userId) {
+          throw new Error("User ID is required for memberOnly filter");
+        }
+        where.members = {
+          some: {
+            user_id: userId,
+          },
+        };
       }
 
       // Get total count

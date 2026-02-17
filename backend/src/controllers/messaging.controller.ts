@@ -21,6 +21,13 @@ export class MessagingController {
         sendError(res, "USER_NOT_FOUND", error.message, 404);
         return;
       }
+      if (
+        error.message === "Messaging blocked" ||
+        error.message === "Messaging not allowed"
+      ) {
+        sendError(res, "FORBIDDEN", error.message, 403);
+        return;
+      }
       sendError(
         res,
         "MESSAGE_SEND_ERROR",
