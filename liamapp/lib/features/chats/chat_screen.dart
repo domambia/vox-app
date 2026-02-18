@@ -44,6 +44,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _myUserId = '';
 
+  ValueNotifier<int>? _tabIndex;
+  bool _wasActive = false;
+
   final _composerController = TextEditingController();
   bool _sending = false;
 
@@ -77,6 +80,16 @@ class _ChatScreenState extends State<ChatScreen> {
       default:
         return '';
     }
+
+  }
+
+  void _onTabChanged() {
+    final idx = _tabIndex?.value;
+    final isActive = idx == 1;
+    if (isActive && !_wasActive && mounted) {
+      _refresh();
+    }
+    _wasActive = isActive;
   }
 
   String _formatWhatsAppTimestamp(BuildContext context, DateTime? dt) {
@@ -120,6 +133,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _future = _service.getMessagesTyped(conversationId: widget.conversationId);
     _service.markAsRead(widget.conversationId).catchError((_) {});
 
+    _tabIndex = Provider.of<ValueNotifier<int>>(context, listen: false);
+    _wasActive = _tabIndex?.value == 1;
+    _tabIndex?.addListener(_onTabChanged);
+
     final socket = Provider.of<SocketService>(context, listen: false);
     _wsSub = socket.onMessageReceived.listen((evt) {
       final convId = (evt['conversation_id'] ?? evt['conversationId'] ?? '').toString();
@@ -140,6 +157,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _wsSub?.cancel();
+    _tabIndex?.removeListener(_onTabChanged);
     _composerController.dispose();
     if (_listening) {
       _speech.stop();

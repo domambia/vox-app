@@ -22,7 +22,7 @@ class AppConfig {
       return v;
     }
 
-    final port = uri.hasPort ? uri.port : null;
+    final port = (uri.hasPort && uri.port != 0) ? uri.port : null;
     return Uri(
       scheme: uri.scheme,
       host: uri.host,

@@ -13,6 +13,13 @@ class ProfileService {
     return (root is Map ? Map<String, dynamic>.from(root) : <String, dynamic>{});
   }
 
+  Future<Map<String, dynamic>> getProfile({required String userId}) async {
+    final resp = await _apiClient.dio.get('/profile/$userId');
+    final data = resp.data;
+    final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
+    return (root is Map ? Map<String, dynamic>.from(root) : <String, dynamic>{});
+  }
+
   Future<Map<String, dynamic>> createProfile({
     String? bio,
     String? location,

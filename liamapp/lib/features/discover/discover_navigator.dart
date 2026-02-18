@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'discover_screen.dart';
 import 'likes_screen.dart';
 import 'matches_screen.dart';
+import 'profile_view_screen.dart';
 
 class DiscoverNavigator extends StatelessWidget {
   const DiscoverNavigator({super.key, required this.navigatorKey});
@@ -20,6 +21,15 @@ class DiscoverNavigator extends StatelessWidget {
             return MaterialPageRoute(
               settings: settings,
               builder: (_) => const DiscoverScreen(),
+            );
+          case ProfileViewScreen.routeName:
+            final args = (settings.arguments as Map?) ?? const {};
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => ProfileViewScreen(
+                userId: (args['userId'] ?? '').toString(),
+                displayName: (args['displayName'] ?? 'Profile').toString(),
+              ),
             );
           case MatchesScreen.routeName:
             return MaterialPageRoute(

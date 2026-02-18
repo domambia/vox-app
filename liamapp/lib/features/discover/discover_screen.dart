@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import 'discover_service.dart';
+import 'profile_view_screen.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -215,24 +216,38 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       final l = _liked[i];
                       final name = _likedName(l);
                       final uid = _likedUserId(l);
-                      return SizedBox(
-                        width: 92,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircleAvatar(
-                              radius: 26,
-                              child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: uid.isEmpty
+                            ? null
+                            : () {
+                                Navigator.of(context).pushNamed(
+                                  ProfileViewScreen.routeName,
+                                  arguments: {
+                                    'userId': uid,
+                                    'displayName': name,
+                                  },
+                                );
+                              },
+                        child: SizedBox(
+                          width: 92,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -287,6 +302,20 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           ],
                         ),
                       ),
+                      if (userId.isNotEmpty)
+                        IconButton(
+                          tooltip: 'View profile',
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () {
+                            Navigator.of(context).pushNamed(
+                              ProfileViewScreen.routeName,
+                              arguments: {
+                                'userId': userId,
+                                'displayName': name,
+                              },
+                            );
+                          },
+                        ),
                     ],
                   ),
                   if (bio.isNotEmpty) ...[

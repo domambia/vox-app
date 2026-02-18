@@ -27,6 +27,8 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 1;
 
+  final ValueNotifier<int> _tabIndex = ValueNotifier<int>(1);
+
   bool _redirecting = false;
 
   final _discoverKey = GlobalKey<NavigatorState>();
@@ -34,6 +36,12 @@ class _AppShellState extends State<AppShell> {
   final _groupsKey = GlobalKey<NavigatorState>();
   final _eventsKey = GlobalKey<NavigatorState>();
   final _profileKey = GlobalKey<NavigatorState>();
+
+  @override
+  void dispose() {
+    _tabIndex.dispose();
+    super.dispose();
+  }
 
   List<GlobalKey<NavigatorState>> get _keys => [
         _discoverKey,
@@ -67,12 +75,14 @@ class _AppShellState extends State<AppShell> {
       return const Scaffold(body: SafeArea(child: Center(child: CircularProgressIndicator())));
     }
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('LiamApp'),
-          actions: [
+    return ListenableProvider<ValueNotifier<int>>.value(
+      value: _tabIndex,
+      child: WillPopScope(
+        onWillPop: _onWillPop,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('LiamApp'),
+            actions: [
             if (_index == 0) ...[
               IconButton(
                 onPressed: () {
@@ -170,9 +180,11 @@ class _AppShellState extends State<AppShell> {
           onDestinationSelected: (i) {
             if (i == _index) {
               _keys[i].currentState?.popUntil((r) => r.isFirst);
+              _tabIndex.value = i;
               return;
             }
             setState(() => _index = i);
+            _tabIndex.value = i;
           },
           destinations: const [
             NavigationDestination(
@@ -202,6 +214,7 @@ class _AppShellState extends State<AppShell> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

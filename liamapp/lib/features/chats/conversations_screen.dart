@@ -23,6 +23,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   late final DiscoverService _discover;
   late Future<List<dynamic>> _likedFuture;
 
+  ValueNotifier<int>? _tabIndex;
+  bool _wasActive = false;
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +34,19 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     _discover = DiscoverService(apiClient);
     _future = _service.listConversationsTyped();
     _likedFuture = _discover.likes(type: 'given');
+
+    _tabIndex = Provider.of<ValueNotifier<int>>(context, listen: false);
+    _wasActive = _tabIndex?.value == 1;
+    _tabIndex?.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    final idx = _tabIndex?.value;
+    final isActive = idx == 1;
+    if (isActive && !_wasActive && mounted) {
+      _refresh();
+    }
+    _wasActive = isActive;
   }
 
   Future<void> _refresh() async {
@@ -39,6 +55,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       _likedFuture = _discover.likes(type: 'given');
     });
     await _future;
+  }
+
+  @override
+  void dispose() {
+    _tabIndex?.removeListener(_onTabChanged);
+    super.dispose();
   }
 
   String _likedUserId(dynamic l) {

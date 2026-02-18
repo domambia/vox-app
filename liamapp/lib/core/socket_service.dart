@@ -44,8 +44,13 @@ class SocketService {
     final socket = io.io(
       AppConfig.socketBaseUrl,
       <String, dynamic>{
-        'transports': ['websocket'],
+        'transports': ['websocket', 'polling'],
         'autoConnect': false,
+        'timeout': 20000,
+        'reconnection': true,
+        'reconnectionAttempts': 999,
+        'reconnectionDelay': 1000,
+        'reconnectionDelayMax': 5000,
         'auth': {
           'token': token,
         },
