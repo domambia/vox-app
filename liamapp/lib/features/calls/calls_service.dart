@@ -10,7 +10,7 @@ class CallsService {
     final resp = await _apiClient.dio.post(
       '/calls/initiate',
       data: {
-        'receiver_id': receiverId,
+        'receiverId': receiverId,
       },
     );
     return unwrapData(resp.data);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/toast.dart';
 import '../settings/settings_controller.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -21,9 +22,7 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () async {
               await settings.reset();
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings reset')),
-              );
+              showToast(context, 'Settings reset');
             },
             child: const Text('Reset'),
           ),

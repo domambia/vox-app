@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
 
+import '../../core/toast.dart';
 import 'auth_controller.dart';
 
 class OtpLoginScreen extends StatefulWidget {
@@ -15,7 +16,7 @@ class OtpLoginScreen extends StatefulWidget {
 
 class _OtpLoginScreenState extends State<OtpLoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _phoneOrEmailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isSubmitting = false;
@@ -27,7 +28,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _phoneOrEmailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -42,23 +43,18 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
       final auth = Provider.of<AuthController>(context, listen: false);
       try {
         await auth.login(
-          phoneNumber: _phoneController.text.trim(),
+          phoneOrEmail: _phoneOrEmailController.text.trim(),
           password: _passwordController.text,
         );
       } on DioException catch (e) {
-        final status = e.response?.statusCode;
-        final msg = (e.response?.data is Map)
-            ? (((e.response?.data as Map)['error'] as dynamic)?['message'] ?? '').toString()
-            : '';
-        final text = msg.isNotEmpty
-            ? msg
-            : (status == 401 ? 'Invalid phone number or password' : 'Login failed');
+        final text = messageFromDioException(e);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+        showToast(context, text, isError: true);
         return;
       }
 
       if (!mounted) return;
+      showToast(context, 'Logged in successfully');
       Navigator.of(context).pushNamedAndRemoveUntil('/app', (r) => false);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -91,14 +87,14 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
                   ),
                 ),
                 Text(
-                  'Enter your phone number',
+                  'Sign in',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Sign in with your phone number and password.',
+                  'Enter your phone number or email and password.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -109,16 +105,25 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
                   child: Column(
                     children: [
                       TextFormField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
+                        controller: _phoneOrEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
-                          labelText: 'Phone number',
-                          hintText: '+1234567890',
+                          labelText: 'Phone or email',
+                          hintText: '+35612345678 or user@example.com',
                         ),
                         validator: (value) {
                           final v = (value ?? '').trim();
-                          if (v.isEmpty) return 'Phone number is required';
-                          if (!v.startsWith('+') || v.length < 8) return 'Use international format, e.g. +1234567890';
+                          if (v.isEmpty) return 'Phone number or email is required';
+                          if (v.contains('@')) {
+                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v)) {
+                              return 'Enter a valid email address';
+                            }
+                          } else {
+                            if (!v.startsWith('+') || v.length < 8) {
+                              return 'Use international format, e.g. +35612345678';
+                            }
+                          }
                           return null;
                         },
                       ),
@@ -140,7 +145,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
                         width: double.infinity,
                         child: FilledButton(
                           onPressed: _isSubmitting ? null : _submit,
-                          child: Text(_isSubmitting ? 'Logining...' : 'log in'),
+                          child: Text(_isSubmitting ? 'Logging in...' : 'Log in'),
                         ),
                       ),
                     ],

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,6 +25,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   late final DiscoverService _discover;
   late Future<List<dynamic>> _likedFuture;
 
+  Timer? _pollTimer;
   ValueNotifier<int>? _tabIndex;
   bool _wasActive = false;
 
@@ -38,6 +41,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     _tabIndex = Provider.of<ValueNotifier<int>>(context, listen: false);
     _wasActive = _tabIndex?.value == 1;
     _tabIndex?.addListener(_onTabChanged);
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
   }
 
   void _onTabChanged() {
@@ -59,6 +67,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _tabIndex?.removeListener(_onTabChanged);
     super.dispose();
   }

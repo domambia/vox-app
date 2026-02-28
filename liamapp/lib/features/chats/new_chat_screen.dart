@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -20,6 +22,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
   late final DiscoverService _discover;
   late Future<List<dynamic>> _future;
 
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
@@ -27,6 +31,17 @@ class _NewChatScreenState extends State<NewChatScreen> {
     _chats = ChatsService(_apiClient);
     _discover = DiscoverService(_apiClient);
     _future = _load();
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      setState(() => _future = _load());
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<List<dynamic>> _load() async {

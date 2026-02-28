@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
 
+import '../../core/toast.dart';
 import 'auth_controller.dart';
 
 class OtpRegisterScreen extends StatefulWidget {
@@ -53,7 +55,15 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
         countryCode: _countryCodeController.text.trim().toUpperCase(),
       );
 
+      if (!mounted) return;
+      showToast(context, 'Account created. Please sign in.');
       Navigator.of(context).pushNamedAndRemoveUntil('/auth/login', (r) => false);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      showToast(context, messageFromDioException(e), isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, 'Registration failed. Please try again.', isError: true);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -189,6 +199,9 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                       final v = (value ?? '').trim();
                       if (v.isEmpty) return 'Password is required';
                       if (v.length < 8) return 'Password must be at least 8 characters';
+                      if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$').hasMatch(v)) {
+                        return 'Use at least one uppercase, one lowercase and one number';
+                      }
                       return null;
                     },
                   ),

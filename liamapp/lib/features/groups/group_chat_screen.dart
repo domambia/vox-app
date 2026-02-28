@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -33,6 +34,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   late final GroupsService _service;
   late Future<Paginated<GroupMessage>> _future;
 
+  Timer? _pollTimer;
   String _myUserId = '';
 
   final _composerController = TextEditingController();
@@ -110,6 +112,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     _service = GroupsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.getGroupMessagesTyped(groupId: widget.groupId);
 
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
+
     ProfileService(Provider.of<ApiClient>(context, listen: false)).getMyProfile().then((p) {
       final id = (p['user_id'] ?? p['userId'] ?? p['user']?['user_id'] ?? '').toString();
       if (!mounted) return;
@@ -121,6 +128,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _composerController.dispose();
     if (_listening) {
       _speech.stop();
@@ -298,8 +306,20 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       return;
     }
 
+    final api = Provider.of<ApiClient>(context, listen: false);
+    final token = await api.readAccessToken();
+
     await _player.stop();
-    await _player.setUrl(url);
+    await _player.setAudioSource(
+      AudioSource.uri(
+        Uri.parse(url),
+        headers: (token != null && token.isNotEmpty)
+            ? {
+                'Authorization': 'Bearer $token',
+              }
+            : null,
+      ),
+    );
     _playingUrl = url;
     await _player.play();
     if (!mounted) return;

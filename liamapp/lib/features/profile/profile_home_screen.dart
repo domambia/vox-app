@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +13,7 @@ import 'dart:io';
 
 import '../../core/api_client.dart';
 import '../../core/config.dart';
+import '../../core/toast.dart';
 import '../auth/auth_controller.dart';
 import '../calls/call_history_screen.dart';
 import '../kyc/kyc_home_screen.dart';
@@ -32,6 +35,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
   late final ProfileService _service;
   late Future<Map<String, dynamic>> _future;
 
+  Timer? _pollTimer;
   final AudioPlayer _player = AudioPlayer();
   final AudioRecorder _recorder = AudioRecorder();
   bool _recording = false;
@@ -43,10 +47,16 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
     super.initState();
     _service = ProfileService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.getMyProfile();
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _player.dispose();
     _recorder.dispose();
     super.dispose();
@@ -77,9 +87,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
     final ok = await _ensureMicPermission();
     if (!ok) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Microphone permission is required to record a voice bio.')),
-      );
+      showToast(context, 'Microphone permission is required to record a voice bio.', isError: true);
       return;
     }
 
@@ -90,9 +98,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
         stoppedPath = await _recorder.stop();
       } on MissingPluginException {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Voice recording is not available on this build.')),
-        );
+        showToast(context, 'Voice recording is not available on this build.', isError: true);
       } finally {
         if (mounted) {
           setState(() {
@@ -114,9 +120,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
       await _recorder.start(const RecordConfig(), path: file.path);
     } on MissingPluginException {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice recording is not available on this build. Please fully restart the app after flutter pub get.')),
-      );
+      showToast(context, 'Voice recording is not available on this build. Please fully restart the app after flutter pub get.', isError: true);
       return;
     }
     if (!mounted) return;
@@ -132,17 +136,10 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
       await _service.uploadVoiceBio(filePath: path);
       await _refresh();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice bio saved.')),
-      );
+      showToast(context, 'Voice bio saved.');
     } on DioException catch (e) {
       if (!mounted) return;
-      final msg = (e.response?.data is Map)
-          ? ((e.response?.data['error']?['message'] ?? e.response?.data['message'])?.toString())
-          : null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg ?? 'Failed to upload voice bio.')),
-      );
+      showToast(context, messageFromDioException(e), isError: true);
     } finally {
       if (mounted) setState(() => _busyVoice = false);
     }
@@ -156,9 +153,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
       await _player.play();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to play voice bio: $e')),
-      );
+      showToast(context, 'Failed to play voice bio: $e', isError: true);
     } finally {
       if (mounted) setState(() => _busyVoice = false);
     }
@@ -189,9 +184,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
       await _service.deleteVoiceBio();
       await _refresh();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice bio deleted.')),
-      );
+      showToast(context, 'Voice bio deleted.');
     } finally {
       if (mounted) setState(() => _busyVoice = false);
     }
@@ -503,6 +496,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
                       onTap: () async {
                         await Provider.of<AuthController>(context, listen: false).logout();
                         if (!context.mounted) return;
+                        showToast(context, 'Logged out');
                         Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
                       },
                     ),

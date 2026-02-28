@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/toast.dart';
 import 'calls_service.dart';
 
 class OutgoingCallScreen extends StatefulWidget {
@@ -46,9 +47,7 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
   Future<void> _markAnswered() async {
     await _service.updateStatus(callId: widget.callId, status: 'ANSWERED');
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Call answered (API state updated).')),
-    );
+    showToast(context, 'Call answered (API state updated).');
   }
 
   @override

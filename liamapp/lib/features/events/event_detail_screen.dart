@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/toast.dart';
 import '../../models/event.dart';
 import 'events_service.dart';
 
@@ -20,11 +23,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   late final EventsService _service;
   late Future<Event> _future;
 
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
     _service = EventsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.getEventTyped(widget.eventId);
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -37,9 +53,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Future<void> _rsvp(String status) async {
     await _service.rsvp(eventId: widget.eventId, status: status);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('RSVP: ${status.toUpperCase()}')),
-    );
+    showToast(context, 'RSVP: ${status.toUpperCase()}');
   }
 
   @override

@@ -50,21 +50,30 @@ Content-Type: application/json
   "countryCode": "MT"
 }
 
-### Login Alice (copy token/refreshToken/user.userId into @tokenAlice/@refreshTokenAlice/@userIdAlice)
+### Login Alice (phone - copy token/refreshToken/user.userId into @tokenAlice/@refreshTokenAlice/@userIdAlice)
 POST {{baseUrl}}{{apiPrefix}}/auth/login
 Content-Type: application/json
 
 {
-  "phoneNumber": "+35670000001",
+  "phoneOrEmail": "+35670000001",
   "password": "SecurePass123"
 }
+
+### Login Alice (email - alternative)
+# POST {{baseUrl}}{{apiPrefix}}/auth/login
+# Content-Type: application/json
+#
+# {
+#   "phoneOrEmail": "alice.tester+local@vox.dev",
+#   "password": "SecurePass123"
+# }
 
 ### Login Bob (copy token/refreshToken/user.userId into @tokenBob/@refreshTokenBob/@userIdBob)
 POST {{baseUrl}}{{apiPrefix}}/auth/login
 Content-Type: application/json
 
 {
-  "phoneNumber": "+35670000002",
+  "phoneOrEmail": "+35670000002",
   "password": "SecurePass123"
 }
 

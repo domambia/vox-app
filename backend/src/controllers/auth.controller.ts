@@ -84,7 +84,7 @@ export class AuthController {
       sendSuccess(res, result);
     } catch (error: any) {
       if (
-        error.message === 'Invalid phone number or password' ||
+        error.message === 'Invalid phone number, email or password' ||
         error.message === 'Account is inactive'
       ) {
         sendError(res, 'INVALID_CREDENTIALS', error.message, 401);

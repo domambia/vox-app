@@ -17,6 +17,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/socket_service.dart';
 import '../../core/pagination.dart';
+import '../../core/toast.dart';
 import '../../models/chat_message.dart';
 import '../calls/calls_service.dart';
 import '../calls/outgoing_call_screen.dart';
@@ -41,6 +42,7 @@ class _ChatScreenState extends State<ChatScreen> {
   late Future<Paginated<ChatMessage>> _future;
 
   StreamSubscription<Map<String, dynamic>>? _wsSub;
+  Timer? _pollTimer;
 
   String _myUserId = '';
 
@@ -60,6 +62,36 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final AudioPlayer _player = AudioPlayer();
   String? _playingUrl;
+
+  Future<void> _togglePlayback(String url) async {
+    if (_playingUrl == url) {
+      if (_player.playing) {
+        await _player.pause();
+      } else {
+        await _player.play();
+      }
+      return;
+    }
+
+    final api = Provider.of<ApiClient>(context, listen: false);
+    final token = await api.readAccessToken();
+
+    await _player.stop();
+    await _player.setAudioSource(
+      AudioSource.uri(
+        Uri.parse(url),
+        headers: (token != null && token.isNotEmpty)
+            ? {
+                'Authorization': 'Bearer $token',
+              }
+            : null,
+      ),
+    );
+    _playingUrl = url;
+    await _player.play();
+    if (!mounted) return;
+    setState(() {});
+  }
 
   String _weekdayLabel(DateTime dt) {
     switch (dt.weekday) {
@@ -145,6 +177,12 @@ class _ChatScreenState extends State<ChatScreen> {
       _refresh();
     });
 
+    // Poll messages every 4 seconds so new messages appear live (REST-sent messages don't trigger socket events)
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
+
     ProfileService(Provider.of<ApiClient>(context, listen: false)).getMyProfile().then((p) {
       final id = (p['user_id'] ?? p['userId'] ?? p['user']?['user_id'] ?? '').toString();
       if (!mounted) return;
@@ -156,6 +194,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _wsSub?.cancel();
     _tabIndex?.removeListener(_onTabChanged);
     _composerController.dispose();
@@ -274,9 +313,7 @@ class _ChatScreenState extends State<ChatScreen> {
         stoppedPath = await _recorder.stop();
       } on MissingPluginException {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Voice recording is not available on this build.')),
-        );
+        showToast(context, 'Voice recording is not available on this build.', isError: true);
         setState(() => _recording = false);
         return;
       }
@@ -321,9 +358,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     } on MissingPluginException {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice recording is not available on this build. Please fully restart the app after flutter pub get.')),
-      );
+      showToast(context, 'Voice recording is not available on this build. Please fully restart the app after flutter pub get.', isError: true);
       return;
     }
     if (!mounted) return;
@@ -361,26 +396,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    final uri = Uri.parse(url);
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  Future<void> _togglePlayback(String url) async {
-    if (_playingUrl == url) {
-      if (_player.playing) {
-        await _player.pause();
-      } else {
-        await _player.play();
-      }
-      return;
-    }
-
-    await _player.stop();
-    await _player.setUrl(url);
-    _playingUrl = url;
-    await _player.play();
-    if (!mounted) return;
-    setState(() {});
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
   Future<void> _showMessageActions(ChatMessage m) async {

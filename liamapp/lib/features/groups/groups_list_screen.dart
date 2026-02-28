@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/pagination.dart';
+import '../../core/toast.dart';
 import '../../models/group.dart';
 import 'groups_service.dart';
 import 'new_group_screen.dart';
@@ -19,6 +22,8 @@ class GroupsListScreen extends StatefulWidget {
 class _GroupsListScreenState extends State<GroupsListScreen> {
   late final GroupsService _service;
   late Future<Paginated<Group>> _future;
+
+  Timer? _pollTimer;
 
   Future<String?> _pickUserToAdd({required String groupId, required String groupName}) async {
     final queryController = TextEditingController();
@@ -126,6 +131,17 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
     super.initState();
     _service = GroupsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.listGroupsTyped();
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -183,14 +199,10 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                     try {
                       await _service.addMemberToGroup(groupId: groupId, userId: userId);
                       if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Member added')),
-                      );
+                      showToast(context, 'Member added');
                     } catch (e) {
                       if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to add member: $e')),
-                      );
+                      showToast(context, 'Failed to add member: $e', isError: true);
                     }
                   },
                 ),

@@ -89,12 +89,12 @@ Content-Type: application/json
 # 5. LOGIN (email/password – optional flow)
 # =============================================================================
 
-### Login with phone + password
+### Login with phone or email + password
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "phoneNumber": "{{phoneNumber}}",
+  "phoneOrEmail": "{{phoneNumber}}",
   "password": "SecurePass1"
 }
 

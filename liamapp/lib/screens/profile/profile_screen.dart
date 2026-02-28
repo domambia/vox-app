@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/toast.dart';
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -74,9 +76,7 @@ class ProfileScreen extends StatelessWidget {
                 title: const Text('Settings'),
                 subtitle: const Text('Preferences for accessibility and app behavior'),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Next: implement settings like mob-app.')),
-                  );
+                  showToast(context, 'Next: implement settings like mob-app.');
                 },
               ),
               const Divider(),
@@ -86,9 +86,7 @@ class ProfileScreen extends StatelessWidget {
                 title: const Text('Events'),
                 subtitle: const Text('Create and RSVP to community events'),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Next: implement events screens.')),
-                  );
+                  showToast(context, 'Next: implement events screens.');
                 },
               ),
               const Divider(),
@@ -98,9 +96,7 @@ class ProfileScreen extends StatelessWidget {
                 title: const Text('Groups'),
                 subtitle: const Text('Join groups and chat with members'),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Next: implement groups screens.')),
-                  );
+                  showToast(context, 'Next: implement groups screens.');
                 },
               ),
             ],

@@ -39,11 +39,11 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  Future<void> login({required String phoneNumber, required String password}) async {
+  Future<void> login({required String phoneOrEmail, required String password}) async {
     final resp = await _apiClient.dio.post(
       '/auth/login',
       data: {
-        'phoneNumber': phoneNumber,
+        'phoneOrEmail': phoneOrEmail,
         'password': password,
       },
     );

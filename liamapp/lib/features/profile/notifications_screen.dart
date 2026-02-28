@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -17,11 +19,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   late final NotificationsService _service;
   late Future<List<dynamic>> _future;
 
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
     _service = NotificationsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.listNotifications();
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _refresh() async {

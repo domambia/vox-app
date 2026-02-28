@@ -442,12 +442,18 @@ export class AuthService {
 
   /**
    * Login user and generate tokens
+   * Supports login with either phone number or email
    */
   async login(data: LoginInput) {
     try {
-      // Find user
-      const user = await prisma.user.findUnique({
-        where: { phone_number: data.phoneNumber },
+      const phoneOrEmail = data.phoneOrEmail.trim();
+      const isEmail = phoneOrEmail.includes("@");
+
+      // Find user by phone or email
+      const user = await prisma.user.findFirst({
+        where: isEmail
+          ? { email: phoneOrEmail }
+          : { phone_number: phoneOrEmail },
         select: {
           user_id: true,
           phone_number: true,
@@ -458,7 +464,7 @@ export class AuthService {
       });
 
       if (!user) {
-        throw new Error("Invalid phone number or password");
+        throw new Error("Invalid phone number, email or password");
       }
 
       if (!user.is_active) {
@@ -472,7 +478,7 @@ export class AuthService {
       );
 
       if (!isPasswordValid) {
-        throw new Error("Invalid phone number or password");
+        throw new Error("Invalid phone number, email or password");
       }
 
       // Update last active

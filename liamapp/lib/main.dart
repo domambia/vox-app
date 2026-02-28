@@ -10,6 +10,7 @@ import 'screens/splash_screen.dart';
 import 'core/api_client.dart';
 import 'core/config.dart';
 import 'core/socket_service.dart';
+import 'core/toast.dart';
 import 'core/token_storage.dart';
 import 'features/app/app_gate.dart';
 import 'features/app/app_shell.dart';
@@ -131,6 +132,12 @@ class _AuthExpiryListenerState extends State<_AuthExpiryListener> {
           Provider.of<SocketService>(context, listen: false).disconnect();
           MyApp.rootNavigatorKey.currentState?.pushNamedAndRemoveUntil('/', (r) => false);
           _navigated = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final ctx = MyApp.rootNavigatorKey.currentContext;
+            if (ctx != null && ctx.mounted) {
+              showToast(ctx, 'Session expired. Please sign in again.', isError: true);
+            }
+          });
         });
       });
     });

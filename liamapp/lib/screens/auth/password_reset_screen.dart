@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/toast.dart';
+
 class PasswordResetScreen extends StatefulWidget {
   const PasswordResetScreen({super.key});
 
@@ -31,9 +33,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
     if (!mounted) return;
 
     setState(() => _isSubmitting = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('If this email exists, a reset link was sent.')),
-    );
+    showToast(context, 'If this email exists, a reset link was sent.');
   }
 
   @override

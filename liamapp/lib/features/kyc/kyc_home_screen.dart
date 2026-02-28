@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,11 +23,24 @@ class _KycHomeScreenState extends State<KycHomeScreen> {
   late final KycService _service;
   late Future<Map<String, dynamic>> _future;
 
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
     _service = KycService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.status();
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _refresh() async {

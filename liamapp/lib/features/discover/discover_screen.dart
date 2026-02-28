@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/toast.dart';
 import 'discover_service.dart';
 import 'profile_view_screen.dart';
 
@@ -21,6 +24,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   final List<dynamic> _items = <dynamic>[];
   final List<dynamic> _liked = <dynamic>[];
+  Timer? _pollTimer;
   bool _isLoading = false;
   bool _hasMore = true;
   Object? _lastError;
@@ -32,10 +36,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     _service = DiscoverService(Provider.of<ApiClient>(context, listen: false));
     _scrollController.addListener(_onScroll);
     _loadInitial();
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
@@ -332,9 +342,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               : () async {
                                   _skip(userId);
                                   if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Passed')),
-                                  );
+                                  showToast(context, 'Passed');
                                 },
                           child: const Text('Pass'),
                         ),
@@ -348,9 +356,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   final resp = await _service.likeProfile(userId);
                                   if (!mounted) return;
                                   final isMatch = resp['isMatch'] == true;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(isMatch ? 'It\'s a match!' : 'Liked')),
-                                  );
+                                  showToast(context, isMatch ? "It's a match!" : 'Liked');
                                   await _refresh();
                                 },
                           child: const Text('Like'),

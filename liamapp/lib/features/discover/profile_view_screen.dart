@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../core/api_client.dart';
 import '../../core/config.dart';
+import '../../core/toast.dart';
 import '../profile/profile_service.dart';
 import 'discover_service.dart';
 
@@ -24,6 +27,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
   late final DiscoverService _discoverService;
   late Future<Map<String, dynamic>> _future;
 
+  Timer? _pollTimer;
   bool _liking = false;
 
   final AudioPlayer _player = AudioPlayer();
@@ -36,10 +40,16 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
     _profileService = ProfileService(apiClient);
     _discoverService = DiscoverService(apiClient);
     _future = _profileService.getProfile(userId: widget.userId);
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _player.dispose();
     super.dispose();
   }
@@ -86,9 +96,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
       setState(() {});
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to play voice bio: $e')),
-      );
+      showToast(context, 'Failed to play voice bio: $e', isError: true);
     } finally {
       if (mounted) setState(() => _busyVoice = false);
     }
@@ -107,15 +115,11 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
       final resp = await _discoverService.likeProfile(widget.userId);
       if (!mounted) return;
       final isMatch = resp['isMatch'] == true;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isMatch ? 'It\'s a match!' : 'Liked')),
-      );
+      showToast(context, isMatch ? "It's a match!" : 'Liked');
       await _refresh();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to like: $e')),
-      );
+      showToast(context, 'Failed to like: $e', isError: true);
     } finally {
       if (mounted) setState(() => _liking = false);
     }

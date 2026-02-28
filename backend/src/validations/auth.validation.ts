@@ -43,10 +43,17 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   body: z.object({
-    phoneNumber: z
+    phoneOrEmail: z
       .string()
-      .min(1, 'Phone number is required')
-      .regex(phoneRegex, 'Phone number must be in international format'),
+      .min(1, 'Phone number or email is required')
+      .refine(
+        (val) => {
+          const trimmed = val.trim();
+          if (trimmed.includes('@')) return z.string().email().safeParse(trimmed).success;
+          return phoneRegex.test(trimmed);
+        },
+        'Enter a valid phone number (e.g. +35612345678) or email address'
+      ),
     password: z.string().min(1, 'Password is required'),
   }),
 });

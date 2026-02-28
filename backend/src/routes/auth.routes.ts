@@ -231,7 +231,7 @@ router.post(
  * /auth/login:
  *   post:
  *     summary: Login user
- *     description: Authenticate user and receive access and refresh tokens
+ *     description: Authenticate user with phone number or email and receive access and refresh tokens
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -240,12 +240,12 @@ router.post(
  *           schema:
  *             type: object
  *             required:
- *               - email
+ *               - phoneOrEmail
  *               - password
  *             properties:
- *               email:
+ *               phoneOrEmail:
  *                 type: string
- *                 format: email
+ *                 description: Phone number (international format, e.g. +35612345678) or email address
  *                 example: "user@example.com"
  *               password:
  *                 type: string

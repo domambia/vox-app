@@ -44,6 +44,8 @@ class ApiClient {
 
   Dio get dio => _dio;
 
+  Future<String?> readAccessToken() => _tokenStorage.readAccessToken();
+
   void _logRequest(RequestOptions options) {
     final method = options.method;
     final uri = options.uri;

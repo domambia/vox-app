@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/toast.dart';
 import '../auth/auth_controller.dart';
 import '../chats/chats_navigator.dart';
 import '../chats/new_chat_screen.dart';
@@ -140,6 +141,7 @@ class _AppShellState extends State<AppShell> {
                     case 'logout':
                       await Provider.of<AuthController>(context, listen: false).logout();
                       if (!context.mounted) return;
+                      showToast(context, 'Logged out');
                       Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
                       return;
                   }
