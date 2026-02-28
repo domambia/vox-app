@@ -14,7 +14,6 @@ import {
   changePasswordSchema,
 } from '@/validations/auth.validation';
 import { authenticate } from '@/middleware/auth.middleware';
-import { authLimiter } from '@/middleware/rateLimit.middleware';
 
 const router = Router();
 
@@ -74,7 +73,6 @@ const router = Router();
  */
 router.post(
   '/send-otp',
-  authLimiter,
   validate(sendOTPSchema),
   authController.sendOTP.bind(authController)
 );
@@ -148,7 +146,6 @@ router.post(
  */
 router.post(
   '/verify-otp',
-  authLimiter,
   validate(verifyOTPSchema),
   authController.verifyOTP.bind(authController)
 );
@@ -221,7 +218,6 @@ router.post(
  */
 router.post(
   '/register',
-  authLimiter,
   validate(registerSchema),
   authController.register.bind(authController)
 );
@@ -285,7 +281,6 @@ router.post(
  */
 router.post(
   '/login',
-  authLimiter,
   validate(loginSchema),
   authController.login.bind(authController)
 );
@@ -466,7 +461,6 @@ router.get(
  */
 router.post(
   '/password-reset/request',
-  authLimiter,
   validate(passwordResetRequestSchema),
   authController.requestPasswordReset.bind(authController)
 );
@@ -563,7 +557,6 @@ router.post(
  */
 router.post(
   '/password-reset/complete',
-  authLimiter,
   validate(passwordResetCompleteSchema),
   authController.completePasswordReset.bind(authController)
 );

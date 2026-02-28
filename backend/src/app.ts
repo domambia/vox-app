@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from '@/config/env';
 import { errorHandler, notFoundHandler } from '@/middleware/error.middleware';
-import { generalLimiter } from '@/middleware/rateLimit.middleware';
 import { logger } from '@/utils/logger';
 import path from 'path';
 
@@ -48,9 +47,6 @@ app.use((req, _res, next) => {
   });
   next();
 });
-
-// Rate limiting
-app.use(generalLimiter);
 
 // Serve uploaded files
 app.use(
