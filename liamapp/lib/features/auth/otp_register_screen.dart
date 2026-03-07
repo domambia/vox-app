@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/toast.dart';
 import 'auth_controller.dart';
 
@@ -25,6 +26,7 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
   final _countryCodeController = TextEditingController(text: 'MT');
 
   bool _isSubmitting = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -56,14 +58,14 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
       );
 
       if (!mounted) return;
-      showToast(context, 'Account created. Please sign in.');
+      showToast(context, context.l10n.phrase('Account created. Please sign in.'));
       Navigator.of(context).pushNamedAndRemoveUntil('/auth/login', (r) => false);
     } on DioException catch (e) {
       if (!mounted) return;
       showToast(context, messageFromDioException(e), isError: true);
     } catch (e) {
       if (!mounted) return;
-      showToast(context, 'Registration failed. Please try again.', isError: true);
+      showToast(context, context.l10n.phrase('Registration failed. Please try again.'), isError: true);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -72,10 +74,11 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign up'),
+        title: Text(l10n.phrase('Sign up')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false),
@@ -95,14 +98,14 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                   ),
                 ),
                 Text(
-                  'Create an account',
+                  l10n.phrase('Create an account'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Sign up with your details.',
+                  l10n.phrase('Sign up with your details.'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -114,24 +117,24 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                     children: [
                   TextFormField(
                     controller: _firstNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'First name',
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('First name'),
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'First name is required';
+                      if (v.isEmpty) return l10n.phrase('First name is required');
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _lastNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Last name',
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Last name'),
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Last name is required';
+                      if (v.isEmpty) return l10n.phrase('Last name is required');
                       return null;
                     },
                   ),
@@ -139,13 +142,13 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Email'),
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Email is required';
-                      if (!v.contains('@')) return 'Enter a valid email';
+                      if (v.isEmpty) return l10n.phrase('Email is required');
+                      if (!v.contains('@')) return l10n.phrase('Enter a valid email');
                       return null;
                     },
                   ),
@@ -153,9 +156,9 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone number',
-                      hintText: '+1234567890',
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Phone number'),
+                      hintText: l10n.phrase('+1234567890'),
                     ),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
@@ -174,8 +177,10 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                     },
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Phone number is required';
-                      if (!v.startsWith('+') || v.length < 8) return 'Use international format, e.g. +1234567890';
+                      if (v.isEmpty) return l10n.phrase('Phone number is required');
+                      if (!v.startsWith('+') || v.length < 8) {
+                        return l10n.phrase('Use international format, e.g. +1234567890');
+                      }
                       return null;
                     },
                   ),
@@ -183,24 +188,32 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                   TextFormField(
                     controller: _countryCodeController,
                     enabled: false,
-                    decoration: const InputDecoration(
-                      labelText: 'Country code',
-                      hintText: 'MT',
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Country code'),
+                      hintText: l10n.phrase('MT'),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Password'),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() => _obscurePassword = !_obscurePassword);
+                        },
+                      ),
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Password is required';
-                      if (v.length < 8) return 'Password must be at least 8 characters';
+                      if (v.isEmpty) return l10n.phrase('Password is required');
+                      if (v.length < 8) return l10n.phrase('Password must be at least 8 characters');
                       if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$').hasMatch(v)) {
-                        return 'Use at least one uppercase, one lowercase and one number';
+                        return l10n.phrase('Use at least one uppercase, one lowercase and one number');
                       }
                       return null;
                     },
@@ -210,7 +223,7 @@ class _OtpRegisterScreenState extends State<OtpRegisterScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _isSubmitting ? null : _submit,
-                      child: Text(_isSubmitting ? 'Registering...' : 'Register'),
+                      child: Text(_isSubmitting ? l10n.phrase('Registering...') : l10n.phrase('Register')),
                     ),
                   ),
                     ],

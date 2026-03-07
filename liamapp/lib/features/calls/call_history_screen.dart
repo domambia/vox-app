@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'calls_service.dart';
 
 class CallHistoryScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
     _service = CallsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.history();
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -49,9 +50,10 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Call history')),
+      appBar: AppBar(title: Text(l10n.phrase('Call history'))),
       body: SafeArea(
         child: FutureBuilder<Map<String, dynamic>>(
           future: _future,
@@ -67,12 +69,12 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Failed to load call history',
+                        l10n.phrase('Failed to load call history'),
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                      FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                     ],
                   ),
                 ),
@@ -85,7 +87,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
             if (items.isEmpty) {
               return Center(
                 child: Text(
-                  'No calls yet',
+                  l10n.phrase('No calls yet'),
                   style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
               );
@@ -106,7 +108,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
 
                   return ListTile(
                     leading: const Icon(Icons.call),
-                    title: Text(status.isEmpty ? 'Call' : status),
+                    title: Text(status.isEmpty ? l10n.phrase('Call') : status),
                     subtitle: Text(
                       [if (created.isNotEmpty) created, if (callId.isNotEmpty) callId, if (receiverId.isNotEmpty) receiverId].join(' • '),
                       maxLines: 2,

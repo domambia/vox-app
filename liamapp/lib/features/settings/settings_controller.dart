@@ -17,6 +17,7 @@ class SettingsController extends ChangeNotifier {
   ThemeSettings theme = const ThemeSettings();
   NotificationSettings notifications = const NotificationSettings();
   PrivacySettings privacy = const PrivacySettings();
+  LanguageSettings language = const LanguageSettings();
 
   ThemeMode get themeMode {
     switch (theme.theme) {
@@ -42,6 +43,8 @@ class SettingsController extends ChangeNotifier {
     }
   }
 
+  Locale get locale => Locale(language.languageCode);
+
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
@@ -58,11 +61,13 @@ class SettingsController extends ChangeNotifier {
         final t = decoded['theme'];
         final n = decoded['notifications'];
         final p = decoded['privacy'];
+        final l = decoded['language'];
 
         accessibility = AccessibilitySettings.fromJson(a);
         theme = ThemeSettings.fromJson(t);
         notifications = NotificationSettings.fromJson(n);
         privacy = PrivacySettings.fromJson(p);
+        language = LanguageSettings.fromJson(l);
       }
     } catch (_) {
       // ignore
@@ -79,6 +84,7 @@ class SettingsController extends ChangeNotifier {
       'theme': theme.toJson(),
       'notifications': notifications.toJson(),
       'privacy': privacy.toJson(),
+      'language': language.toJson(),
     };
     await prefs.setString(_storageKey, jsonEncode(payload));
   }
@@ -107,11 +113,18 @@ class SettingsController extends ChangeNotifier {
     await _save();
   }
 
+  Future<void> updateLanguageCode(String languageCode) async {
+    language = language.copyWith(languageCode: languageCode);
+    notifyListeners();
+    await _save();
+  }
+
   Future<void> reset() async {
     accessibility = const AccessibilitySettings();
     theme = const ThemeSettings();
     notifications = const NotificationSettings();
     privacy = const PrivacySettings();
+    language = const LanguageSettings();
     notifyListeners();
     await _save();
   }
@@ -317,5 +330,35 @@ class PrivacySettings {
       allowProfileViews: json['allowProfileViews'] == false ? false : true,
       allowMessagesFrom: (json['allowMessagesFrom'] ?? 'everyone').toString(),
     );
+  }
+}
+
+@immutable
+class LanguageSettings {
+  const LanguageSettings({
+    this.languageCode = 'en',
+  });
+
+  final String languageCode; // en|it|mt
+
+  LanguageSettings copyWith({String? languageCode}) {
+    return LanguageSettings(
+      languageCode: languageCode ?? this.languageCode,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'languageCode': languageCode,
+    };
+  }
+
+  static LanguageSettings fromJson(dynamic json) {
+    if (json is! Map) return const LanguageSettings();
+    final value = (json['languageCode'] ?? 'en').toString().toLowerCase();
+    if (value != 'en' && value != 'it' && value != 'mt') {
+      return const LanguageSettings();
+    }
+    return LanguageSettings(languageCode: value);
   }
 }

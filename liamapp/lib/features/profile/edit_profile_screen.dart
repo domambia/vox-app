@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'profile_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -58,6 +59,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final service = ProfileService(Provider.of<ApiClient>(context, listen: false));
       if (_isCreate) {
         await service.createProfile(
+          displayName: _displayNameController.text.trim().isEmpty
+              ? null
+              : _displayNameController.text.trim(),
           bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
           location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
         );
@@ -68,6 +72,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
         await service.updateProfile(
           userId: userId,
+          displayName: _displayNameController.text.trim(),
           bio: _bioController.text.trim(),
           location: _locationController.text.trim(),
         );
@@ -83,15 +88,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isCreate ? 'Create profile' : 'Edit profile')),
+      appBar: AppBar(title: Text(_isCreate ? l10n.createProfile : l10n.phrase('Edit profile'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             Text(
-              _isCreate ? 'Tell people about you' : 'Update your details',
+              _isCreate ? l10n.phrase('Tell people about you') : l10n.phrase('Update your details'),
               style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 24),
@@ -101,31 +107,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 children: [
                   TextFormField(
                     controller: _displayNameController,
-                    decoration: const InputDecoration(labelText: 'Display name'),
+                    decoration: InputDecoration(labelText: l10n.phrase('Display name')),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Display name is required';
+                      if (v.isEmpty) return l10n.phrase('Display name is required');
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _locationController,
-                    decoration: const InputDecoration(labelText: 'Location'),
+                    decoration: InputDecoration(labelText: l10n.phrase('Location')),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _bioController,
                     minLines: 2,
                     maxLines: 5,
-                    decoration: const InputDecoration(labelText: 'Bio'),
+                    decoration: InputDecoration(labelText: l10n.phrase('Bio')),
                   ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _submitting ? null : _submit,
-                      child: Text(_submitting ? 'Saving...' : 'Save'),
+                      child: Text(_submitting ? l10n.phrase('Saving...') : l10n.save),
                     ),
                   ),
                 ],

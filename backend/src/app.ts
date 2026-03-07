@@ -22,6 +22,7 @@ import messagesRoutes from '@/routes/messages.routes';
 import voiceCallRoutes from '@/routes/voiceCall.routes';
 import adminRoutes from '@/routes/admin.routes';
 import notificationsRoutes from '@/routes/notifications.routes';
+import postsRoutes from '@/routes/posts.routes';
 import swaggerRoutes from '@/routes/swagger.routes';
 
 const app: Application = express();
@@ -75,6 +76,7 @@ app.use(`${apiPrefix}/messages`, messagesRoutes);
 app.use(`${apiPrefix}/calls`, voiceCallRoutes);
 app.use(`${apiPrefix}/admin`, adminRoutes);
 app.use(`${apiPrefix}/notifications`, notificationsRoutes);
+app.use(`${apiPrefix}/posts`, postsRoutes);
 
 // Error handling (must be last)
 app.use(notFoundHandler);

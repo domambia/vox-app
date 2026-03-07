@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_localizations.dart';
+
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
@@ -45,10 +47,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign up'),
+        title: Text(l10n.phrase('Sign up')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false),
@@ -68,14 +71,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 Text(
-                  'Create your account',
+                  l10n.phrase('Create your account'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Join the LiamApp community.',
+                  l10n.phrase('Join the LiamApp community.'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -88,12 +91,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   TextFormField(
                     controller: _nameController,
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Full name',
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Full name'),
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Name is required';
+                      if (v.isEmpty) return l10n.phrase('Name is required');
                       return null;
                     },
                   ),
@@ -102,13 +105,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Email'),
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Email is required';
-                      if (!v.contains('@')) return 'Enter a valid email';
+                      if (v.isEmpty) return l10n.phrase('Email is required');
+                      if (!v.contains('@')) return l10n.phrase('Enter a valid email');
                       return null;
                     },
                   ),
@@ -118,7 +121,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     obscureText: _obscurePassword,
                     autofillHints: const [AutofillHints.newPassword],
                     decoration: InputDecoration(
-                      labelText: 'Password',
+                      labelText: l10n.phrase('Password'),
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
@@ -126,8 +129,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Password is required';
-                      if (v.length < 6) return 'Password must be at least 6 characters';
+                      if (v.isEmpty) return l10n.phrase('Password is required');
+                      if (v.length < 6) return l10n.phrase('Password must be at least 6 characters');
                       return null;
                     },
                   ),
@@ -137,7 +140,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     obscureText: _obscureConfirmPassword,
                     autofillHints: const [AutofillHints.newPassword],
                     decoration: InputDecoration(
-                      labelText: 'Confirm password',
+                      labelText: l10n.phrase('Confirm password'),
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                         icon: Icon(_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
@@ -145,8 +148,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Please confirm your password';
-                      if (v != _passwordController.text) return 'Passwords do not match';
+                      if (v.isEmpty) return l10n.phrase('Please confirm your password');
+                      if (v != _passwordController.text) return l10n.phrase('Passwords do not match');
                       return null;
                     },
                   ),
@@ -155,7 +158,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _isSubmitting ? null : _submit,
-                      child: Text(_isSubmitting ? 'Creating account...' : 'Sign up'),
+                      child: Text(_isSubmitting ? l10n.phrase('Creating account...') : l10n.phrase('Sign up')),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -163,7 +166,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                      child: const Text('I already have an account'),
+                      child: Text(l10n.phrase('I already have an account')),
                     ),
                   ),
                     ],

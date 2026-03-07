@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'kyc_service.dart';
 
 class KycInitiateScreen extends StatefulWidget {
@@ -47,8 +48,9 @@ class _KycInitiateScreenState extends State<KycInitiateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('Initiate KYC')),
+      appBar: AppBar(title: Text(l10n.phrase('Initiate KYC'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -59,11 +61,14 @@ class _KycInitiateScreenState extends State<KycInitiateScreen> {
                 children: [
                   DropdownButtonFormField<String>(
                     value: _documentType,
-                    decoration: const InputDecoration(labelText: 'Document type'),
-                    items: const [
-                      DropdownMenuItem(value: 'passport', child: Text('Passport')),
-                      DropdownMenuItem(value: 'id_card', child: Text('ID Card')),
-                      DropdownMenuItem(value: 'driver_license', child: Text('Driver License')),
+                    decoration: InputDecoration(labelText: l10n.phrase('Document type')),
+                    items: [
+                      DropdownMenuItem(value: 'passport', child: Text(l10n.phrase('Passport'))),
+                      DropdownMenuItem(value: 'id_card', child: Text(l10n.phrase('ID Card'))),
+                      DropdownMenuItem(
+                        value: 'driver_license',
+                        child: Text(l10n.phrase('Driver License')),
+                      ),
                     ],
                     onChanged: (v) {
                       if (v == null) return;
@@ -73,14 +78,17 @@ class _KycInitiateScreenState extends State<KycInitiateScreen> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _countryController,
-                    decoration: const InputDecoration(labelText: 'Country (optional)', hintText: 'US'),
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Country (optional)'),
+                      hintText: l10n.phrase('US'),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _submitting ? null : _submit,
-                      child: Text(_submitting ? 'Submitting...' : 'Initiate'),
+                      child: Text(_submitting ? l10n.phrase('Submitting...') : l10n.phrase('Initiate')),
                     ),
                   ),
                 ],

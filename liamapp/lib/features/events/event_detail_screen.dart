@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import '../../core/toast.dart';
 import '../../models/event.dart';
 import 'events_service.dart';
@@ -31,7 +32,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     _service = EventsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.getEventTyped(widget.eventId);
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -53,15 +54,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Future<void> _rsvp(String status) async {
     await _service.rsvp(eventId: widget.eventId, status: status);
     if (!mounted) return;
-    showToast(context, 'RSVP: ${status.toUpperCase()}');
+    showToast(context, '${context.l10n.phrase('RSVP')}: ${status.toUpperCase()}');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Event')),
+      appBar: AppBar(title: Text(l10n.phrase('Event'))),
       body: SafeArea(
         child: FutureBuilder<Event>(
           future: _future,
@@ -77,18 +79,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Failed to load event',
+                        l10n.phrase('Failed to load event'),
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                      FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                     ],
                   ),
                 ),
               );
             }
 
-            final e = snapshot.data ?? const Event(eventId: '', title: 'Event');
+            final e = snapshot.data ?? Event(eventId: '', title: context.l10n.phrase('Event'));
             final title = e.title;
             final location = e.location ?? '';
             final start = e.startTime?.toString() ?? '';
@@ -140,7 +142,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 ],
                 const SizedBox(height: 24),
                 Text(
-                  'RSVP',
+                  l10n.phrase('RSVP'),
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 12),
@@ -149,14 +151,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     Expanded(
                       child: FilledButton(
                         onPressed: () => _rsvp('GOING'),
-                        child: const Text('Going'),
+                        child: Text(l10n.phrase('Going')),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => _rsvp('MAYBE'),
-                        child: const Text('Maybe'),
+                        child: Text(l10n.phrase('Maybe')),
                       ),
                     ),
                   ],
@@ -166,7 +168,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   width: double.infinity,
                   child: OutlinedButton(
                     onPressed: () => _rsvp('NOT_GOING'),
-                    child: const Text('Not going'),
+                    child: Text(l10n.phrase('Not going')),
                   ),
                 ),
               ],

@@ -84,4 +84,20 @@ class AuthController extends ChangeNotifier {
       },
     );
   }
+
+  Future<Map<String, dynamic>> requestPasswordReset({
+    required String phoneNumber,
+    String? email,
+  }) async {
+    final resp = await _apiClient.dio.post(
+      '/auth/password-reset/request',
+      data: {
+        'phoneNumber': phoneNumber,
+        if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+      },
+    );
+    final data = resp.data;
+    final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
+    return (root is Map ? Map<String, dynamic>.from(root) : <String, dynamic>{});
+  }
 }

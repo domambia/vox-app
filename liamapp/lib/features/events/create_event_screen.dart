@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'events_service.dart';
 
 class CreateEventScreen extends StatefulWidget {
@@ -86,20 +87,21 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New event')),
+      appBar: AppBar(title: Text(l10n.phrase('New event'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             Text(
-              'Create an event',
+              l10n.phrase('Create an event'),
               style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
-              'Share time and location so others can join.',
+              l10n.phrase('Share time and location so others can join.'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -111,23 +113,23 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 children: [
                   TextFormField(
                     controller: _titleController,
-                    decoration: const InputDecoration(labelText: 'Title'),
+                    decoration: InputDecoration(labelText: l10n.phrase('Title')),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Title is required';
+                      if (v.isEmpty) return l10n.phrase('Title is required');
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _locationController,
-                    decoration: const InputDecoration(labelText: 'Location'),
+                    decoration: InputDecoration(labelText: l10n.phrase('Location')),
                   ),
                   const SizedBox(height: 12),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.schedule),
-                    title: const Text('Start time'),
+                    title: Text(l10n.phrase('Start time')),
                     subtitle: Text(_startTime.toString()),
                     onTap: _pickDateTime,
                   ),
@@ -136,14 +138,14 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     controller: _descriptionController,
                     minLines: 2,
                     maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Description (optional)'),
+                    decoration: InputDecoration(labelText: l10n.phrase('Description (optional)')),
                   ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _submitting ? null : _submit,
-                      child: Text(_submitting ? 'Creating...' : 'Create'),
+                      child: Text(_submitting ? l10n.phrase('Creating...') : l10n.phrase('Create')),
                     ),
                   ),
                 ],

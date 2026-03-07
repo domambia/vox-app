@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../core/toast.dart';
+import '../../core/app_localizations.dart';
+import '../../core/toast.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -10,15 +11,16 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(l10n.phrase('Profile')),
         actions: [
           IconButton(
             onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
             icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
+            tooltip: l10n.logout,
           ),
         ],
       ),
@@ -51,14 +53,14 @@ class ProfileScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'LiamApp User',
+                            l10n.phrase('LiamApp User'),
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Accessibility-first community member',
+                            l10n.phrase('Accessibility-first community member'),
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
@@ -73,30 +75,30 @@ class ProfileScreen extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.settings),
-                title: const Text('Settings'),
-                subtitle: const Text('Preferences for accessibility and app behavior'),
+                title: Text(l10n.settings),
+                subtitle: Text(l10n.phrase('Preferences for accessibility and app behavior')),
                 onTap: () {
-                  showToast(context, 'Next: implement settings like mob-app.');
+                  showToast(context, l10n.phrase('Next: implement settings like mob-app.'));
                 },
               ),
               const Divider(),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.event),
-                title: const Text('Events'),
-                subtitle: const Text('Create and RSVP to community events'),
+                title: Text(l10n.phrase('Events')),
+                subtitle: Text(l10n.phrase('Create and RSVP to community events')),
                 onTap: () {
-                  showToast(context, 'Next: implement events screens.');
+                  showToast(context, l10n.phrase('Next: implement events screens.'));
                 },
               ),
               const Divider(),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.group),
-                title: const Text('Groups'),
-                subtitle: const Text('Join groups and chat with members'),
+                title: Text(l10n.phrase('Groups')),
+                subtitle: Text(l10n.phrase('Join groups and chat with members')),
                 onTap: () {
-                  showToast(context, 'Next: implement groups screens.');
+                  showToast(context, l10n.phrase('Next: implement groups screens.'));
                 },
               ),
             ],

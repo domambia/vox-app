@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/toast.dart';
 import '../auth/auth_controller.dart';
 import '../chats/chats_navigator.dart';
@@ -64,6 +65,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     final auth = Provider.of<AuthController>(context, listen: true);
     if (!auth.isAuthenticated && !_redirecting) {
@@ -82,7 +84,7 @@ class _AppShellState extends State<AppShell> {
         onWillPop: _onWillPop,
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('LiamApp'),
+            title: Text(l10n.appTitle),
             actions: [
             if (_index == 0) ...[
               IconButton(
@@ -90,7 +92,7 @@ class _AppShellState extends State<AppShell> {
                   _discoverKey.currentState?.pushNamed(MatchesScreen.routeName);
                 },
                 icon: const Icon(Icons.people),
-                tooltip: 'Matches',
+                tooltip: l10n.phrase('Matches'),
               ),
               IconButton(
                 onPressed: () {
@@ -100,7 +102,7 @@ class _AppShellState extends State<AppShell> {
                   );
                 },
                 icon: const Icon(Icons.favorite),
-                tooltip: 'Likes',
+                tooltip: l10n.phrase('Likes'),
               ),
             ],
             if (_index == 1)
@@ -109,7 +111,7 @@ class _AppShellState extends State<AppShell> {
                   _chatsKey.currentState?.pushNamed(NewChatScreen.routeName);
                 },
                 icon: const Icon(Icons.chat),
-                tooltip: 'New chat',
+                tooltip: l10n.phrase('New chat'),
               ),
             if (_index == 2)
               IconButton(
@@ -117,7 +119,7 @@ class _AppShellState extends State<AppShell> {
                   _groupsKey.currentState?.pushNamed(NewGroupScreen.routeName);
                 },
                 icon: const Icon(Icons.group_add),
-                tooltip: 'New group',
+                tooltip: l10n.phrase('New group'),
               ),
             if (_index == 3)
               IconButton(
@@ -125,7 +127,7 @@ class _AppShellState extends State<AppShell> {
                   _eventsKey.currentState?.pushNamed(CreateEventScreen.routeName);
                 },
                 icon: const Icon(Icons.add),
-                tooltip: 'New event',
+                tooltip: l10n.phrase('New event'),
               ),
             if (_index == 4)
               PopupMenuButton<String>(
@@ -141,24 +143,24 @@ class _AppShellState extends State<AppShell> {
                     case 'logout':
                       await Provider.of<AuthController>(context, listen: false).logout();
                       if (!context.mounted) return;
-                      showToast(context, 'Logged out');
+                      showToast(context, l10n.loggedOut);
                       Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
                       return;
                   }
                 },
-                itemBuilder: (context) => const [
+                itemBuilder: (context) => [
                   PopupMenuItem(
                     value: 'settings',
-                    child: Text('Settings'),
+                    child: Text(l10n.settings),
                   ),
                   PopupMenuItem(
                     value: 'notifications',
-                    child: Text('Notifications'),
+                    child: Text(l10n.notifications),
                   ),
-                  PopupMenuDivider(),
+                  const PopupMenuDivider(),
                   PopupMenuItem(
                     value: 'logout',
-                    child: Text('Logout'),
+                    child: Text(l10n.logout),
                   ),
                 ],
               ),
@@ -188,31 +190,31 @@ class _AppShellState extends State<AppShell> {
             setState(() => _index = i);
             _tabIndex.value = i;
           },
-          destinations: const [
+          destinations: [
             NavigationDestination(
               icon: Icon(Icons.favorite_border),
               selectedIcon: Icon(Icons.favorite),
-              label: 'Discover',
+              label: l10n.phrase('Discover'),
             ),
             NavigationDestination(
               icon: Icon(Icons.chat_bubble_outline),
               selectedIcon: Icon(Icons.chat_bubble),
-              label: 'Chats',
+              label: l10n.phrase('Chats'),
             ),
             NavigationDestination(
               icon: Icon(Icons.groups_outlined),
               selectedIcon: Icon(Icons.groups),
-              label: 'Groups',
+              label: l10n.phrase('Groups'),
             ),
             NavigationDestination(
               icon: Icon(Icons.event_outlined),
               selectedIcon: Icon(Icons.event),
-              label: 'Events',
+              label: l10n.phrase('Events'),
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline),
               selectedIcon: Icon(Icons.person),
-              label: 'Profile',
+              label: l10n.phrase('Profile'),
             ),
           ],
         ),

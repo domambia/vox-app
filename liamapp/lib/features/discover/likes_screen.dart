@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'discover_service.dart';
 
 class LikesScreen extends StatefulWidget {
@@ -29,7 +30,7 @@ class _LikesScreenState extends State<LikesScreen> {
     _service = DiscoverService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.likes(type: widget.type);
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 45), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -72,9 +73,16 @@ class _LikesScreenState extends State<LikesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.type == 'received' ? 'Likes (received)' : 'Likes (given)')),
+      appBar: AppBar(
+        title: Text(
+          widget.type == 'received'
+              ? l10n.phrase('Likes (received)')
+              : l10n.phrase('Likes (given)'),
+        ),
+      ),
       body: SafeArea(
         child: FutureBuilder<List<dynamic>>(
           future: _future,
@@ -90,11 +98,11 @@ class _LikesScreenState extends State<LikesScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Failed to load likes',
+                        l10n.phrase('Failed to load likes'),
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                      FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                     ],
                   ),
                 ),
@@ -105,7 +113,7 @@ class _LikesScreenState extends State<LikesScreen> {
             if (items.isEmpty) {
               return Center(
                 child: Text(
-                  'No likes yet',
+                  l10n.phrase('No likes yet'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -136,7 +144,7 @@ class _LikesScreenState extends State<LikesScreen> {
                         await _refresh();
                       },
                       icon: const Icon(Icons.close),
-                      tooltip: 'Unlike',
+                      tooltip: l10n.phrase('Unlike'),
                     ),
                   );
                 },

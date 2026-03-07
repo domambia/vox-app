@@ -65,6 +65,8 @@ model User {
     messageReactions        MessageReaction[]
     calls_initiated         VoiceCall[]          @relation("Caller")
     calls_received          VoiceCall[]          @relation("Receiver")
+    posts                   Post[]
+    post_likes              PostLike[]
 
     @@index([phone_number])
     @@index([verified])
@@ -490,4 +492,40 @@ model VoiceCall {
     @@index([status])
     @@index([created_at])
     @@map("voice_calls")
+}
+
+model Post {
+    post_id     String   @id @default(uuid())
+    user_id     String
+    content     String
+    image_url   String?
+    likes_count Int      @default(0)
+    is_active   Boolean  @default(true)
+    created_at  DateTime @default(now())
+    updated_at  DateTime @updatedAt
+
+    // Relations
+    author User       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+    likes  PostLike[]
+
+    @@index([user_id])
+    @@index([created_at])
+    @@index([is_active])
+    @@map("posts")
+}
+
+model PostLike {
+    like_id    String   @id @default(uuid())
+    post_id    String
+    user_id    String
+    created_at DateTime @default(now())
+
+    // Relations
+    post Post @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+    user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+    @@unique([post_id, user_id])
+    @@index([post_id])
+    @@index([user_id])
+    @@map("post_likes")
 }

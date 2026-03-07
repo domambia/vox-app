@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../posts/create_post_screen.dart';
 import 'discover_screen.dart';
 import 'likes_screen.dart';
 import 'matches_screen.dart';
@@ -41,6 +42,11 @@ class DiscoverNavigator extends StatelessWidget {
             return MaterialPageRoute(
               settings: settings,
               builder: (_) => LikesScreen(type: (args['type'] ?? 'received').toString()),
+            );
+          case CreatePostScreen.routeName:
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const CreatePostScreen(),
             );
           default:
             return MaterialPageRoute(

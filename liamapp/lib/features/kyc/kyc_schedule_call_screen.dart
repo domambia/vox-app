@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'kyc_service.dart';
 
 class KycScheduleCallScreen extends StatefulWidget {
@@ -67,8 +68,9 @@ class _KycScheduleCallScreenState extends State<KycScheduleCallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('Schedule call')),
+      appBar: AppBar(title: Text(l10n.phrase('Schedule call'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -76,21 +78,24 @@ class _KycScheduleCallScreenState extends State<KycScheduleCallScreen> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.schedule),
-              title: const Text('Scheduled at'),
+              title: Text(l10n.phrase('Scheduled at')),
               subtitle: Text(_scheduledAt.toString()),
               onTap: _pickDateTime,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _timezoneController,
-              decoration: const InputDecoration(labelText: 'Timezone', hintText: 'America/New_York'),
+              decoration: InputDecoration(
+                labelText: l10n.phrase('Timezone'),
+                hintText: l10n.phrase('America/New_York'),
+              ),
             ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
                 onPressed: _submitting ? null : _submit,
-                child: Text(_submitting ? 'Scheduling...' : 'Schedule'),
+                child: Text(_submitting ? l10n.phrase('Scheduling...') : l10n.phrase('Schedule')),
               ),
             ),
           ],

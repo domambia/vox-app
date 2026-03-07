@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import '../discover/discover_service.dart';
 import 'chats_service.dart';
 
@@ -32,7 +33,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     _discover = DiscoverService(_apiClient);
     _future = _load();
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 45), (_) {
       if (!mounted) return;
       setState(() => _future = _load());
     });
@@ -73,23 +74,24 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
+        final l10n = context.l10n;
         return AlertDialog(
-          title: Text('Message $name'),
+          title: Text('${l10n.phrase('Message')} $name'),
           content: TextField(
             controller: textController,
             autofocus: true,
             minLines: 1,
             maxLines: 4,
-            decoration: const InputDecoration(hintText: 'Say hello...'),
+            decoration: InputDecoration(hintText: l10n.phrase('Say hello...')),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(textController.text.trim()),
-              child: const Text('Send'),
+              child: Text(l10n.phrase('Send')),
             ),
           ],
         );
@@ -116,9 +118,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New chat')),
+      appBar: AppBar(title: Text(l10n.phrase('New chat'))),
       body: SafeArea(
         child: FutureBuilder<List<dynamic>>(
           future: _future,
@@ -134,13 +137,13 @@ class _NewChatScreenState extends State<NewChatScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Failed to load users',
+                        l10n.phrase('Failed to load users'),
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 12),
                       FilledButton(
                         onPressed: () => setState(() => _future = _load()),
-                        child: const Text('Retry'),
+                        child: Text(l10n.retry),
                       ),
                     ],
                   ),
@@ -152,7 +155,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
             if (items.isEmpty) {
               return Center(
                 child: Text(
-                  'No profiles found',
+                  l10n.phrase('No profiles found'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -173,7 +176,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
                     child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
                   ),
                   title: Text(name),
-                  subtitle: const Text('Tap to chat'),
+                  subtitle: Text(l10n.phrase('Tap to chat')),
                   onTap: userId.isEmpty ? null : () => _startChat(p),
                 );
               },

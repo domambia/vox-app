@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import '../../core/config.dart';
 import '../../core/toast.dart';
 import '../profile/profile_service.dart';
@@ -41,7 +42,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
     _discoverService = DiscoverService(apiClient);
     _future = _profileService.getProfile(userId: widget.userId);
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -96,7 +97,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
       setState(() {});
     } catch (e) {
       if (!mounted) return;
-      showToast(context, 'Failed to play voice bio: $e', isError: true);
+      showToast(context, '${context.l10n.failedToPlayVoiceBio}: $e', isError: true);
     } finally {
       if (mounted) setState(() => _busyVoice = false);
     }
@@ -115,11 +116,11 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
       final resp = await _discoverService.likeProfile(widget.userId);
       if (!mounted) return;
       final isMatch = resp['isMatch'] == true;
-      showToast(context, isMatch ? "It's a match!" : 'Liked');
+      showToast(context, isMatch ? context.l10n.phrase("It's a match!") : context.l10n.phrase('Liked'));
       await _refresh();
     } catch (e) {
       if (!mounted) return;
-      showToast(context, 'Failed to like: $e', isError: true);
+      showToast(context, '${context.l10n.phrase('Failed to like')}: $e', isError: true);
     } finally {
       if (mounted) setState(() => _liking = false);
     }
@@ -128,10 +129,11 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.displayName.trim().isEmpty ? 'Profile' : widget.displayName),
+        title: Text(widget.displayName.trim().isEmpty ? l10n.phrase('Profile') : widget.displayName),
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -148,12 +150,12 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                   padding: const EdgeInsets.all(24),
                   children: [
                     Text(
-                      'Failed to load profile',
+                      l10n.failedToLoadProfile,
                       style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
-                    FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                    FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                   ],
                 );
               }
@@ -229,7 +231,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                         if (bio.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           Text(
-                            'About',
+                            l10n.phrase('About'),
                             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 8),
@@ -243,7 +245,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Voice Bio',
+                    l10n.voiceBio,
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 8),
@@ -259,8 +261,8 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                       children: [
                         Text(
                           voiceBioUrl.trim().isNotEmpty
-                              ? 'Listen to this user\'s voice introduction.'
-                              : 'No voice bio available.',
+                              ? l10n.phrase('Listen to this user\'s voice introduction.')
+                              : l10n.phrase('No voice bio available.'),
                           style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
                         ),
                         if (voiceBioUrl.trim().isNotEmpty) ...[
@@ -280,7 +282,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                                         }
                                       },
                                 icon: Icon(_player.playing ? Icons.stop_circle_outlined : Icons.play_arrow),
-                                label: Text(_player.playing ? 'Stop' : 'Play'),
+                                label: Text(_player.playing ? l10n.phrase('Stop') : l10n.phrase('Play')),
                               ),
                             ],
                           ),
@@ -290,7 +292,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Interests',
+                    l10n.phrase('Interests'),
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 8),
@@ -303,7 +305,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                     ),
                     child: interests.isEmpty
                         ? Text(
-                            'No interests provided.',
+                            l10n.phrase('No interests provided.'),
                             style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
                           )
                         : Wrap(
@@ -321,7 +323,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Stats',
+                    l10n.stats,
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 8),
@@ -339,7 +341,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Profile completeness',
+                                l10n.profileCompleteness,
                                 style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
                               ),
                             ),
@@ -356,9 +358,9 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        Text('Interests: ${interests.length}', style: theme.textTheme.bodyMedium),
+                        Text(l10n.interestsCount(interests.length), style: theme.textTheme.bodyMedium),
                         Text(
-                          'Voice bio: ${voiceBioUrl.trim().isNotEmpty ? 'Yes' : 'No'}',
+                          l10n.voiceBioStatus(voiceBioUrl.trim().isNotEmpty),
                           style: theme.textTheme.bodyMedium,
                         ),
                       ],
@@ -369,7 +371,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _liking ? null : _like,
-                      child: Text(_liking ? 'Liking...' : 'Like'),
+                      child: Text(_liking ? l10n.phrase('Liking...') : l10n.phrase('Like')),
                     ),
                   ),
                 ],

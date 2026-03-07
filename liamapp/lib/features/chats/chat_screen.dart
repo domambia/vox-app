@@ -14,12 +14,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import '../../core/config.dart';
 import '../../core/socket_service.dart';
 import '../../core/pagination.dart';
 import '../../core/toast.dart';
 import '../../models/chat_message.dart';
-import '../calls/calls_service.dart';
 import '../calls/outgoing_call_screen.dart';
 import '../profile/profile_service.dart';
 import 'chats_service.dart';
@@ -38,11 +38,15 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const _pollInterval = Duration(seconds: 20);
+
   late final ChatsService _service;
   late Future<Paginated<ChatMessage>> _future;
 
   StreamSubscription<Map<String, dynamic>>? _wsSub;
   Timer? _pollTimer;
+  DateTime? _lastRefresh;
+  bool _isFetching = false;
 
   String _myUserId = '';
 
@@ -62,6 +66,39 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final AudioPlayer _player = AudioPlayer();
   String? _playingUrl;
+  bool _isPlaying = false;
+  bool _isLoadingAudio = false;
+  Duration _audioDuration = Duration.zero;
+  Duration _audioPosition = Duration.zero;
+  StreamSubscription<PlayerState>? _playerStateSub;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration?>? _durationSub;
+
+  void _initAudioListeners() {
+    _playerStateSub = _player.playerStateStream.listen((state) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = state.playing;
+        _isLoadingAudio = state.processingState == ProcessingState.loading ||
+            state.processingState == ProcessingState.buffering;
+        if (state.processingState == ProcessingState.completed) {
+          _playingUrl = null;
+          _audioPosition = Duration.zero;
+          _isLoadingAudio = false;
+        }
+      });
+    });
+
+    _positionSub = _player.positionStream.listen((position) {
+      if (!mounted) return;
+      setState(() => _audioPosition = position);
+    });
+
+    _durationSub = _player.durationStream.listen((duration) {
+      if (!mounted) return;
+      setState(() => _audioDuration = duration ?? Duration.zero);
+    });
+  }
 
   Future<void> _togglePlayback(String url) async {
     if (_playingUrl == url) {
@@ -76,21 +113,42 @@ class _ChatScreenState extends State<ChatScreen> {
     final api = Provider.of<ApiClient>(context, listen: false);
     final token = await api.readAccessToken();
 
-    await _player.stop();
-    await _player.setAudioSource(
-      AudioSource.uri(
-        Uri.parse(url),
-        headers: (token != null && token.isNotEmpty)
-            ? {
-                'Authorization': 'Bearer $token',
-              }
-            : null,
-      ),
-    );
-    _playingUrl = url;
-    await _player.play();
-    if (!mounted) return;
-    setState(() {});
+    try {
+      await _player.stop();
+      _audioPosition = Duration.zero;
+      _audioDuration = Duration.zero;
+      _playingUrl = url;
+      setState(() {});
+
+      final headers = <String, String>{};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      await _player.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(url),
+          headers: headers.isNotEmpty ? headers : null,
+        ),
+      );
+      await _player.play();
+    } catch (e) {
+      debugPrint('[VoicePlayback] Error playing audio: $e');
+      if (!mounted) return;
+      showToast(context, context.l10n.phrase('Failed to play audio'));
+      _playingUrl = null;
+      setState(() {});
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  bool _isCurrentlyPlaying(String url) {
+    return _playingUrl == url && _isPlaying;
   }
 
   String _weekdayLabel(DateTime dt) {
@@ -174,14 +232,15 @@ class _ChatScreenState extends State<ChatScreen> {
       final convId = (evt['conversation_id'] ?? evt['conversationId'] ?? '').toString();
       if (convId.isEmpty || convId != widget.conversationId) return;
       if (!mounted) return;
-      _refresh();
+      _refreshImmediate();
     });
 
-    // Poll messages every 4 seconds so new messages appear live (REST-sent messages don't trigger socket events)
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
       if (!mounted) return;
-      _refresh();
+      _refreshIfNeeded();
     });
+
+    _lastRefresh = DateTime.now();
 
     ProfileService(Provider.of<ApiClient>(context, listen: false)).getMyProfile().then((p) {
       final id = (p['user_id'] ?? p['userId'] ?? p['user']?['user_id'] ?? '').toString();
@@ -190,12 +249,17 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _myUserId = id);
       }
     }).catchError((_) {});
+
+    _initAudioListeners();
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
     _wsSub?.cancel();
+    _playerStateSub?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
     _tabIndex?.removeListener(_onTabChanged);
     _composerController.dispose();
     if (_listening) {
@@ -208,11 +272,42 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  Future<void> _refresh() async {
+  Future<void> _refreshIfNeeded() async {
+    if (_isFetching) return;
+    final now = DateTime.now();
+    if (_lastRefresh != null && now.difference(_lastRefresh!) < _pollInterval) {
+      return;
+    }
+    await _refreshImmediate();
+  }
+
+  Future<void> _refreshImmediate() async {
+    if (_isFetching) return;
+    await _doRefresh();
+  }
+
+  Future<void> _doRefresh() async {
+    _isFetching = true;
+    _lastRefresh = DateTime.now();
+
     setState(() {
       _future = _service.getMessagesTyped(conversationId: widget.conversationId);
     });
-    await _future;
+
+    try {
+      await _future;
+    } finally {
+      _isFetching = false;
+    }
+  }
+
+  Future<void> _forceRefresh() async {
+    _isFetching = false;
+    await _doRefresh();
+  }
+
+  Future<void> _refresh() async {
+    await _refreshImmediate();
   }
 
   Future<void> _send() async {
@@ -222,7 +317,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       await _service.sendMessage(recipientId: widget.participantId, content: text);
       _composerController.clear();
-      await _refresh();
+      await _forceRefresh();
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -297,7 +392,7 @@ class _ChatScreenState extends State<ChatScreen> {
         messageType: isImage ? 'IMAGE' : 'FILE',
         attachmentIds: [attachmentId],
       );
-      await _refresh();
+      await _forceRefresh();
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -313,7 +408,7 @@ class _ChatScreenState extends State<ChatScreen> {
         stoppedPath = await _recorder.stop();
       } on MissingPluginException {
         if (!mounted) return;
-        showToast(context, 'Voice recording is not available on this build.', isError: true);
+        showToast(context, context.l10n.recordingUnavailable, isError: true);
         setState(() => _recording = false);
         return;
       }
@@ -340,7 +435,7 @@ class _ChatScreenState extends State<ChatScreen> {
           messageType: 'VOICE',
           attachmentIds: [attachmentId],
         );
-        await _refresh();
+        await _forceRefresh();
       } finally {
         if (mounted) setState(() => _sending = false);
       }
@@ -358,7 +453,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     } on MissingPluginException {
       if (!mounted) return;
-      showToast(context, 'Voice recording is not available on this build. Please fully restart the app after flutter pub get.', isError: true);
+      showToast(context, context.l10n.recordingUnavailableAfterPubGet, isError: true);
       return;
     }
     if (!mounted) return;
@@ -399,6 +494,85 @@ class _ChatScreenState extends State<ChatScreen> {
     await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
+  Widget _buildVoiceMessagePlayer(ChatAttachment a, Color textColor, Color bubbleColor) {
+    final url = _absoluteUrl(a.fileUrl);
+    final isThisPlaying = _playingUrl == url;
+    final isPlaying = isThisPlaying && _isPlaying;
+    final isLoading = isThisPlaying && _isLoadingAudio;
+
+    final progress = isThisPlaying && _audioDuration.inMilliseconds > 0
+        ? _audioPosition.inMilliseconds / _audioDuration.inMilliseconds
+        : 0.0;
+
+    final durationText = isThisPlaying && _audioDuration.inMilliseconds > 0
+        ? '${_formatDuration(_audioPosition)} / ${_formatDuration(_audioDuration)}'
+        : 'Voice message';
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 240),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: bubbleColor.withAlpha((bubbleColor.alpha * 0.7).round()),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: isLoading ? null : () => _togglePlayback(url),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: textColor.withAlpha(50),
+                shape: BoxShape.circle,
+              ),
+              child: isLoading
+                  ? Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: textColor,
+                      ),
+                    )
+                  : Icon(
+                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: textColor,
+                      size: 24,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress.clamp(0.0, 1.0),
+                    backgroundColor: textColor.withAlpha(40),
+                    valueColor: AlwaysStoppedAnimation<Color>(textColor.withAlpha(180)),
+                    minHeight: 4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  durationText,
+                  style: TextStyle(
+                    color: textColor.withAlpha(200),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showMessageActions(ChatMessage m) async {
     if (!m.isMine || m.isDeleted) return;
 
@@ -412,12 +586,12 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.edit),
-                title: const Text('Edit message'),
+                title: Text(context.l10n.phrase('Edit message')),
                 onTap: () => Navigator.of(context).pop('edit'),
               ),
               ListTile(
                 leading: const Icon(Icons.delete_outline),
-                title: const Text('Delete message'),
+                title: Text(context.l10n.phrase('Delete message')),
                 onTap: () => Navigator.of(context).pop('delete'),
               ),
             ],
@@ -432,7 +606,7 @@ class _ChatScreenState extends State<ChatScreen> {
         context: context,
         builder: (context) {
           return AlertDialog(
-            title: const Text('Edit message'),
+            title: Text(context.l10n.phrase('Edit message')),
             content: TextField(
               controller: controller,
               autofocus: true,
@@ -442,11 +616,11 @@ class _ChatScreenState extends State<ChatScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child: Text(context.l10n.cancel),
               ),
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-                child: const Text('Save'),
+                child: Text(context.l10n.save),
               ),
             ],
           );
@@ -455,18 +629,19 @@ class _ChatScreenState extends State<ChatScreen> {
       if (updated == null || updated.isEmpty) return;
 
       await _service.editMessage(messageId: m.messageId, content: updated);
-      await _refresh();
+      await _forceRefresh();
     }
 
     if (action == 'delete') {
       await _service.deleteMessage(messageId: m.messageId);
-      await _refresh();
+      await _forceRefresh();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
@@ -475,15 +650,10 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             onPressed: widget.participantId.trim().isEmpty
                 ? null
-                : () async {
-                    final calls = CallsService(Provider.of<ApiClient>(context, listen: false));
-                    final initiated = await calls.initiate(receiverId: widget.participantId);
-                    final callId = (initiated['call_id'] ?? initiated['callId'] ?? initiated['id'] ?? '').toString();
-                    if (!context.mounted) return;
+                : () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => OutgoingCallScreen(
-                          callId: callId,
                           receiverId: widget.participantId,
                           receiverName: widget.participantName,
                         ),
@@ -491,7 +661,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     );
                   },
             icon: const Icon(Icons.call),
-            tooltip: 'Call',
+            tooltip: l10n.phrase('Call'),
           ),
         ],
       ),
@@ -516,7 +686,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'Session expired',
+                                l10n.phrase('Session expired'),
                                 style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                                 textAlign: TextAlign.center,
                               ),
@@ -525,7 +695,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 onPressed: () {
                                   Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
                                 },
-                                child: const Text('Login again'),
+                                child: Text(l10n.phrase('Login again')),
                               ),
                             ],
                           ),
@@ -539,13 +709,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'Failed to load messages',
+                              l10n.phrase('Failed to load messages'),
                               style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                             ),
                             const SizedBox(height: 12),
                             FilledButton(
                               onPressed: _refresh,
-                              child: const Text('Retry'),
+                              child: Text(l10n.retry),
                             ),
                           ],
                         ),
@@ -559,7 +729,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (messages.isEmpty) {
                     return Center(
                       child: Text(
-                        'No messages yet',
+                        l10n.phrase('No messages yet'),
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -637,30 +807,32 @@ class _ChatScreenState extends State<ChatScreen> {
                                       for (final a in attachments)
                                         Padding(
                                           padding: const EdgeInsets.only(bottom: 6),
-                                          child: InkWell(
-                                            onTap: () => _openAttachment(a),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  a.fileType.startsWith('image/')
-                                                      ? Icons.image_outlined
-                                                      : (a.fileType.startsWith('audio/') ? Icons.play_arrow : Icons.attach_file),
-                                                  size: 18,
-                                                  color: textColor,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Flexible(
-                                                  child: Text(
-                                                    a.fileName,
-                                                    style: theme.textTheme.bodySmall?.copyWith(color: textColor),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                          child: a.fileType.startsWith('audio/')
+                                              ? _buildVoiceMessagePlayer(a, textColor, bubbleColor)
+                                              : InkWell(
+                                                  onTap: () => _openAttachment(a),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        a.fileType.startsWith('image/')
+                                                            ? Icons.image_outlined
+                                                            : Icons.attach_file,
+                                                        size: 18,
+                                                        color: textColor,
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Flexible(
+                                                        child: Text(
+                                                          a.fileName,
+                                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textColor),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
-                                              ],
-                                            ),
-                                          ),
                                         ),
                                     ],
                                   ],
@@ -688,7 +860,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   IconButton(
                     onPressed: _sending ? null : _pickAndSendAttachment,
                     icon: const Icon(Icons.attach_file),
-                    tooltip: 'Attach file',
+                    tooltip: l10n.phrase('Attach file'),
                   ),
                   Expanded(
                     child: TextField(
@@ -696,8 +868,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       maxLines: 1,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        hintText: 'Message',
+                      decoration: InputDecoration(
+                        hintText: l10n.phrase('Message'),
                       ),
                     ),
                   ),
@@ -705,17 +877,21 @@ class _ChatScreenState extends State<ChatScreen> {
                   IconButton(
                     onPressed: _sending ? null : _toggleDictation,
                     icon: Icon(_listening ? Icons.mic : Icons.mic_none),
-                    tooltip: _listening ? 'Stop dictation' : 'Dictate message',
+                    tooltip: _listening
+                        ? l10n.phrase('Stop dictation')
+                        : l10n.phrase('Dictate message'),
                   ),
                   IconButton(
                     onPressed: _sending ? null : _toggleVoiceNote,
                     icon: Icon(_recording ? Icons.stop_circle_outlined : Icons.mic_outlined),
-                    tooltip: _recording ? 'Stop recording' : 'Record voice note',
+                    tooltip: _recording
+                        ? l10n.phrase('Stop recording')
+                        : l10n.phrase('Record voice note'),
                   ),
                   IconButton.filled(
                     onPressed: _sending ? null : _send,
                     icon: const Icon(Icons.send),
-                    tooltip: 'Send',
+                    tooltip: l10n.phrase('Send'),
                   ),
                 ],
               ),

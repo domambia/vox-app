@@ -12,6 +12,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import '../../core/config.dart';
 import '../../core/pagination.dart';
 import '../../models/group_message.dart';
@@ -112,7 +113,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     _service = GroupsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.getGroupMessagesTyped(groupId: widget.groupId);
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -355,6 +356,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(title: Text(widget.groupName)),
@@ -376,12 +378,12 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'Failed to load group messages',
+                              l10n.phrase('Failed to load group messages'),
                               style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 12),
-                            FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                            FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                           ],
                         ),
                       ),
@@ -394,7 +396,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   if (messages.isEmpty) {
                     return Center(
                       child: Text(
-                        'No messages yet',
+                        l10n.phrase('No messages yet'),
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -519,7 +521,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   IconButton(
                     onPressed: _sending ? null : _pickAndSendAttachment,
                     icon: const Icon(Icons.attach_file),
-                    tooltip: 'Attach file',
+                    tooltip: l10n.phrase('Attach file'),
                   ),
                   Expanded(
                     child: TextField(
@@ -527,8 +529,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                       maxLines: 1,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        hintText: 'Message',
+                      decoration: InputDecoration(
+                        hintText: l10n.phrase('Message'),
                       ),
                     ),
                   ),
@@ -536,17 +538,21 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   IconButton(
                     onPressed: _sending ? null : _toggleDictation,
                     icon: Icon(_listening ? Icons.mic : Icons.mic_none),
-                    tooltip: _listening ? 'Stop dictation' : 'Dictate message',
+                    tooltip: _listening
+                        ? l10n.phrase('Stop dictation')
+                        : l10n.phrase('Dictate message'),
                   ),
                   IconButton(
                     onPressed: _sending ? null : _toggleVoiceNote,
                     icon: Icon(_recording ? Icons.stop_circle_outlined : Icons.mic_outlined),
-                    tooltip: _recording ? 'Stop recording' : 'Record voice note',
+                    tooltip: _recording
+                        ? l10n.phrase('Stop recording')
+                        : l10n.phrase('Record voice note'),
                   ),
                   IconButton.filled(
                     onPressed: _sending ? null : _send,
                     icon: const Icon(Icons.send),
-                    tooltip: 'Send',
+                    tooltip: l10n.phrase('Send'),
                   ),
                 ],
               ),

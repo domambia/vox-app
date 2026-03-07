@@ -72,7 +72,7 @@ router.get('/:fileType/:filename', authenticate, (req: Request, res: Response) =
   const { fileType, filename } = req.params;
 
   // Validate file type
-  const allowedTypes = ['profiles', 'kyc', 'voice-bios', 'events'];
+  const allowedTypes = ['profiles', 'kyc', 'voice-bios', 'events', 'posts'];
   if (!allowedTypes.includes(fileType)) {
     sendError(res, 'INVALID_FILE_TYPE', 'Invalid file type', 400);
     return;

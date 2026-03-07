@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'kyc_history_screen.dart';
 import 'kyc_initiate_screen.dart';
 import 'kyc_schedule_call_screen.dart';
@@ -31,7 +32,7 @@ class _KycHomeScreenState extends State<KycHomeScreen> {
     _service = KycService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.status();
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -53,24 +54,25 @@ class _KycHomeScreenState extends State<KycHomeScreen> {
   String _statusLabel(String raw) {
     switch (raw.toLowerCase()) {
       case 'pending':
-        return 'Pending';
+        return context.l10n.phrase('Pending');
       case 'in_review':
-        return 'In review';
+        return context.l10n.phrase('In review');
       case 'approved':
-        return 'Approved';
+        return context.l10n.phrase('Approved');
       case 'rejected':
-        return 'Rejected';
+        return context.l10n.phrase('Rejected');
       default:
-        return raw.isEmpty ? 'Not started' : raw;
+        return raw.isEmpty ? context.l10n.phrase('Not started') : raw;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('KYC Verification')),
+      appBar: AppBar(title: Text(l10n.kycVerification)),
       body: SafeArea(
         child: FutureBuilder<Map<String, dynamic>>(
           future: _future,
@@ -86,12 +88,12 @@ class _KycHomeScreenState extends State<KycHomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Failed to load KYC status',
+                        l10n.phrase('Failed to load KYC status'),
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                      FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                     ],
                   ),
                 ),
@@ -120,7 +122,7 @@ class _KycHomeScreenState extends State<KycHomeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Status',
+                              l10n.phrase('Status'),
                               style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
                             ),
                             const SizedBox(height: 4),
@@ -143,7 +145,7 @@ class _KycHomeScreenState extends State<KycHomeScreen> {
                       IconButton(
                         onPressed: _refresh,
                         icon: const Icon(Icons.refresh),
-                        tooltip: 'Refresh',
+                        tooltip: l10n.phrase('Refresh'),
                       ),
                     ],
                   ),
@@ -152,28 +154,28 @@ class _KycHomeScreenState extends State<KycHomeScreen> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.play_arrow),
-                  title: const Text('Initiate verification'),
+                  title: Text(l10n.phrase('Initiate verification')),
                   onTap: () => Navigator.of(context).pushNamed(KycInitiateScreen.routeName),
                 ),
                 const Divider(),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.upload_file),
-                  title: const Text('Upload document'),
+                  title: Text(l10n.phrase('Upload document')),
                   onTap: () => Navigator.of(context).pushNamed(KycUploadDocumentScreen.routeName),
                 ),
                 const Divider(),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.video_call),
-                  title: const Text('Schedule verification call'),
+                  title: Text(l10n.phrase('Schedule verification call')),
                   onTap: () => Navigator.of(context).pushNamed(KycScheduleCallScreen.routeName),
                 ),
                 const Divider(),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.history),
-                  title: const Text('Verification history'),
+                  title: Text(l10n.phrase('Verification history')),
                   onTap: () => Navigator.of(context).pushNamed(KycHistoryScreen.routeName),
                 ),
               ],

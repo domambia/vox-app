@@ -21,6 +21,7 @@ class ProfileService {
   }
 
   Future<Map<String, dynamic>> createProfile({
+    String? displayName,
     String? bio,
     String? location,
     List<String>? interests,
@@ -30,6 +31,7 @@ class ProfileService {
     final resp = await _apiClient.dio.post(
       '/profile',
       data: {
+        if (displayName != null) 'displayName': displayName,
         if (bio != null) 'bio': bio,
         if (location != null) 'location': location,
         if (interests != null) 'interests': interests,
@@ -44,6 +46,7 @@ class ProfileService {
 
   Future<Map<String, dynamic>> updateProfile({
     required String userId,
+    String? displayName,
     String? bio,
     String? location,
     List<String>? interests,
@@ -53,6 +56,7 @@ class ProfileService {
     final resp = await _apiClient.dio.put(
       '/profile/$userId',
       data: {
+        if (displayName != null) 'displayName': displayName,
         if (bio != null) 'bio': bio,
         if (location != null) 'location': location,
         if (interests != null) 'interests': interests,

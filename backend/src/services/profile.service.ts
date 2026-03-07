@@ -7,6 +7,15 @@ import {
 } from '@/validations/profile.validation';
 
 export class ProfileService {
+  private parseDisplayName(displayName?: string) {
+    const trimmed = (displayName ?? '').trim();
+    if (!trimmed) return null;
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return null;
+    const firstName = parts[0];
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : '';
+    return { firstName, lastName };
+  }
   /**
    * Create a new profile for a user
    */
@@ -28,6 +37,17 @@ export class ProfileService {
 
       if (existingProfile) {
         throw new Error('Profile already exists for this user');
+      }
+
+      const parsedName = this.parseDisplayName(data.displayName);
+      if (parsedName) {
+        await prisma.user.update({
+          where: { user_id: userId },
+          data: {
+            first_name: parsedName.firstName,
+            last_name: parsedName.lastName,
+          },
+        });
       }
 
       // Create profile
@@ -112,6 +132,17 @@ export class ProfileService {
 
       if (!existingProfile) {
         throw new Error('Profile not found');
+      }
+
+      const parsedName = this.parseDisplayName(data.displayName);
+      if (parsedName) {
+        await prisma.user.update({
+          where: { user_id: userId },
+          data: {
+            first_name: parsedName.firstName,
+            last_name: parsedName.lastName,
+          },
+        });
       }
 
       // Build update data

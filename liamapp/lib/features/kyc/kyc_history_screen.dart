@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'kyc_service.dart';
 
 class KycHistoryScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _KycHistoryScreenState extends State<KycHistoryScreen> {
     _service = KycService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.history();
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -49,9 +50,10 @@ class _KycHistoryScreenState extends State<KycHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('KYC History')),
+      appBar: AppBar(title: Text(l10n.phrase('KYC History'))),
       body: SafeArea(
         child: FutureBuilder<List<dynamic>>(
           future: _future,
@@ -67,11 +69,11 @@ class _KycHistoryScreenState extends State<KycHistoryScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Failed to load history',
+                        l10n.phrase('Failed to load history'),
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                      FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                     ],
                   ),
                 ),
@@ -82,7 +84,7 @@ class _KycHistoryScreenState extends State<KycHistoryScreen> {
             if (items.isEmpty) {
               return Center(
                 child: Text(
-                  'No verification attempts',
+                  l10n.phrase('No verification attempts'),
                   style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
               );
@@ -103,7 +105,7 @@ class _KycHistoryScreenState extends State<KycHistoryScreen> {
 
                   return ListTile(
                     leading: const Icon(Icons.verified_user),
-                    title: Text(status.isEmpty ? 'Verification' : status),
+                    title: Text(status.isEmpty ? l10n.phrase('Verification') : status),
                     subtitle: Text(
                       [if (doc.isNotEmpty) doc, if (created.isNotEmpty) created, if (verificationId.isNotEmpty) verificationId]
                           .join(' • '),

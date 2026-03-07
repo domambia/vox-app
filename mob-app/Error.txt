@@ -64,3 +64,7 @@ BUILD FAILED in 3m 19s
 24 actionable tasks: 12 executed, 12 up-to-date
 
       ~/wo/eu/vox-app/mob-app/android     main !6 ?3  
+
+
+
+ {firstName: Omambia, lastName: Dauglous, email: omambia@gmail.com, phoneNumber: +3567665544332, password: DevPythrer@1, countryCode: MT}

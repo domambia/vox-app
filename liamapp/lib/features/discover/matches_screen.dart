@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import '../chats/chats_service.dart';
 import 'discover_service.dart';
 
@@ -28,7 +29,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
     _service = DiscoverService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.matches();
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 45), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -63,9 +64,10 @@ class _MatchesScreenState extends State<MatchesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Matches')),
+      appBar: AppBar(title: Text(l10n.phrase('Matches'))),
       body: SafeArea(
         child: FutureBuilder<List<dynamic>>(
           future: _future,
@@ -81,11 +83,11 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Failed to load matches',
+                        l10n.phrase('Failed to load matches'),
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                      FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                     ],
                   ),
                 ),
@@ -96,7 +98,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
             if (items.isEmpty) {
               return Center(
                 child: Text(
-                  'No matches yet',
+                  l10n.phrase('No matches yet'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

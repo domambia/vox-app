@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'groups_service.dart';
 
 class NewGroupScreen extends StatefulWidget {
@@ -61,20 +62,21 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New group')),
+      appBar: AppBar(title: Text(l10n.phrase('New group'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             Text(
-              'Create a group',
+              l10n.phrase('Create a group'),
               style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
-              'Give your group a name and optional description.',
+              l10n.phrase('Give your group a name and optional description.'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -86,17 +88,17 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
                 children: [
                   TextFormField(
                     controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'Group name'),
+                    decoration: InputDecoration(labelText: l10n.phrase('Group name')),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Group name is required';
+                      if (v.isEmpty) return l10n.phrase('Group name is required');
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _descController,
-                    decoration: const InputDecoration(labelText: 'Description (optional)'),
+                    decoration: InputDecoration(labelText: l10n.phrase('Description (optional)')),
                     minLines: 2,
                     maxLines: 4,
                   ),
@@ -105,7 +107,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _submitting ? null : _submit,
-                      child: Text(_submitting ? 'Creating...' : 'Create'),
+                      child: Text(_submitting ? l10n.phrase('Creating...') : l10n.phrase('Create')),
                     ),
                   ),
                 ],

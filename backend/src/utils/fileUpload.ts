@@ -13,6 +13,7 @@ const ensureUploadDirs = () => {
     path.join(config.upload.uploadDir, "voice-bios"),
     path.join(config.upload.uploadDir, "events"),
     path.join(config.upload.uploadDir, "messages"),
+    path.join(config.upload.uploadDir, "posts"),
   ];
 
   dirs.forEach((dir) => {
@@ -40,6 +41,8 @@ const storage = multer.diskStorage({
       uploadPath = path.join(config.upload.uploadDir, "events");
     } else if (file.fieldname === "messageAttachment") {
       uploadPath = path.join(config.upload.uploadDir, "messages");
+    } else if (file.fieldname === "postImage") {
+      uploadPath = path.join(config.upload.uploadDir, "posts");
     }
 
     cb(null, uploadPath);
@@ -155,3 +158,6 @@ export const uploadMessageAttachment = upload.single("messageAttachment");
 
 // Multiple files upload (for message attachments)
 export const uploadMessageAttachments = upload.array("attachments", 5);
+
+// Post image upload
+export const uploadPostImage = upload.single("postImage");

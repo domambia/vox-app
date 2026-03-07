@@ -6,6 +6,11 @@ const lookingForEnum = z.enum(['DATING', 'FRIENDSHIP', 'HOBBY', 'ALL']);
 // Create profile schema
 export const createProfileSchema = z.object({
   body: z.object({
+    displayName: z
+      .string()
+      .max(120, 'Display name must be less than 120 characters')
+      .optional()
+      .or(z.literal('')),
     bio: z
       .string()
       .max(500, 'Bio must be less than 500 characters')
@@ -28,6 +33,11 @@ export const createProfileSchema = z.object({
 // Update profile schema (all fields optional)
 export const updateProfileSchema = z.object({
   body: z.object({
+    displayName: z
+      .string()
+      .max(120, 'Display name must be less than 120 characters')
+      .optional()
+      .or(z.literal('')),
     bio: z
       .string()
       .max(500, 'Bio must be less than 500 characters')

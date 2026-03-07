@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/toast.dart';
 import 'auth_controller.dart';
 
@@ -20,6 +21,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _isSubmitting = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -54,7 +56,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
       }
 
       if (!mounted) return;
-      showToast(context, 'Logged in successfully');
+      showToast(context, context.l10n.phrase('Logged in successfully'));
       Navigator.of(context).pushNamedAndRemoveUntil('/app', (r) => false);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -64,10 +66,11 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Login'),
+        title: Text(l10n.phrase('Login')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false),
@@ -87,14 +90,14 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
                   ),
                 ),
                 Text(
-                  'Sign in',
+                  l10n.phrase('Sign in'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enter your phone number or email and password.',
+                  l10n.phrase('Enter your phone number or email and password.'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -108,20 +111,20 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
                         controller: _phoneOrEmailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone or email',
-                          hintText: '+35612345678 or user@example.com',
+                        decoration: InputDecoration(
+                          labelText: l10n.phrase('Phone or email'),
+                          hintText: l10n.phrase('+35612345678 or user@example.com'),
                         ),
                         validator: (value) {
                           final v = (value ?? '').trim();
-                          if (v.isEmpty) return 'Phone number or email is required';
+                          if (v.isEmpty) return l10n.phrase('Phone number or email is required');
                           if (v.contains('@')) {
                             if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v)) {
-                              return 'Enter a valid email address';
+                              return l10n.phrase('Enter a valid email address');
                             }
                           } else {
                             if (!v.startsWith('+') || v.length < 8) {
-                              return 'Use international format, e.g. +35612345678';
+                              return l10n.phrase('Use international format, e.g. +35612345678');
                             }
                           }
                           return null;
@@ -130,13 +133,21 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: l10n.phrase('Password'),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                            ),
+                            onPressed: () {
+                              setState(() => _obscurePassword = !_obscurePassword);
+                            },
+                          ),
                         ),
                         validator: (value) {
                           final v = (value ?? '').trim();
-                          if (v.isEmpty) return 'Password is required';
+                          if (v.isEmpty) return l10n.phrase('Password is required');
                           return null;
                         },
                       ),
@@ -145,7 +156,7 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
                         width: double.infinity,
                         child: FilledButton(
                           onPressed: _isSubmitting ? null : _submit,
-                          child: Text(_isSubmitting ? 'Logging in...' : 'Log in'),
+                          child: Text(_isSubmitting ? l10n.phrase('Logging in...') : l10n.phrase('Log in')),
                         ),
                       ),
                     ],

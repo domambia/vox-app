@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'notifications_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _service = NotificationsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.listNotifications();
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
       _refresh();
     });
@@ -49,9 +50,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(title: Text(l10n.notifications)),
       body: SafeArea(
         child: FutureBuilder<List<dynamic>>(
           future: _future,
@@ -67,11 +69,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Failed to load notifications',
+                        l10n.phrase('Failed to load notifications'),
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 12),
-                      FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                      FilledButton(onPressed: _refresh, child: Text(l10n.retry)),
                     ],
                   ),
                 ),
@@ -82,7 +84,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             if (items.isEmpty) {
               return Center(
                 child: Text(
-                  'No notifications',
+                  l10n.phrase('No notifications'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

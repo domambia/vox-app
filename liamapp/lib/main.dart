@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
+import 'core/app_localizations.dart';
 import 'screens/landing_screen.dart';
 import 'screens/splash_screen.dart';
 import 'core/api_client.dart';
@@ -17,6 +19,8 @@ import 'features/app/app_shell.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/otp_login_screen.dart';
 import 'features/auth/otp_register_screen.dart';
+import 'features/calls/call_manager.dart';
+import 'features/calls/incoming_call_screen.dart';
 import 'features/settings/settings_controller.dart';
 import 'theme/app_theme.dart';
 
@@ -65,15 +69,32 @@ class MyApp extends StatelessWidget {
             return instance;
           },
         ),
+        ChangeNotifierProxyProvider2<ApiClient, SocketService, CallManager>(
+          create: (ctx) => CallManager(
+            apiClient: ctx.read<ApiClient>(),
+            socketService: ctx.read<SocketService>(),
+          ),
+          update: (ctx, apiClient, socketService, callManager) {
+            return callManager ?? CallManager(apiClient: apiClient, socketService: socketService);
+          },
+        ),
       ],
       child: Consumer<SettingsController>(
         builder: (context, settings, _) {
           return MaterialApp(
             navigatorKey: MyApp.rootNavigatorKey,
-            title: 'LiamApp',
+            title: AppLocalizations.forLocale(settings.locale).appTitle,
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
             themeMode: settings.themeMode,
+            locale: settings.locale,
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              _FallbackMaterialLocalizationsDelegate(),
+              _FallbackWidgetsLocalizationsDelegate(),
+              _FallbackCupertinoLocalizationsDelegate(),
+            ],
             themeAnimationDuration: Duration.zero,
             builder: (context, child) {
               final mq = MediaQuery.of(context);
@@ -135,7 +156,7 @@ class _AuthExpiryListenerState extends State<_AuthExpiryListener> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final ctx = MyApp.rootNavigatorKey.currentContext;
             if (ctx != null && ctx.mounted) {
-              showToast(ctx, 'Session expired. Please sign in again.', isError: true);
+              showToast(ctx, ctx.l10n.sessionExpiredSignIn, isError: true);
             }
           });
         });
@@ -164,6 +185,7 @@ class _SocketAuthBinder extends StatefulWidget {
 
 class _SocketAuthBinderState extends State<_SocketAuthBinder> {
   bool? _last;
+  StreamSubscription<IncomingCallData>? _incomingCallSub;
 
   @override
   void didChangeDependencies() {
@@ -173,8 +195,89 @@ class _SocketAuthBinderState extends State<_SocketAuthBinder> {
     if (_last == current) return;
     _last = current;
     Provider.of<SocketService>(context, listen: false).syncAuth(current);
+
+    _incomingCallSub?.cancel();
+    if (current) {
+      final callManager = Provider.of<CallManager>(context, listen: false);
+      _incomingCallSub = callManager.onIncomingCall.listen(_handleIncomingCall);
+    }
+  }
+
+  void _handleIncomingCall(IncomingCallData data) {
+    final navState = MyApp.rootNavigatorKey.currentState;
+    if (navState == null) return;
+
+    navState.push(
+      MaterialPageRoute(
+        builder: (_) => IncomingCallScreen(
+          callId: data.callId,
+          callerName: data.callerName,
+          callerId: data.callerId,
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _incomingCallSub?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+class _FallbackMaterialLocalizationsDelegate extends LocalizationsDelegate<MaterialLocalizations> {
+  const _FallbackMaterialLocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) {
+    return locale.languageCode == 'en' || locale.languageCode == 'it' || locale.languageCode == 'mt';
+  }
+
+  @override
+  Future<MaterialLocalizations> load(Locale locale) {
+    final effective = locale.languageCode == 'mt' ? const Locale('en') : locale;
+    return GlobalMaterialLocalizations.delegate.load(effective);
+  }
+
+  @override
+  bool shouldReload(covariant LocalizationsDelegate<MaterialLocalizations> old) => false;
+}
+
+class _FallbackWidgetsLocalizationsDelegate extends LocalizationsDelegate<WidgetsLocalizations> {
+  const _FallbackWidgetsLocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) {
+    return locale.languageCode == 'en' || locale.languageCode == 'it' || locale.languageCode == 'mt';
+  }
+
+  @override
+  Future<WidgetsLocalizations> load(Locale locale) {
+    final effective = locale.languageCode == 'mt' ? const Locale('en') : locale;
+    return GlobalWidgetsLocalizations.delegate.load(effective);
+  }
+
+  @override
+  bool shouldReload(covariant LocalizationsDelegate<WidgetsLocalizations> old) => false;
+}
+
+class _FallbackCupertinoLocalizationsDelegate extends LocalizationsDelegate<Object> {
+  const _FallbackCupertinoLocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) {
+    return locale.languageCode == 'en' || locale.languageCode == 'it' || locale.languageCode == 'mt';
+  }
+
+  @override
+  Future<Object> load(Locale locale) {
+    final effective = locale.languageCode == 'mt' ? const Locale('en') : locale;
+    return GlobalCupertinoLocalizations.delegate.load(effective).then((value) => value as Object);
+  }
+
+  @override
+  bool shouldReload(covariant LocalizationsDelegate<Object> old) => false;
 }

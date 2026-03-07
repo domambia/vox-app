@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import 'kyc_service.dart';
 
 class KycUploadDocumentScreen extends StatefulWidget {
@@ -49,15 +50,16 @@ class _KycUploadDocumentScreenState extends State<KycUploadDocumentScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Upload document')),
+      appBar: AppBar(title: Text(l10n.phrase('Upload document'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             Text(
-              'Upload a clear photo or PDF of your document.',
+              l10n.phrase('Upload a clear photo or PDF of your document.'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -66,7 +68,7 @@ class _KycUploadDocumentScreenState extends State<KycUploadDocumentScreen> {
             OutlinedButton.icon(
               onPressed: _pickFile,
               icon: const Icon(Icons.attach_file),
-              label: const Text('Choose file'),
+              label: Text(l10n.phrase('Choose file')),
             ),
             const SizedBox(height: 12),
             if (_filePath != null)
@@ -79,7 +81,7 @@ class _KycUploadDocumentScreenState extends State<KycUploadDocumentScreen> {
               width: double.infinity,
               child: FilledButton(
                 onPressed: (_filePath == null || _uploading) ? null : _upload,
-                child: Text(_uploading ? 'Uploading...' : 'Upload'),
+                child: Text(_uploading ? l10n.phrase('Uploading...') : l10n.phrase('Upload')),
               ),
             ),
           ],

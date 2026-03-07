@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_localizations.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -40,10 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Login'),
+        title: Text(l10n.phrase('Login')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false),
@@ -63,14 +66,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 Text(
-                  'Welcome back',
+                  l10n.phrase('Welcome back'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Sign in to continue.',
+                  l10n.phrase('Sign in to continue.'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -84,13 +87,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
+                    decoration: InputDecoration(
+                      labelText: l10n.phrase('Email'),
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Email is required';
-                      if (!v.contains('@')) return 'Enter a valid email';
+                      if (v.isEmpty) return l10n.phrase('Email is required');
+                      if (!v.contains('@')) return l10n.phrase('Enter a valid email');
                       return null;
                     },
                   ),
@@ -100,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     obscureText: _obscurePassword,
                     autofillHints: const [AutofillHints.password],
                     decoration: InputDecoration(
-                      labelText: 'Password',
+                      labelText: l10n.phrase('Password'),
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
@@ -108,8 +111,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (value) {
                       final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Password is required';
-                      if (v.length < 6) return 'Password must be at least 6 characters';
+                      if (v.isEmpty) return l10n.phrase('Password is required');
+                      if (v.length < 6) return l10n.phrase('Password must be at least 6 characters');
                       return null;
                     },
                   ),
@@ -118,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () => Navigator.of(context).pushNamed('/password-reset'),
-                      child: const Text('Forgot password?'),
+                      child: Text(l10n.phrase('Forgot password?')),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -126,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _isSubmitting ? null : _submit,
-                      child: Text(_isSubmitting ? 'Signing in...' : 'Login'),
+                      child: Text(_isSubmitting ? l10n.phrase('Signing in...') : l10n.phrase('Login')),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -134,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(context).pushReplacementNamed('/signup'),
-                      child: const Text('Create an account'),
+                      child: Text(l10n.phrase('Create an account')),
                     ),
                   ),
                     ],

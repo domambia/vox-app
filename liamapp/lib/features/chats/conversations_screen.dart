@@ -5,6 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/pagination.dart';
+import '../../core/refresh_manager.dart';
+import '../../core/socket_service.dart';
+import '../../core/app_localizations.dart';
 import '../../models/conversation.dart';
 import '../discover/discover_service.dart';
 import 'chats_service.dart';
@@ -20,14 +23,19 @@ class ConversationsScreen extends StatefulWidget {
 }
 
 class _ConversationsScreenState extends State<ConversationsScreen> {
+  static const _refreshKey = 'conversations';
+  static const _pollInterval = Duration(seconds: 30);
+
   late final ChatsService _service;
   late Future<Paginated<Conversation>> _future;
   late final DiscoverService _discover;
   late Future<List<dynamic>> _likedFuture;
+  final _refreshManager = RefreshManager();
 
   Timer? _pollTimer;
   ValueNotifier<int>? _tabIndex;
-  bool _wasActive = false;
+  bool _isActive = false;
+  StreamSubscription<Map<String, dynamic>>? _messageSub;
 
   @override
   void initState() {
@@ -37,37 +45,64 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     _discover = DiscoverService(apiClient);
     _future = _service.listConversationsTyped();
     _likedFuture = _discover.likes(type: 'given');
+    _refreshManager.markFetchCompleted(_refreshKey);
 
     _tabIndex = Provider.of<ValueNotifier<int>>(context, listen: false);
-    _wasActive = _tabIndex?.value == 1;
+    _isActive = _tabIndex?.value == 1;
     _tabIndex?.addListener(_onTabChanged);
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!mounted) return;
-      _refresh();
+    _startPolling();
+
+    final socketService = Provider.of<SocketService>(context, listen: false);
+    _messageSub = socketService.onMessageReceived.listen((_) {
+      if (_isActive && mounted) {
+        _refreshManager.invalidate(_refreshKey);
+        _refresh();
+      }
+    });
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (!mounted || !_isActive) return;
+      if (_refreshManager.shouldRefresh(_refreshKey, minInterval: _pollInterval)) {
+        _refresh();
+      }
     });
   }
 
   void _onTabChanged() {
     final idx = _tabIndex?.value;
-    final isActive = idx == 1;
-    if (isActive && !_wasActive && mounted) {
-      _refresh();
+    final nowActive = idx == 1;
+    if (nowActive && !_isActive && mounted) {
+      if (_refreshManager.shouldRefresh(_refreshKey, minInterval: const Duration(seconds: 10))) {
+        _refresh();
+      }
     }
-    _wasActive = isActive;
+    _isActive = nowActive;
   }
 
   Future<void> _refresh() async {
+    if (!_refreshManager.canFetch(_refreshKey)) return;
+    _refreshManager.markFetchStarted(_refreshKey);
+
     setState(() {
       _future = _service.listConversationsTyped();
       _likedFuture = _discover.likes(type: 'given');
     });
-    await _future;
+
+    try {
+      await _future;
+    } finally {
+      _refreshManager.markFetchCompleted(_refreshKey);
+    }
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _messageSub?.cancel();
     _tabIndex?.removeListener(_onTabChanged);
     super.dispose();
   }
@@ -84,7 +119,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final first = (user?['first_name'] ?? user?['firstName'] ?? profile?['first_name'] ?? profile?['firstName'] ?? '').toString();
     final last = (user?['last_name'] ?? user?['lastName'] ?? profile?['last_name'] ?? profile?['lastName'] ?? '').toString();
     final name = ('$first $last').trim();
-    return name.isEmpty ? 'User' : name;
+    return name.isEmpty ? context.l10n.phrase('User') : name;
   }
 
   Future<void> _startChatFromLiked(dynamic like) async {
@@ -96,23 +131,24 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
+        final l10n = context.l10n;
         return AlertDialog(
-          title: Text('Message $name'),
+          title: Text('${l10n.phrase('Message')} $name'),
           content: TextField(
             controller: textController,
             autofocus: true,
             minLines: 1,
             maxLines: 4,
-            decoration: const InputDecoration(hintText: 'Say hello...'),
+            decoration: InputDecoration(hintText: l10n.phrase('Say hello...')),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(textController.text.trim()),
-              child: const Text('Send'),
+              child: Text(l10n.phrase('Send')),
             ),
           ],
         );
@@ -148,7 +184,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         }
         if (snapshot.hasError) {
           return _ErrorView(
-            message: 'Failed to load chats',
+            message: context.l10n.phrase('Failed to load chats'),
             onRetry: _refresh,
           );
         }
@@ -175,10 +211,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(bottom: 8),
                   child: Text(
-                    'Liked users',
+                    context.l10n.phrase('Liked users'),
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
@@ -241,8 +277,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
               if (conversations.isNotEmpty) {
                 if (i == 0) {
-                  return const ListTile(
-                    title: Text('Conversations'),
+                  return ListTile(
+                    title: Text(context.l10n.phrase('Conversations')),
                   );
                 }
                 final c = conversations[i - 1];
@@ -299,12 +335,12 @@ class _EmptyConversations extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'No conversations yet',
+              context.l10n.phrase('No conversations yet'),
               style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
-              'Start a new chat to connect with someone.',
+              context.l10n.phrase('Start a new chat to connect with someone.'),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -313,7 +349,7 @@ class _EmptyConversations extends StatelessWidget {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: onNewChat,
-              child: const Text('New chat'),
+              child: Text(context.l10n.phrase('New chat')),
             ),
           ],
         ),
@@ -345,7 +381,7 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: 12),
             FilledButton(
               onPressed: () => onRetry(),
-              child: const Text('Retry'),
+              child: Text(context.l10n.retry),
             ),
           ],
         ),

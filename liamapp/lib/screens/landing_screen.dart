@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_localizations.dart';
+
 class LandingScreen extends StatelessWidget {
   const LandingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     return Scaffold(
       body: SafeArea(
@@ -15,7 +18,7 @@ class LandingScreen extends StatelessWidget {
               pinned: true,
               backgroundColor: colorScheme.surface,
               foregroundColor: colorScheme.onSurface,
-              title: const Text('LiamApp'),
+              title: Text(l10n.appTitle),
             ),
             SliverToBoxAdapter(
               child: Padding(
@@ -26,7 +29,7 @@ class LandingScreen extends StatelessWidget {
                     Center(
                       child: Semantics(
                         image: true,
-                        label: 'LiamApp icon',
+                        label: l10n.phrase('LiamApp icon'),
                         child: Image.asset(
                           'assets/logo.png',
                           width: 96,
@@ -36,7 +39,7 @@ class LandingScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Welcome to LiamApp',
+                      l10n.phrase('Welcome to LiamApp'),
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.w700,
@@ -44,7 +47,7 @@ class LandingScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'A voice-first, accessibility-first community app.',
+                      l10n.phrase('A voice-first, accessibility-first community app.'),
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: colorScheme.onSurfaceVariant,
@@ -52,31 +55,35 @@ class LandingScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     _FeatureSection(
-                      title: 'Made for accessibility',
+                      title: l10n.phrase('Made for accessibility'),
                       body:
-                          'Designed to work great with screen readers, clear labels, and simple navigation patterns.',
+                          l10n.phrase(
+                            'Designed to work great with screen readers, clear labels, and simple navigation patterns.',
+                          ),
                     ),
                     const SizedBox(height: 12),
                     _FeatureSection(
-                      title: 'Connect with people',
+                      title: l10n.phrase('Connect with people'),
                       body:
-                          'Meet, chat, and build community with people who share similar experiences.',
+                          l10n.phrase(
+                            'Meet, chat, and build community with people who share similar experiences.',
+                          ),
                     ),
                     const SizedBox(height: 12),
                     _FeatureSection(
-                      title: 'Events and groups',
+                      title: l10n.phrase('Events and groups'),
                       body:
-                          'Discover community events and join groups that match your interests.',
+                          l10n.phrase('Discover community events and join groups that match your interests.'),
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
                       onPressed: () => Navigator.of(context).pushNamed('/auth/login'),
-                      child: const Text('Login'),
+                      child: Text(l10n.phrase('Login')),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton(
                       onPressed: () => Navigator.of(context).pushNamed('/auth/register'),
-                      child: const Text('Sign up'),
+                      child: Text(l10n.phrase('Sign up')),
                     ),
                   ],
                 ),

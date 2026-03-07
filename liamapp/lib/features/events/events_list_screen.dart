@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_localizations.dart';
 import '../../core/pagination.dart';
+import '../../core/refresh_manager.dart';
 import '../../models/event.dart';
 import 'create_event_screen.dart';
 import 'events_service.dart';
@@ -19,10 +21,16 @@ class EventsListScreen extends StatefulWidget {
 }
 
 class _EventsListScreenState extends State<EventsListScreen> {
+  static const _refreshKey = 'events';
+  static const _pollInterval = Duration(seconds: 60);
+
   late final EventsService _service;
   late Future<Paginated<Event>> _future;
+  final _refreshManager = RefreshManager();
 
   Timer? _pollTimer;
+  ValueNotifier<int>? _tabIndex;
+  bool _isActive = false;
 
   String _formatStartTime(BuildContext context, DateTime? startTime) {
     if (startTime == null) return '';
@@ -41,24 +49,56 @@ class _EventsListScreenState extends State<EventsListScreen> {
     super.initState();
     _service = EventsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.listEventsTyped();
+    _refreshManager.markFetchCompleted(_refreshKey);
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!mounted) return;
-      _refresh();
+    _tabIndex = Provider.of<ValueNotifier<int>>(context, listen: false);
+    _isActive = _tabIndex?.value == 3;
+    _tabIndex?.addListener(_onTabChanged);
+
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (!mounted || !_isActive) return;
+      if (_refreshManager.shouldRefresh(_refreshKey, minInterval: _pollInterval)) {
+        _refresh();
+      }
     });
+  }
+
+  void _onTabChanged() {
+    final idx = _tabIndex?.value;
+    final nowActive = idx == 3;
+    if (nowActive && !_isActive && mounted) {
+      if (_refreshManager.shouldRefresh(_refreshKey, minInterval: const Duration(seconds: 15))) {
+        _refresh();
+      }
+    }
+    _isActive = nowActive;
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _tabIndex?.removeListener(_onTabChanged);
     super.dispose();
   }
 
   Future<void> _refresh() async {
+    if (!_refreshManager.canFetch(_refreshKey)) return;
+    _refreshManager.markFetchStarted(_refreshKey);
+
     setState(() {
       _future = _service.listEventsTyped();
     });
-    await _future;
+
+    try {
+      await _future;
+    } finally {
+      _refreshManager.markFetchCompleted(_refreshKey);
+    }
   }
 
   @override
@@ -70,7 +110,7 @@ class _EventsListScreenState extends State<EventsListScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _ErrorView(message: 'Failed to load events', onRetry: _refresh);
+          return _ErrorView(message: context.l10n.phrase('Failed to load events'), onRetry: _refresh);
         }
 
         final items = snapshot.data?.items ?? const <Event>[];
@@ -149,7 +189,7 @@ class _EmptyEvents extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onNewEvent, child: const Text('New event')),
+            FilledButton(onPressed: onNewEvent, child: Text(context.l10n.phrase('New event'))),
           ],
         ),
       ),
@@ -180,7 +220,7 @@ class _ErrorView extends StatelessWidget {
             const SizedBox(height: 12),
             FilledButton(
               onPressed: () => onRetry(),
-              child: const Text('Retry'),
+              child: Text(context.l10n.retry),
             ),
           ],
         ),

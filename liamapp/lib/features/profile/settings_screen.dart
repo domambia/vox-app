@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/toast.dart';
 import '../settings/settings_controller.dart';
 
@@ -13,18 +14,19 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final settings = Provider.of<SettingsController>(context, listen: true);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(l10n.settings),
         actions: [
           TextButton(
             onPressed: () async {
               await settings.reset();
               if (!context.mounted) return;
-              showToast(context, 'Settings reset');
+              showToast(context, l10n.phrase('Settings reset'));
             },
-            child: const Text('Reset'),
+            child: Text(l10n.phrase('Reset')),
           ),
         ],
       ),
@@ -33,13 +35,13 @@ class SettingsScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             Text(
-              'Accessibility',
+              l10n.phrase('Accessibility'),
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             _DropdownTile(
               leading: Icons.text_fields,
-              title: 'Font size',
+              title: l10n.phrase('Font size'),
               value: settings.accessibility.fontSize,
               items: const {
                 'small': 'Small',
@@ -53,7 +55,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             _SliderTile(
               leading: Icons.record_voice_over,
-              title: 'Voice speed',
+              title: l10n.phrase('Voice speed'),
               value: settings.accessibility.voiceSpeed,
               min: 0.5,
               max: 2.0,
@@ -65,7 +67,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.vibration),
-              title: const Text('Haptics'),
+              title: Text(l10n.phrase('Haptics')),
               value: settings.accessibility.hapticEnabled,
               onChanged: (v) => settings.updateAccessibility(
                 settings.accessibility.copyWith(hapticEnabled: v),
@@ -73,7 +75,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             _DropdownTile(
               leading: Icons.vibration,
-              title: 'Haptic intensity',
+              title: l10n.phrase('Haptic intensity'),
               value: settings.accessibility.hapticIntensity,
               items: const {
                 'light': 'Light',
@@ -86,7 +88,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             _DropdownTile(
               leading: Icons.announcement,
-              title: 'Announcement verbosity',
+              title: l10n.phrase('Announcement verbosity'),
               value: settings.accessibility.announcementVerbosity,
               items: const {
                 'brief': 'Brief',
@@ -100,7 +102,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.image),
-              title: const Text('Image descriptions'),
+              title: Text(l10n.phrase('Image descriptions')),
               value: settings.accessibility.enableImageDescriptions,
               onChanged: (v) => settings.updateAccessibility(
                 settings.accessibility.copyWith(enableImageDescriptions: v),
@@ -108,13 +110,13 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Theme',
+              l10n.phrase('Theme'),
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             _DropdownTile(
               leading: Icons.palette,
-              title: 'Theme',
+              title: l10n.phrase('Theme'),
               value: settings.theme.theme,
               items: const {
                 'system': 'System',
@@ -126,20 +128,20 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.contrast),
-              title: const Text('High contrast'),
+              title: Text(l10n.phrase('High contrast')),
               value: settings.theme.highContrast,
               onChanged: (v) => settings.updateTheme(settings.theme.copyWith(highContrast: v)),
             ),
             const SizedBox(height: 20),
             Text(
-              'Notifications',
+              l10n.notifications,
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.message),
-              title: const Text('Message notifications'),
+              title: Text(l10n.phrase('Message notifications')),
               value: settings.notifications.messageNotifications,
               onChanged: (v) => settings.updateNotifications(
                 settings.notifications.copyWith(messageNotifications: v),
@@ -148,7 +150,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.favorite),
-              title: const Text('Match notifications'),
+              title: Text(l10n.phrase('Match notifications')),
               value: settings.notifications.matchNotifications,
               onChanged: (v) => settings.updateNotifications(
                 settings.notifications.copyWith(matchNotifications: v),
@@ -157,7 +159,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.event),
-              title: const Text('Event notifications'),
+              title: Text(l10n.phrase('Event notifications')),
               value: settings.notifications.eventNotifications,
               onChanged: (v) => settings.updateNotifications(
                 settings.notifications.copyWith(eventNotifications: v),
@@ -166,7 +168,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.group),
-              title: const Text('Group notifications'),
+              title: Text(l10n.phrase('Group notifications')),
               value: settings.notifications.groupNotifications,
               onChanged: (v) => settings.updateNotifications(
                 settings.notifications.copyWith(groupNotifications: v),
@@ -175,7 +177,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.volume_up),
-              title: const Text('Sound'),
+              title: Text(l10n.phrase('Sound')),
               value: settings.notifications.soundEnabled,
               onChanged: (v) => settings.updateNotifications(
                 settings.notifications.copyWith(soundEnabled: v),
@@ -184,7 +186,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.vibration),
-              title: const Text('Vibration'),
+              title: Text(l10n.phrase('Vibration')),
               value: settings.notifications.vibrationEnabled,
               onChanged: (v) => settings.updateNotifications(
                 settings.notifications.copyWith(vibrationEnabled: v),
@@ -192,14 +194,14 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Privacy',
+              l10n.phrase('Privacy'),
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.circle),
-              title: const Text('Show online status'),
+              title: Text(l10n.phrase('Show online status')),
               value: settings.privacy.showOnlineStatus,
               onChanged: (v) => settings.updatePrivacy(
                 settings.privacy.copyWith(showOnlineStatus: v),
@@ -208,7 +210,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.schedule),
-              title: const Text('Show last seen'),
+              title: Text(l10n.phrase('Show last seen')),
               value: settings.privacy.showLastSeen,
               onChanged: (v) => settings.updatePrivacy(
                 settings.privacy.copyWith(showLastSeen: v),
@@ -217,7 +219,7 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.visibility),
-              title: const Text('Allow profile views'),
+              title: Text(l10n.phrase('Allow profile views')),
               value: settings.privacy.allowProfileViews,
               onChanged: (v) => settings.updatePrivacy(
                 settings.privacy.copyWith(allowProfileViews: v),
@@ -225,7 +227,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             _DropdownTile(
               leading: Icons.lock,
-              title: 'Allow messages from',
+              title: l10n.phrase('Allow messages from'),
               value: settings.privacy.allowMessagesFrom,
               items: const {
                 'everyone': 'Everyone',

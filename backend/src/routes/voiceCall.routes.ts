@@ -266,49 +266,6 @@ router.get(
 
 /**
  * @swagger
- * /calls/{callId}:
- *   get:
- *     summary: Get call by ID
- *     description: Retrieve detailed information about a specific call
- *     tags: [Voice Calls]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: callId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Call ID
- *     responses:
- *       200:
- *         description: Call retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Success'
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden (not a participant)
- *       404:
- *         description: Call not found
- */
-/**
- * @route   GET /api/v1/calls/:callId
- * @desc    Get call by ID
- * @access  Private (Authenticated)
- */
-router.get(
-  '/:callId',
-  authenticate,
-  validate(getCallSchema),
-  voiceCallController.getCall.bind(voiceCallController)
-);
-
-/**
- * @swagger
  * /calls/webrtc-config:
  *   get:
  *     summary: Get WebRTC configuration
@@ -407,6 +364,49 @@ router.get(
   authenticate,
   validate(getCallSchema),
   voiceCallController.getCallRoom.bind(voiceCallController)
+);
+
+/**
+ * @swagger
+ * /calls/{callId}:
+ *   get:
+ *     summary: Get call by ID
+ *     description: Retrieve detailed information about a specific call
+ *     tags: [Voice Calls]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: callId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Call ID
+ *     responses:
+ *       200:
+ *         description: Call retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (not a participant)
+ *       404:
+ *         description: Call not found
+ */
+/**
+ * @route   GET /api/v1/calls/:callId
+ * @desc    Get call by ID
+ * @access  Private (Authenticated)
+ */
+router.get(
+  '/:callId',
+  authenticate,
+  validate(getCallSchema),
+  voiceCallController.getCall.bind(voiceCallController)
 );
 
 export default router;

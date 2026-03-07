@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../core/app_localizations.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,6 +31,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -40,7 +42,7 @@ class _SplashScreenState extends State<SplashScreen> {
             children: [
               Semantics(
                 image: true,
-                label: 'LiamApp logo',
+                label: l10n.phrase('LiamApp logo'),
                 child: Image.asset(
                   'assets/logo.png',
                   width: 140,
@@ -50,14 +52,14 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'LiamApp',
+                l10n.appTitle,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
               const SizedBox(height: 8),
               Text(
-                'A community for blind and visually impaired people',
+                l10n.phrase('A community for blind and visually impaired people'),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
