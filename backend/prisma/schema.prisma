@@ -529,3 +529,35 @@ model PostLike {
     @@index([user_id])
     @@map("post_likes")
 }
+
+enum NotificationType {
+    match
+    like
+    message
+    event
+    system
+    post
+}
+
+model Notification {
+    notification_id String            @id @default(uuid())
+    user_id         String
+    type             NotificationType
+    title            String
+    message          String
+
+    // Optional references (only relevant for some notification types)
+    conversation_id String?
+    message_id      String?
+    post_id         String?
+
+    read_at    DateTime?
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    @@index([user_id])
+    @@index([user_id, created_at])
+    @@index([user_id, read_at])
+    @@index([type])
+    @@map("notifications")
+}

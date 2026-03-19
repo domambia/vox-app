@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
 import '../../core/toast.dart';
+import '../../core/socket_service.dart';
 import '../auth/auth_controller.dart';
 import '../chats/chats_navigator.dart';
 import '../chats/new_chat_screen.dart';
@@ -15,6 +19,7 @@ import '../discover/matches_screen.dart';
 import '../discover/likes_screen.dart';
 import '../profile/profile_navigator.dart';
 import '../profile/notifications_screen.dart';
+import '../profile/notifications_service.dart';
 import '../profile/settings_screen.dart';
 
 class AppShell extends StatefulWidget {
@@ -33,14 +38,60 @@ class _AppShellState extends State<AppShell> {
 
   bool _redirecting = false;
 
+  int _unreadCount = 0;
+  bool _isRefreshingUnread = false;
+  Timer? _unreadTimer;
+  StreamSubscription<Map<String, dynamic>>? _notificationSub;
+
   final _discoverKey = GlobalKey<NavigatorState>();
   final _chatsKey = GlobalKey<NavigatorState>();
   final _groupsKey = GlobalKey<NavigatorState>();
   final _eventsKey = GlobalKey<NavigatorState>();
   final _profileKey = GlobalKey<NavigatorState>();
 
+  Future<void> _refreshUnreadCount() async {
+    if (_isRefreshingUnread) return;
+    _isRefreshingUnread = true;
+    try {
+      final apiClient = Provider.of<ApiClient>(context, listen: false);
+      final service = NotificationsService(apiClient);
+      final count = await service.getUnreadCount();
+      if (!mounted) return;
+      setState(() => _unreadCount = count);
+    } catch (_) {
+      // Ignore failures; badge will self-correct on next refresh.
+    } finally {
+      _isRefreshingUnread = false;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _refreshUnreadCount();
+
+      final socket = Provider.of<SocketService>(context, listen: false);
+      _notificationSub?.cancel();
+      _notificationSub = socket.onNotificationNew.listen((_) {
+        if (!mounted) return;
+        _refreshUnreadCount();
+      });
+
+      _unreadTimer?.cancel();
+      _unreadTimer = Timer.periodic(const Duration(seconds: 90), (_) {
+        if (!mounted) return;
+        _refreshUnreadCount();
+      });
+    });
+  }
+
   @override
   void dispose() {
+    _notificationSub?.cancel();
+    _unreadTimer?.cancel();
     _tabIndex.dispose();
     super.dispose();
   }
@@ -86,6 +137,49 @@ class _AppShellState extends State<AppShell> {
           appBar: AppBar(
             title: Text(l10n.appTitle),
             actions: [
+              IconButton(
+                tooltip: l10n.notifications,
+                onPressed: () async {
+                  final apiClient = Provider.of<ApiClient>(context, listen: false);
+                  final service = NotificationsService(apiClient);
+                  try {
+                    await service.markAsRead();
+                  } catch (_) {}
+
+                  if (!mounted) return;
+                  setState(() => _unreadCount = 0);
+                  _profileKey.currentState?.pushNamed(NotificationsScreen.routeName);
+                },
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.notifications),
+                    if (_unreadCount > 0)
+                      Positioned(
+                        right: -1,
+                        top: -1,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                          child: Center(
+                            child: Text(
+                              _unreadCount > 99 ? '99+' : '$_unreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             if (_index == 0) ...[
               IconButton(
                 onPressed: () {
@@ -138,6 +232,13 @@ class _AppShellState extends State<AppShell> {
                       _profileKey.currentState?.pushNamed(SettingsScreen.routeName);
                       return;
                     case 'notifications':
+                      try {
+                        final apiClient = Provider.of<ApiClient>(context, listen: false);
+                        final service = NotificationsService(apiClient);
+                        await service.markAsRead();
+                      } catch (_) {}
+                      if (!context.mounted) return;
+                      setState(() => _unreadCount = 0);
                       _profileKey.currentState?.pushNamed(NotificationsScreen.routeName);
                       return;
                     case 'logout':

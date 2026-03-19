@@ -6,6 +6,7 @@ import {
   createPaginatedResponse,
   getPaginationMetadata,
 } from "@/utils/pagination";
+import { emitToUser, getIo } from "@/utils/websocket";
 
 export interface CreateGroupInput {
   name: string;
@@ -83,6 +84,27 @@ export class GroupService {
           role: "ADMIN",
         },
       });
+
+      // Create persistent notification for the group creator.
+      const groupNotification = await prisma.notification.create({
+        data: {
+          user_id: creatorId,
+          type: "system",
+          title: "Group created",
+          message: `Your group "${group.name}" is ready`,
+          post_id: null,
+        },
+      });
+
+      const io = getIo();
+      if (io) {
+        emitToUser(io, creatorId, "notification:new", {
+          notification_id: groupNotification.notification_id,
+          type: groupNotification.type,
+          title: groupNotification.title,
+          message: groupNotification.message,
+        });
+      }
 
       logger.info(`Group created: ${group.group_id} by user ${creatorId}`);
 
@@ -929,6 +951,36 @@ export class GroupService {
         last_message_preview: preview || null,
       },
     });
+
+    // Notify other group members in real time and persist it for badge/counting.
+    const group = await prisma.group.findUnique({
+      where: { group_id: groupId },
+      select: { group_id: true, name: true },
+    });
+    const members = await prisma.groupMember.findMany({
+      where: { group_id: groupId },
+      select: { user_id: true },
+    });
+    const recipientIds = members.map((m) => m.user_id).filter((id) => id !== userId);
+
+    if (recipientIds.length > 0) {
+      await prisma.notification.createMany({
+        data: recipientIds.map((rid) => ({
+          user_id: rid,
+          type: "message",
+          title: "New group message",
+          message: `${group?.name ? `[${group.name}] ` : ""}${preview}`,
+        })),
+      });
+
+      const io = getIo();
+      if (io) {
+        // Payload is intentionally minimal; UI refreshes via `/notifications/unread-count` + `/notifications`.
+        for (const rid of recipientIds) {
+          emitToUser(io, rid, "notification:new", { type: "message" });
+        }
+      }
+    }
 
     logger.info(`Group message sent in ${groupId} by ${userId}`);
     return message;

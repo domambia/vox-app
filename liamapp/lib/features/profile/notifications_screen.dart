@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
+import '../../core/socket_service.dart';
 import 'notifications_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -21,6 +22,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   late Future<List<dynamic>> _future;
 
   Timer? _pollTimer;
+  StreamSubscription<Map<String, dynamic>>? _notificationSub;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -28,23 +31,50 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _service = NotificationsService(Provider.of<ApiClient>(context, listen: false));
     _future = _service.listNotifications();
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _service.markAsRead();
+      } catch (_) {
+        // Ignore failures; list may still load fine.
+      }
       if (!mounted) return;
       _refresh();
+    });
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (!mounted) return;
+      _refresh();
+    });
+
+    // Real-time updates (websocket).
+    final socket = Provider.of<SocketService>(context, listen: false);
+    _notificationSub = socket.onNotificationNew.listen((_) {
+      if (!mounted) return;
+      _service
+          .markAsRead()
+          .catchError((_) {})
+          .whenComplete(() => _refresh());
     });
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _notificationSub?.cancel();
     super.dispose();
   }
 
   Future<void> _refresh() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
     setState(() {
       _future = _service.listNotifications();
     });
-    await _future;
+    try {
+      await _future;
+    } finally {
+      _isRefreshing = false;
+    }
   }
 
   @override

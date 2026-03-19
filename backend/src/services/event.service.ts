@@ -6,6 +6,7 @@ import {
   createPaginatedResponse,
   getPaginationMetadata,
 } from '@/utils/pagination';
+import { emitToUser, getIo } from '@/utils/websocket';
 
 export interface CreateEventInput {
   groupId?: string;
@@ -115,6 +116,42 @@ export class EventService {
       });
 
       logger.info(`Event created: ${event.event_id} by user ${creatorId}`);
+
+      // Persist notifications for group members (so badge can update).
+      const recipients = data.groupId
+        ? (
+            await prisma.groupMember.findMany({
+              where: { group_id: data.groupId },
+              select: { user_id: true },
+            })
+          ).map((m) => m.user_id)
+        : [creatorId];
+
+      if (recipients.length > 0) {
+        const eventGroupName = (event as any).group?.name as string | undefined;
+        const message = eventGroupName
+          ? `New event in ${eventGroupName}: ${event.title}`
+          : `New event: ${event.title}`;
+
+        await prisma.notification.createMany({
+          data: recipients.map((rid) => ({
+            user_id: rid,
+            type: 'event',
+            title: 'Event created',
+            message,
+            post_id: null,
+            conversation_id: null,
+            message_id: null,
+          })),
+        });
+
+        const io = getIo();
+        if (io) {
+          for (const rid of recipients) {
+            emitToUser(io, rid, 'notification:new', { type: 'event' });
+          }
+        }
+      }
 
       return event;
     } catch (error) {

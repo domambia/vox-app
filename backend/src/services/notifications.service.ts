@@ -1,9 +1,9 @@
 import matchService from '@/services/match.service';
-import messagingService from '@/services/messaging.service';
 import eventService from '@/services/event.service';
+import prisma from '@/config/database';
 import { logger } from '@/utils/logger';
 
-export type NotificationType = 'match' | 'like' | 'message' | 'event' | 'system';
+export type NotificationType = 'match' | 'like' | 'message' | 'event' | 'system' | 'post';
 
 export interface NotificationItem {
   notification_id: string;
@@ -13,6 +13,7 @@ export interface NotificationItem {
   user_id?: string;
   event_id?: string;
   conversation_id?: string;
+  post_id?: string;
   participant_name?: string;
   read: boolean;
   created_at: string;
@@ -30,13 +31,31 @@ function toIso(date: Date | string | undefined, fallback: string): string {
 export class NotificationsService {
   async listNotifications(userId: string, limit: number = 50): Promise<NotificationItem[]> {
     try {
-      const notifications: NotificationItem[] = [];
       const now = new Date().toISOString();
 
-      const [matches, likesReceived, convResult, userEventsRsvps] = await Promise.all([
+      // DB-backed notifications (message/post/etc).
+      const dbNotifications = await prisma.notification.findMany({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' },
+        take: Math.max(10, limit),
+      });
+
+      const notifications: NotificationItem[] = dbNotifications.map((n) => ({
+        notification_id: n.notification_id,
+        type: n.type as NotificationType,
+        title: n.title,
+        message: n.message,
+        user_id: n.user_id,
+        conversation_id: n.conversation_id ?? undefined,
+        post_id: n.post_id ?? undefined,
+        read: n.read_at != null,
+        created_at: toIso(n.created_at, now),
+      }));
+
+      // Derived notifications (match/like/event). Messages are stored in DB now.
+      const [matches, likesReceived, userEventsRsvps] = await Promise.all([
         matchService.getMatches(userId),
         matchService.getLikesReceived(userId),
-        messagingService.listConversations(userId, { limit: 30, offset: 0 }),
         eventService.getUserEvents(userId, true),
       ]);
 
@@ -75,27 +94,6 @@ export class NotificationsService {
         });
       });
 
-      // Conversations (last message as notification)
-      const convs = convResult?.items ?? [];
-      convs.forEach((c: any) => {
-        const other = c.other_user ?? c.participant ?? {};
-        const name = [other.first_name, other.last_name].filter(Boolean).join(' ') || 'Someone';
-        const last = c.last_message ?? c.lastMessage;
-        const preview = last?.content ? last.content.slice(0, 50) + (last.content.length > 50 ? '…' : '') : 'New message';
-        const unread = c.unread_count ?? c.unreadCount ?? 0;
-        notifications.push({
-          notification_id: `msg-${c.conversation_id ?? c.conversationId}`,
-          type: 'message',
-          title: unread > 0 ? `New message from ${name}` : name,
-          message: preview,
-          user_id: other.user_id ?? other.userId,
-          conversation_id: c.conversation_id ?? c.conversationId,
-          participant_name: name,
-          read: unread === 0,
-          created_at: toIso(c.last_message_at ?? c.lastMessageAt ?? c.created_at, now),
-        });
-      });
-
       // Upcoming events (next 24h)
       const events = Array.isArray(userEventsRsvps) ? userEventsRsvps.map((r: any) => r.event ?? r) : [];
       events.slice(0, 10).forEach((ev: any) => {
@@ -113,10 +111,46 @@ export class NotificationsService {
         });
       });
 
-      notifications.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      notifications.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
       return notifications.slice(0, limit);
     } catch (error) {
       logger.error('Error listing notifications', error);
+      throw error;
+    }
+  }
+
+  async markAsRead(
+    userId: string,
+    notificationIds?: string[],
+  ): Promise<{ count: number }> {
+    try {
+      const result = await prisma.notification.updateMany({
+        where: {
+          user_id: userId,
+          read_at: null,
+          ...(notificationIds && notificationIds.length > 0
+            ? { notification_id: { in: notificationIds } }
+            : {}),
+        },
+        data: { read_at: new Date() },
+      });
+
+      return { count: result.count };
+    } catch (error) {
+      logger.error('Error marking notifications as read', error);
+      throw error;
+    }
+  }
+
+  async getUnreadCount(userId: string): Promise<number> {
+    try {
+      return prisma.notification.count({
+        where: { user_id: userId, read_at: null },
+      });
+    } catch (error) {
+      logger.error('Error getting unread notifications count', error);
       throw error;
     }
   }

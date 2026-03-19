@@ -245,6 +245,19 @@ export class MessagingService {
         data: { last_message_at: new Date() },
       });
 
+      // Create a persistent notification for the recipient.
+      // This powers the notifications endpoint and enables real-time websocket pushes.
+      const notification = await prisma.notification.create({
+        data: {
+          user_id: data.recipientId,
+          type: 'message',
+          title: 'New message',
+          message: (data.content || '').slice(0, 120),
+          conversation_id: conversation.conversation_id,
+          message_id: message.message_id,
+        },
+      });
+
       logger.info(
         `Message sent: ${message.message_id} from ${senderId} to ${data.recipientId}`,
       );
@@ -254,6 +267,15 @@ export class MessagingService {
         conversation_id: conversation.conversation_id,
         recipient_id: data.recipientId,
         is_mine: true,
+        notification: {
+          notification_id: notification.notification_id,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          conversation_id: notification.conversation_id,
+          message_id: notification.message_id,
+          created_at: notification.created_at,
+        },
       };
     } catch (error) {
       logger.error("Error sending message", error);
@@ -618,6 +640,20 @@ export class MessagingService {
         data: {
           read_at: new Date(),
         },
+      });
+
+      // Also mark matching DB notifications as read (message notifications only).
+      await prisma.notification.updateMany({
+        where: {
+          user_id: userId,
+          type: 'message',
+          conversation_id: conversationId,
+          read_at: null,
+          ...(messageIds && messageIds.length > 0
+            ? { message_id: { in: messageIds } }
+            : {}),
+        },
+        data: { read_at: new Date() },
       });
 
       logger.info(

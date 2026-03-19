@@ -3,6 +3,7 @@ import { sendSuccess, sendError } from "@/utils/response";
 import messagingService from "@/services/messaging.service";
 import { AuthRequest } from "@/types";
 import { extractPaginationFromQuery } from "@/utils/pagination";
+import { emitToUser, getIo, isUserOnline } from "@/utils/websocket";
 
 export class MessagingController {
   /**
@@ -15,6 +16,36 @@ export class MessagingController {
       const data = req.body;
 
       const message = await messagingService.sendMessage(senderId, data);
+
+      // If recipient is online, push real-time updates over websocket.
+      const recipientId = data?.recipientId;
+      const io = getIo();
+      if (io && typeof recipientId === "string" && recipientId.trim().length > 0) {
+        if (isUserOnline(recipientId)) {
+          // Mark as delivered so client can update counters/state.
+          await messagingService.markAsDelivered(message.message_id, recipientId);
+
+          emitToUser(io, recipientId, "message:received", {
+            message_id: message.message_id,
+            conversation_id: message.conversation_id,
+            sender_id: senderId,
+            content: message.content,
+            message_type: message.message_type,
+            delivered_at: new Date().toISOString(),
+            created_at: new Date(message.created_at).toISOString(),
+            attachments: message.attachments || [],
+          });
+
+          if ((message as any).notification) {
+            emitToUser(io, recipientId, "notification:new", {
+              ...((message as any).notification as any),
+            });
+          } else {
+            emitToUser(io, recipientId, "notification:new", { type: "message" });
+          }
+        }
+      }
+
       sendSuccess(res, message, 201);
     } catch (error: any) {
       if (error.message === "User not found") {

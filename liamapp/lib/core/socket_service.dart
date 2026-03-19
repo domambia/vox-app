@@ -45,6 +45,8 @@ class SocketService {
 
   final StreamController<Map<String, dynamic>> _messageReceivedController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final StreamController<Map<String, dynamic>> _notificationNewController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   final StreamController<IncomingCallData> _incomingCallController =
       StreamController<IncomingCallData>.broadcast();
@@ -68,6 +70,7 @@ class SocketService {
       StreamController<WebRTCSignalData>.broadcast();
 
   Stream<Map<String, dynamic>> get onMessageReceived => _messageReceivedController.stream;
+  Stream<Map<String, dynamic>> get onNotificationNew => _notificationNewController.stream;
   Stream<IncomingCallData> get onIncomingCall => _incomingCallController.stream;
   Stream<String> get onCallAnswered => _callAnsweredController.stream;
   Stream<String> get onCallRejected => _callRejectedController.stream;
@@ -123,6 +126,12 @@ class SocketService {
     socket.on('message:received', (data) {
       if (data is Map) {
         _messageReceivedController.add(Map<String, dynamic>.from(data));
+      }
+    });
+
+    socket.on('notification:new', (data) {
+      if (data is Map) {
+        _notificationNewController.add(Map<String, dynamic>.from(data));
       }
     });
 
@@ -305,6 +314,7 @@ class SocketService {
 
   void dispose() {
     _messageReceivedController.close();
+    _notificationNewController.close();
     _incomingCallController.close();
     _callAnsweredController.close();
     _callRejectedController.close();

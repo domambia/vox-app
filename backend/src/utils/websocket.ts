@@ -13,6 +13,7 @@ interface AuthenticatedSocket extends Socket {
 
 // Store active connections
 const activeConnections = new Map<string, Set<string>>(); // userId -> Set of socketIds
+let ioInstance: SocketIOServer | null = null;
 
 export function initializeWebSocket(server: HTTPServer): SocketIOServer {
   const io = new SocketIOServer(server, {
@@ -22,6 +23,8 @@ export function initializeWebSocket(server: HTTPServer): SocketIOServer {
     },
     transports: ['websocket', 'polling'],
   });
+
+  ioInstance = io;
 
   // Authentication middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
@@ -119,6 +122,14 @@ export function initializeWebSocket(server: HTTPServer): SocketIOServer {
             created_at: message.created_at,
             attachments: message.attachments || [],
           });
+
+          // Emit persistent notification to recipient (real-time).
+          // Note: notification is created in messagingService.sendMessage().
+          if ((message as any).notification) {
+            io.to(`user:${recipientId}`).emit('notification:new', {
+              ...((message as any).notification as any),
+            });
+          }
         }
 
         logger.info(`Message sent via WebSocket from ${userId} to ${recipientId}`);
@@ -598,6 +609,10 @@ export function emitToUser(io: SocketIOServer, userId: string, event: string, da
   if (connections && connections.size > 0) {
     io.to(`user:${userId}`).emit(event, data);
   }
+}
+
+export function getIo(): SocketIOServer | null {
+  return ioInstance;
 }
 
 // Helper to check if user is online

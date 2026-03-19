@@ -55,7 +55,30 @@ export class PostsService {
 
       logger.info(`Post created: ${post.post_id} by user ${userId}`);
 
-      return this.formatPost(post, userId);
+      // Create a persistent notification for the post creator.
+      // This lets the client show a real-time "post published" toast/badge via websocket.
+      const notification = await prisma.notification.create({
+        data: {
+          user_id: userId,
+          type: 'post',
+          title: 'Post published',
+          message: (data.content || '').slice(0, 120),
+          post_id: post.post_id,
+        },
+      });
+
+      const formattedPost = this.formatPost(post, userId);
+      return {
+        ...formattedPost,
+        notification: {
+          notification_id: notification.notification_id,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          post_id: notification.post_id,
+          created_at: notification.created_at,
+        },
+      };
     } catch (error) {
       logger.error('Error creating post', error);
       throw error;

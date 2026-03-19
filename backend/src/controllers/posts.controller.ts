@@ -4,6 +4,7 @@ import postsService from '@/services/posts.service';
 import { AuthRequest } from '@/types';
 import { extractPaginationFromQuery } from '@/utils/pagination';
 import { getFileUrl } from '@/utils/fileUpload';
+import { emitToUser, getIo } from '@/utils/websocket';
 
 export class PostsController {
   async createPost(req: AuthRequest, res: Response): Promise<void> {
@@ -20,6 +21,15 @@ export class PostsController {
         content,
         imageUrl,
       });
+
+      // Emit persistent notification to the creator (if they're connected).
+      const io = getIo();
+      const notification = (post as any)?.notification;
+      if (io && notification && notification.notification_id) {
+        emitToUser(io, userId, 'notification:new', {
+          ...notification,
+        });
+      }
 
       sendSuccess(res, post, 201);
     } catch (error: any) {
