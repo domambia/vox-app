@@ -12,6 +12,7 @@ import 'screens/splash_screen.dart';
 import 'core/api_client.dart';
 import 'core/config.dart';
 import 'core/socket_service.dart';
+import 'core/startup_permissions.dart';
 import 'core/toast.dart';
 import 'core/token_storage.dart';
 import 'features/app/app_gate.dart';
@@ -98,13 +99,15 @@ class MyApp extends StatelessWidget {
             themeAnimationDuration: Duration.zero,
             builder: (context, child) {
               final mq = MediaQuery.of(context);
-              return _AuthExpiryListener(
-                child: _SocketAuthBinder(
-                  child: MediaQuery(
-                    data: mq.copyWith(
-                      textScaler: TextScaler.linear(settings.textScaleFactor),
+              return _StartupPermissionsRequester(
+                child: _AuthExpiryListener(
+                  child: _SocketAuthBinder(
+                    child: MediaQuery(
+                      data: mq.copyWith(
+                        textScaler: TextScaler.linear(settings.textScaleFactor),
+                      ),
+                      child: child ?? const SizedBox.shrink(),
                     ),
-                    child: child ?? const SizedBox.shrink(),
                   ),
                 ),
               );
@@ -222,6 +225,32 @@ class _SocketAuthBinderState extends State<_SocketAuthBinder> {
   void dispose() {
     _incomingCallSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+class _StartupPermissionsRequester extends StatefulWidget {
+  const _StartupPermissionsRequester({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_StartupPermissionsRequester> createState() => _StartupPermissionsRequesterState();
+}
+
+class _StartupPermissionsRequesterState extends State<_StartupPermissionsRequester> {
+  bool _didRequest = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didRequest) return;
+    _didRequest = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      requestStartupPermissions();
+    });
   }
 
   @override

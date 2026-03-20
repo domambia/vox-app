@@ -61,7 +61,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final first = (user?['first_name'] ?? user?['firstName'] ?? profile?['first_name'] ?? profile?['firstName'] ?? '').toString();
     final last = (user?['last_name'] ?? user?['lastName'] ?? profile?['last_name'] ?? profile?['lastName'] ?? '').toString();
     final name = ('$first $last').trim();
-    return name.isEmpty ? 'User' : name;
+    return name.isEmpty ? context.l10n.phrase('User') : name;
   }
 
   Future<void> _startChat(dynamic profile) async {

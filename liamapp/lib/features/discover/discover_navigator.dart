@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_localizations.dart';
 import '../posts/create_post_screen.dart';
 import 'discover_screen.dart';
 import 'likes_screen.dart';
@@ -29,7 +30,7 @@ class DiscoverNavigator extends StatelessWidget {
               settings: settings,
               builder: (_) => ProfileViewScreen(
                 userId: (args['userId'] ?? '').toString(),
-                displayName: (args['displayName'] ?? 'Profile').toString(),
+                displayName: (args['displayName'] ?? AppLocalizations.of(context).phrase('Profile')).toString(),
               ),
             );
           case MatchesScreen.routeName:

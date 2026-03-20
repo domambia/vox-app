@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
@@ -20,6 +23,7 @@ import '../discover/likes_screen.dart';
 import '../profile/profile_navigator.dart';
 import '../profile/notifications_screen.dart';
 import '../profile/notifications_service.dart';
+import '../settings/settings_controller.dart';
 import '../profile/settings_screen.dart';
 
 class AppShell extends StatefulWidget {
@@ -33,6 +37,11 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 1;
+  int _discoverReloadKey = 0;
+  int _chatsReloadKey = 0;
+  int _groupsReloadKey = 0;
+  int _eventsReloadKey = 0;
+  int _profileReloadKey = 0;
 
   final ValueNotifier<int> _tabIndex = ValueNotifier<int>(1);
 
@@ -65,6 +74,21 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _playNotificationFeedback() async {
+    if (kIsWeb) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+
+    final settings = Provider.of<SettingsController>(context, listen: false);
+    final notifications = settings.notifications;
+
+    if (notifications.soundEnabled) {
+      await SystemSound.play(SystemSoundType.alert);
+    }
+    if (notifications.vibrationEnabled) {
+      await HapticFeedback.mediumImpact();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -75,8 +99,9 @@ class _AppShellState extends State<AppShell> {
 
       final socket = Provider.of<SocketService>(context, listen: false);
       _notificationSub?.cancel();
-      _notificationSub = socket.onNotificationNew.listen((_) {
+      _notificationSub = socket.onNotificationNew.listen((_) async {
         if (!mounted) return;
+        await _playNotificationFeedback();
         _refreshUnreadCount();
       });
 
@@ -103,6 +128,26 @@ class _AppShellState extends State<AppShell> {
         _eventsKey,
         _profileKey,
       ];
+
+  void _forceRefetchForTab(int index) {
+    switch (index) {
+      case 0:
+        _discoverReloadKey++;
+        break;
+      case 1:
+        _chatsReloadKey++;
+        break;
+      case 2:
+        _groupsReloadKey++;
+        break;
+      case 3:
+        _eventsReloadKey++;
+        break;
+      case 4:
+        _profileReloadKey++;
+        break;
+    }
+  }
 
   Future<bool> _onWillPop() async {
     final nav = _keys[_index].currentState;
@@ -271,11 +316,26 @@ class _AppShellState extends State<AppShell> {
           child: IndexedStack(
             index: _index,
             children: [
-              DiscoverNavigator(navigatorKey: _discoverKey),
-              ChatsNavigator(navigatorKey: _chatsKey),
-              GroupsNavigator(navigatorKey: _groupsKey),
-              EventsNavigator(navigatorKey: _eventsKey),
-              ProfileNavigator(navigatorKey: _profileKey),
+              DiscoverNavigator(
+                key: ValueKey('discover-$_discoverReloadKey'),
+                navigatorKey: _discoverKey,
+              ),
+              ChatsNavigator(
+                key: ValueKey('chats-$_chatsReloadKey'),
+                navigatorKey: _chatsKey,
+              ),
+              GroupsNavigator(
+                key: ValueKey('groups-$_groupsReloadKey'),
+                navigatorKey: _groupsKey,
+              ),
+              EventsNavigator(
+                key: ValueKey('events-$_eventsReloadKey'),
+                navigatorKey: _eventsKey,
+              ),
+              ProfileNavigator(
+                key: ValueKey('profile-$_profileReloadKey'),
+                navigatorKey: _profileKey,
+              ),
             ],
           ),
         ),
@@ -285,10 +345,11 @@ class _AppShellState extends State<AppShell> {
           onDestinationSelected: (i) {
             if (i == _index) {
               _keys[i].currentState?.popUntil((r) => r.isFirst);
-              _tabIndex.value = i;
-              return;
             }
-            setState(() => _index = i);
+            setState(() {
+              _index = i;
+              _forceRefetchForTab(i);
+            });
             _tabIndex.value = i;
           },
           destinations: [

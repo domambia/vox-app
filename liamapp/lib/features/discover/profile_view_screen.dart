@@ -68,7 +68,9 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
     final last = (user?['last_name'] ?? user?['lastName'] ?? p['last_name'] ?? p['lastName'] ?? '').toString();
     final dn = (p['display_name'] ?? p['displayName'] ?? '').toString();
     final name = ([first, last].where((x) => x.trim().isNotEmpty).join(' ')).trim();
-    final fallback = widget.displayName.trim().isNotEmpty ? widget.displayName.trim() : 'User';
+    final fallback = widget.displayName.trim().isNotEmpty
+        ? widget.displayName.trim()
+        : context.l10n.phrase('User');
     return dn.isNotEmpty ? dn : (name.isNotEmpty ? name : fallback);
   }
 

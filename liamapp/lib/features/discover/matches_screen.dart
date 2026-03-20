@@ -53,7 +53,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
     final first = (user?['first_name'] ?? user?['firstName'] ?? '').toString();
     final last = (user?['last_name'] ?? user?['lastName'] ?? '').toString();
     final name = ('$first $last').trim();
-    return name.isEmpty ? 'User' : name;
+    return name.isEmpty ? context.l10n.phrase('User') : name;
   }
 
   String _userId(dynamic m) {

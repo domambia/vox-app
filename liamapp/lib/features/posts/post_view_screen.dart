@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
-import '../../core/config.dart';
+import '../../core/media_url.dart';
 import '../../core/toast.dart';
 import '../../models/post.dart';
 import 'posts_service.dart';
@@ -33,11 +33,7 @@ class _PostViewScreenState extends State<PostViewScreen> {
   }
 
   String _absoluteUrl(String fileUrl) {
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
-    final base = AppConfig.apiBaseUrl;
-    final idx = base.indexOf('/api/');
-    final origin = idx == -1 ? base : base.substring(0, idx);
-    return '$origin$fileUrl';
+    return resolveMediaUrl(fileUrl);
   }
 
   Future<void> _toggleLike() async {

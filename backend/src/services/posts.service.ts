@@ -429,6 +429,7 @@ export class PostsService {
       userId: post.user_id,
       content: post.content,
       imageUrl: post.image_url,
+      image_url: post.image_url,
       likesCount: post.likes_count,
       isLiked,
       createdAt: post.created_at,

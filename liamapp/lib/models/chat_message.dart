@@ -49,9 +49,14 @@ class ChatMessage {
     final sender = json['sender'];
     final senderId = (json['sender_id'] ?? json['senderId'] ?? (sender is Map ? (sender['user_id'] ?? sender['userId']) : null) ?? '').toString();
 
-    final senderName = sender is Map
-        ? ((sender['first_name'] ?? sender['firstName'] ?? '').toString())
-        : null;
+    String? senderName;
+    if (sender is Map) {
+      final first = (sender['first_name'] ?? sender['firstName'] ?? '').toString();
+      final last = (sender['last_name'] ?? sender['lastName'] ?? '').toString();
+      final fullName = [first, last].where((p) => p.trim().isNotEmpty).join(' ').trim();
+      final displayName = (sender['display_name'] ?? sender['displayName'] ?? '').toString().trim();
+      senderName = displayName.isNotEmpty ? displayName : (fullName.isNotEmpty ? fullName : null);
+    }
 
     DateTime? createdAt;
     final rawDate = json['created_at'] ?? json['createdAt'];

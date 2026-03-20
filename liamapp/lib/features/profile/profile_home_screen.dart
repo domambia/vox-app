@@ -157,6 +157,17 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
     }
   }
 
+  String _profileDisplayName(Map<String, dynamic> p) {
+    final user = p['user'] as dynamic;
+    final first = (user?['first_name'] ?? user?['firstName'] ?? p['first_name'] ?? p['firstName'] ?? '').toString();
+    final last = (user?['last_name'] ?? user?['lastName'] ?? p['last_name'] ?? p['lastName'] ?? '').toString();
+    final fullName = ([first, last].where((x) => x.trim().isNotEmpty).join(' ')).trim();
+    final explicitDisplayName = (p['display_name'] ?? p['displayName'] ?? '').toString().trim();
+    return explicitDisplayName.isNotEmpty
+        ? explicitDisplayName
+        : (fullName.isNotEmpty ? fullName : context.l10n.phrase('User'));
+  }
+
   String _absoluteUrl(String fileUrl) {
     if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
     final base = AppConfig.apiBaseUrl;
@@ -630,7 +641,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
         }
 
         final p = snapshot.data ?? const <String, dynamic>{};
-        final displayName = (p['display_name'] ?? p['displayName'] ?? 'User').toString();
+        final displayName = _profileDisplayName(p);
         final bio = (p['bio'] ?? '').toString();
         final location = (p['location'] ?? '').toString();
         final voiceBioUrl = (p['voice_bio_url'] ?? p['voiceBioUrl'] ?? '').toString();
