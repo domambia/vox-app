@@ -11,6 +11,7 @@ import 'screens/landing_screen.dart';
 import 'screens/splash_screen.dart';
 import 'core/api_client.dart';
 import 'core/config.dart';
+import 'core/notification_service.dart';
 import 'core/socket_service.dart';
 import 'core/startup_permissions.dart';
 import 'core/toast.dart';
@@ -37,6 +38,7 @@ Future<void> main() async {
     debugPrint('[AppConfig] apiBaseUrl: ${AppConfig.apiBaseUrl}');
     debugPrint('[AppConfig] socketBaseUrl: ${AppConfig.socketBaseUrl}');
   }
+  await NotificationService.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -198,6 +200,10 @@ class _SocketAuthBinderState extends State<_SocketAuthBinder> {
     if (_last == current) return;
     _last = current;
     Provider.of<SocketService>(context, listen: false).syncAuth(current);
+    if (current) {
+      final apiClient = Provider.of<ApiClient>(context, listen: false);
+      NotificationService.instance.syncTokenWithBackend(apiClient);
+    }
 
     _incomingCallSub?.cancel();
     if (current) {

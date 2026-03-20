@@ -167,6 +167,9 @@ export class ProfileService {
       if (data.voiceBioUrl !== undefined) {
         updateData.voice_bio_url = data.voiceBioUrl;
       }
+      if ((data as any).profileImageUrl !== undefined) {
+        (updateData as any).profile_image_url = (data as any).profileImageUrl;
+      }
 
       // Update profile
       const profile = await prisma.profile.update({

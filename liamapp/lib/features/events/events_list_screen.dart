@@ -29,6 +29,7 @@ class _EventsListScreenState extends State<EventsListScreen> {
   final _refreshManager = RefreshManager();
 
   Timer? _pollTimer;
+  StreamSubscription<void>? _refreshSubscription;
   ValueNotifier<int>? _tabIndex;
   bool _isActive = false;
 
@@ -54,6 +55,11 @@ class _EventsListScreenState extends State<EventsListScreen> {
     _tabIndex = Provider.of<ValueNotifier<int>>(context, listen: false);
     _isActive = _tabIndex?.value == 3;
     _tabIndex?.addListener(_onTabChanged);
+    _refreshSubscription = _refreshManager.getRefreshStream(_refreshKey).listen((_) {
+      if (mounted) {
+        _refresh();
+      }
+    });
 
     _startPolling();
   }
@@ -82,6 +88,7 @@ class _EventsListScreenState extends State<EventsListScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _refreshSubscription?.cancel();
     _tabIndex?.removeListener(_onTabChanged);
     super.dispose();
   }

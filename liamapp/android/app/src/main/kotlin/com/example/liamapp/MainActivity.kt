@@ -1,4 +1,4 @@
-package com.example.liamapp
+package com.kodeace.app
 
 import io.flutter.embedding.android.FlutterActivity
 

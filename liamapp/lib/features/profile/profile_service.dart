@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../../core/api_client.dart';
 import 'package:dio/dio.dart';
 
@@ -74,10 +76,43 @@ class ProfileService {
   }
 
   Future<Map<String, dynamic>> uploadVoiceBio({required String filePath}) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception('Selected audio file no longer exists');
+    }
+    const maxUploadBytes = 15 * 1024 * 1024;
+    final fileSize = await file.length();
+    if (fileSize > maxUploadBytes) {
+      throw Exception('Selected audio file is too large');
+    }
+
     final form = FormData.fromMap({
       'voiceBio': await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
     });
     final resp = await _apiClient.dio.post('/profile/voice-bio', data: form);
+    final data = resp.data;
+    final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
+    return (root is Map ? Map<String, dynamic>.from(root) : <String, dynamic>{});
+  }
+
+  Future<Map<String, dynamic>> uploadProfileImage({required String filePath}) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception('Selected image file no longer exists');
+    }
+    const maxUploadBytes = 10 * 1024 * 1024;
+    final fileSize = await file.length();
+    if (fileSize > maxUploadBytes) {
+      throw Exception('Selected image is too large');
+    }
+
+    final form = FormData.fromMap({
+      'profilePicture': await MultipartFile.fromFile(
+        filePath,
+        filename: filePath.split('/').last,
+      ),
+    });
+    final resp = await _apiClient.dio.post('/profile/image', data: form);
     final data = resp.data;
     final root = (data is Map ? (data['data'] ?? data) : <String, dynamic>{}) as dynamic;
     return (root is Map ? Map<String, dynamic>.from(root) : <String, dynamic>{});

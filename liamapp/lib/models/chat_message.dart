@@ -22,6 +22,11 @@ class ChatMessage {
   final DateTime? editedAt;
   final String? senderName;
   final DateTime? createdAt;
+  bool get isImageMessage {
+    final type = messageType.toUpperCase();
+    if (type == 'IMAGE') return true;
+    return attachments.any((a) => a.fileType.toLowerCase().startsWith('image/'));
+  }
 
   factory ChatMessage.fromJson(dynamic json) {
     if (json is! Map) {
@@ -30,7 +35,8 @@ class ChatMessage {
 
     final messageId = (json['message_id'] ?? json['messageId'] ?? json['id'] ?? '').toString();
     final content = (json['content'] ?? '').toString();
-    final isMine = (json['is_mine'] ?? json['isMine'] ?? false) == true;
+    final isMineRaw = json['is_mine'] ?? json['isMine'] ?? false;
+    final isMine = isMineRaw == true || isMineRaw.toString().toLowerCase() == 'true';
 
     final messageType = (json['message_type'] ?? json['messageType'] ?? 'TEXT').toString();
     final isDeleted = (json['is_deleted'] ?? json['isDeleted'] ?? false) == true;
@@ -41,10 +47,21 @@ class ChatMessage {
       editedAt = DateTime.tryParse(rawEdited.toString());
     }
 
-    final rawAttachments = json['attachments'];
+    final rawAttachments =
+        json['attachments'] ?? json['message_attachments'] ?? json['messageAttachments'];
     final attachments = rawAttachments is List
         ? rawAttachments.map(ChatAttachment.fromJson).toList(growable: false)
-        : const <ChatAttachment>[];
+        : ((json['file_url'] ?? json['fileUrl']) != null
+            ? <ChatAttachment>[
+                ChatAttachment.fromJson({
+                  'attachment_id': json['attachment_id'] ?? json['attachmentId'] ?? '',
+                  'file_url': json['file_url'] ?? json['fileUrl'] ?? '',
+                  'file_type': json['file_type'] ?? json['fileType'] ?? '',
+                  'file_name': json['file_name'] ?? json['fileName'] ?? content,
+                  'file_size': json['file_size'] ?? json['fileSize'] ?? 0,
+                }),
+              ]
+            : const <ChatAttachment>[]);
 
     final sender = json['sender'];
     final senderId = (json['sender_id'] ?? json['senderId'] ?? (sender is Map ? (sender['user_id'] ?? sender['userId']) : null) ?? '').toString();

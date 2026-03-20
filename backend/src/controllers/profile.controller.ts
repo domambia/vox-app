@@ -232,6 +232,51 @@ export class ProfileController {
   }
 
   /**
+   * Upload profile image
+   * POST /api/v1/profile/image
+   */
+  async uploadProfileImage(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const file = req.file;
+
+      if (!file) {
+        sendError(res, "VALIDATION_ERROR", "Profile image file is required", 400);
+        return;
+      }
+
+      const allowedMimes = ["image/jpeg", "image/png", "image/webp"];
+      if (!allowedMimes.includes(file.mimetype)) {
+        sendError(
+          res,
+          "VALIDATION_ERROR",
+          "Invalid file type. Only jpg, png, webp are allowed",
+          400,
+        );
+        return;
+      }
+
+      const fileUrl = getFileUrl(file.path);
+      const profile = await profileService.updateProfile(userId, {
+        profileImageUrl: fileUrl,
+      } as any);
+
+      sendSuccess(res, {
+        profile,
+        profileImageUrl: fileUrl,
+        message: "Profile image uploaded successfully",
+      });
+    } catch (error: any) {
+      sendError(
+        res,
+        "PROFILE_IMAGE_UPLOAD_ERROR",
+        error.message || "Failed to upload profile image",
+        400,
+      );
+    }
+  }
+
+  /**
    * Delete voice bio
    * DELETE /api/v1/profile/voice-bio
    */

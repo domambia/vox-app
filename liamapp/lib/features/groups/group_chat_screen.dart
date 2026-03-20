@@ -15,6 +15,8 @@ import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
 import '../../core/config.dart';
 import '../../core/pagination.dart';
+import '../../core/refresh_manager.dart';
+import '../../core/toast.dart';
 import '../../models/group_message.dart';
 import '../profile/profile_service.dart';
 import 'groups_service.dart';
@@ -51,6 +53,188 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   final AudioPlayer _player = AudioPlayer();
   String? _playingUrl;
+
+  Future<String?> _pickUserToAdd() async {
+    final queryController = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        Future<List<dynamic>> searchFuture = Future.value(const <dynamic>[]);
+
+        String name(dynamic u) {
+          final first = (u?['first_name'] ?? u?['firstName'] ?? '').toString();
+          final last = (u?['last_name'] ?? u?['lastName'] ?? '').toString();
+          final n = ('$first $last').trim();
+          return n.isEmpty ? context.l10n.phrase('User') : n;
+        }
+
+        String userId(dynamic u) {
+          return (u?['user_id'] ?? u?['userId'] ?? '').toString();
+        }
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('${context.l10n.phrase('Add member to')} ${widget.groupName}'),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: queryController,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: context.l10n.phrase('Search by name, email, or phone'),
+                      ),
+                      onChanged: (v) {
+                        final q = v.trim();
+                        setState(() {
+                          searchFuture = q.isEmpty
+                              ? Future.value(const <dynamic>[])
+                              : _service.searchUsersForGroupMember(groupId: widget.groupId, query: q);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: FutureBuilder<List<dynamic>>(
+                        future: searchFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState != ConnectionState.done) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          final items = snapshot.data ?? const <dynamic>[];
+                          if (items.isEmpty) {
+                            return Center(child: Text(context.l10n.phrase('No users')));
+                          }
+                          return ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: items.length,
+                            itemBuilder: (context, index) {
+                              final u = items[index];
+                              final id = userId(u);
+                              final n = name(u);
+                              return ListTile(
+                                leading: CircleAvatar(child: Text(n.isNotEmpty ? n[0].toUpperCase() : '?')),
+                                title: Text(n, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                onTap: id.isEmpty ? null : () => Navigator.of(context).pop(id),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(context.l10n.phrase('Close')),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _editGroup() async {
+    final nameController = TextEditingController(text: widget.groupName);
+    final descController = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(context.l10n.phrase('Edit group')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(labelText: context.l10n.phrase('Group name')),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descController,
+                decoration: InputDecoration(labelText: context.l10n.phrase('Description')),
+                minLines: 2,
+                maxLines: 4,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(context.l10n.phrase('Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(context.l10n.phrase('Save')),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true) return;
+
+    final name = nameController.text.trim();
+    if (name.isEmpty) {
+      if (!mounted) return;
+      showToast(context, context.l10n.phrase('Group name is required'), isError: true);
+      return;
+    }
+    try {
+      await _service.updateGroup(
+        groupId: widget.groupId,
+        name: name,
+        description: descController.text.trim(),
+      );
+      if (!mounted) return;
+      RefreshManager().triggerRefresh('groups');
+      showToast(context, context.l10n.phrase('Group updated'));
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, '${context.l10n.phrase('Failed to update group')}: $e', isError: true);
+    }
+  }
+
+  Future<void> _deactivateGroup() async {
+    final shouldDeactivate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.phrase('Deactivate group')),
+        content: Text(
+          context.l10n.phrase('This group will be hidden from active lists.'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.l10n.phrase('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.l10n.phrase('Deactivate')),
+          ),
+        ],
+      ),
+    );
+    if (shouldDeactivate != true) return;
+
+    try {
+      await _service.deactivateGroup(widget.groupId);
+      if (!mounted) return;
+      RefreshManager().triggerRefresh('groups');
+      showToast(context, context.l10n.phrase('Group deactivated'));
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, '${context.l10n.phrase('Failed to deactivate group')}: $e', isError: true);
+    }
+  }
 
   String _weekdayLabel(DateTime dt) {
     switch (dt.weekday) {
@@ -160,6 +344,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       await _service.sendGroupMessage(groupId: widget.groupId, content: text);
       _composerController.clear();
       await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, '${context.l10n.phrase('Failed to send message')}: $e', isError: true);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -235,6 +422,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         attachmentIds: [attachmentId],
       );
       await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, '${context.l10n.phrase('Failed to send attachment')}: $e', isError: true);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -271,6 +461,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           attachmentIds: [attachmentId],
         );
         await _refresh();
+      } catch (e) {
+        if (!mounted) return;
+        showToast(context, '${context.l10n.phrase('Failed to send voice note')}: $e', isError: true);
       } finally {
         if (mounted) setState(() => _sending = false);
       }
@@ -281,10 +474,16 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     final file = File('${dir.path}/group-voice-${DateTime.now().millisecondsSinceEpoch}.m4a');
     _recordPath = file.path;
 
-    await _recorder.start(
-      const RecordConfig(),
-      path: file.path,
-    );
+    try {
+      await _recorder.start(
+        const RecordConfig(),
+        path: file.path,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, '${context.l10n.phrase('Failed to start recording')}: $e', isError: true);
+      return;
+    }
     if (!mounted) return;
     setState(() => _recording = true);
   }
@@ -330,6 +529,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   Future<void> _openAttachment(GroupAttachment a) async {
     final url = _absoluteUrl(a.fileUrl);
     if (a.fileType.startsWith('image/')) {
+      final token = await Provider.of<ApiClient>(context, listen: false).readAccessToken();
+      final headers = <String, String>{};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -337,7 +541,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           return Dialog(
             insetPadding: const EdgeInsets.all(16),
             child: InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain),
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                headers: headers.isNotEmpty ? headers : null,
+                cacheWidth: 1600,
+                cacheHeight: 1600,
+              ),
             ),
           );
         },
@@ -353,13 +563,99 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
+  Widget _buildImageAttachmentPreview({
+    required GroupAttachment attachment,
+    required Color textColor,
+  }) {
+    final url = _absoluteUrl(attachment.fileUrl);
+    return FutureBuilder<String?>(
+      future: Provider.of<ApiClient>(context, listen: false).readAccessToken(),
+      builder: (context, snapshot) {
+        final token = snapshot.data;
+        final headers = <String, String>{};
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+        return InkWell(
+          onTap: () => _openAttachment(attachment),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 280),
+              color: Colors.black12,
+              child: Image.network(
+                url,
+                headers: headers.isNotEmpty ? headers : null,
+                fit: BoxFit.cover,
+                cacheWidth: 1400,
+                cacheHeight: 1400,
+                errorBuilder: (context, error, stackTrace) {
+                  return SizedBox(
+                    width: 200,
+                    height: 120,
+                    child: Center(
+                      child: Icon(Icons.broken_image_outlined, color: textColor),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.groupName)),
+      appBar: AppBar(
+        title: Text(widget.groupName),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'add') {
+                final userId = await _pickUserToAdd();
+                if (userId == null || userId.isEmpty) return;
+                try {
+                  await _service.addMemberToGroup(groupId: widget.groupId, userId: userId);
+                  if (!context.mounted) return;
+                  showToast(context, context.l10n.phrase('Member added'));
+                } catch (e) {
+                  if (!context.mounted) return;
+                  showToast(context, '${context.l10n.phrase('Failed to add member')}: $e', isError: true);
+                }
+                return;
+              }
+              if (value == 'edit') {
+                await _editGroup();
+                return;
+              }
+              if (value == 'deactivate') {
+                await _deactivateGroup();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                value: 'add',
+                child: Text(context.l10n.phrase('Add member')),
+              ),
+              PopupMenuItem<String>(
+                value: 'edit',
+                child: Text(context.l10n.phrase('Edit group')),
+              ),
+              PopupMenuItem<String>(
+                value: 'deactivate',
+                child: Text(context.l10n.phrase('Deactivate group')),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -426,15 +722,21 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
                         final attachments = m.attachments;
                         final hasAttachments = attachments.isNotEmpty;
+                        final hasImageAttachment = attachments.any((a) => a.fileType.startsWith('image/'));
+                        final isImageMessage = m.messageType.toUpperCase() == 'IMAGE';
+                        final isImageBubble = isImageMessage && hasImageAttachment;
+                        final bubbleBackground = isImageBubble ? Colors.transparent : bubbleColor;
 
                         return Align(
                           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
                           child: Container(
                             margin: const EdgeInsets.symmetric(vertical: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            padding: isImageBubble
+                                ? const EdgeInsets.all(4)
+                                : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             constraints: const BoxConstraints(maxWidth: 320),
                             decoration: BoxDecoration(
-                              color: bubbleColor,
+                              color: bubbleBackground,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Column(
@@ -451,10 +753,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                       ),
                                     ),
                                   ),
-                                Text(
-                                  content,
-                                  style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-                                ),
+                                if (!(isImageMessage && hasAttachments))
+                                  Text(
+                                    content,
+                                    style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+                                  ),
                                 if (timestamp.isNotEmpty) ...[
                                   const SizedBox(height: 4),
                                   Align(
@@ -468,34 +771,39 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                   ),
                                 ],
                                 if (hasAttachments) ...[
-                                  const SizedBox(height: 8),
+                                  SizedBox(height: isImageBubble ? 2 : 8),
                                   for (final a in attachments)
                                     Padding(
-                                      padding: const EdgeInsets.only(bottom: 6),
-                                      child: InkWell(
-                                        onTap: () => _openAttachment(a),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              a.fileType.startsWith('image/')
-                                                  ? Icons.image_outlined
-                                                  : (a.fileType.startsWith('audio/') ? Icons.play_arrow : Icons.attach_file),
-                                              size: 18,
-                                              color: textColor,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Flexible(
-                                              child: Text(
-                                                a.fileName,
-                                                style: theme.textTheme.bodySmall?.copyWith(color: textColor),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
+                                      padding: EdgeInsets.only(bottom: isImageBubble ? 2 : 6),
+                                      child: a.fileType.startsWith('image/')
+                                          ? _buildImageAttachmentPreview(
+                                              attachment: a,
+                                              textColor: textColor,
+                                            )
+                                          : InkWell(
+                                              onTap: () => _openAttachment(a),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    a.fileType.startsWith('audio/')
+                                                        ? Icons.play_arrow
+                                                        : Icons.attach_file,
+                                                    size: 18,
+                                                    color: textColor,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Flexible(
+                                                    child: Text(
+                                                      a.fileName,
+                                                      style: theme.textTheme.bodySmall?.copyWith(color: textColor),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      ),
                                     ),
                                 ],
                               ],

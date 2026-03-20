@@ -50,9 +50,19 @@ class PostsService {
   }) async {
     if (imagePath != null && imagePath.isNotEmpty) {
       final file = File(imagePath);
+      if (!await file.exists()) {
+        throw Exception('Selected image file no longer exists');
+      }
+
+      const maxUploadBytes = 10 * 1024 * 1024;
+      final fileSize = await file.length();
+      if (fileSize > maxUploadBytes) {
+        throw Exception('Selected image is too large');
+      }
+
       final fileName = file.path.split('/').last;
-      final ext = fileName.split('.').last.toLowerCase();
-      
+      final ext = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+
       String mimeType = 'image/jpeg';
       if (ext == 'png') mimeType = 'image/png';
       if (ext == 'gif') mimeType = 'image/gif';

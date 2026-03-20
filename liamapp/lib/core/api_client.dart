@@ -47,6 +47,7 @@ class ApiClient {
   Future<String?> readAccessToken() => _tokenStorage.readAccessToken();
 
   void _logRequest(RequestOptions options) {
+    options.extra['_requestStart'] = DateTime.now().millisecondsSinceEpoch;
     final method = options.method;
     final uri = options.uri;
     final qp = options.queryParameters;
@@ -62,17 +63,40 @@ class ApiClient {
   }
 
   void _logResponse(Response<dynamic> response) {
-    final uri = response.requestOptions.uri;
-    debugPrint('[ApiClient] <-- ${response.statusCode} $uri');
+    final requestOptions = response.requestOptions;
+    final uri = requestOptions.uri;
+    final method = requestOptions.method;
+    final startedAt = requestOptions.extra['_requestStart'];
+    final durationMs = startedAt is int
+        ? DateTime.now().millisecondsSinceEpoch - startedAt
+        : null;
+
+    debugPrint(
+      '[ApiClient] <-- ${response.statusCode} $method $uri${durationMs == null ? '' : ' (${durationMs}ms)'}',
+    );
+    final headers = response.headers.map;
+    if (headers.isNotEmpty) debugPrint('[ApiClient] response headers: $headers');
+    if (response.data != null) debugPrint('[ApiClient] response body: ${response.data}');
   }
 
   void _logError(DioException err) {
-    final uri = err.requestOptions.uri;
-    debugPrint('[ApiClient] <-- ERROR $uri');
+    final requestOptions = err.requestOptions;
+    final uri = requestOptions.uri;
+    final method = requestOptions.method;
+    final startedAt = requestOptions.extra['_requestStart'];
+    final durationMs = startedAt is int
+        ? DateTime.now().millisecondsSinceEpoch - startedAt
+        : null;
+
+    debugPrint(
+      '[ApiClient] <-- ERROR $method $uri${durationMs == null ? '' : ' (${durationMs}ms)'}',
+    );
     debugPrint('[ApiClient] type: ${err.type}');
     if (err.response != null) {
       debugPrint('[ApiClient] status: ${err.response?.statusCode}');
       debugPrint('[ApiClient] data: ${err.response?.data}');
+      final headers = err.response?.headers.map ?? const <String, List<String>>{};
+      if (headers.isNotEmpty) debugPrint('[ApiClient] response headers: $headers');
     }
     debugPrint('[ApiClient] message: ${err.message}');
     if (err.error != null) debugPrint('[ApiClient] error: ${err.error}');

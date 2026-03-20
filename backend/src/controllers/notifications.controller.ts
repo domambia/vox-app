@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import notificationsService from '@/services/notifications.service';
+import pushService from '@/services/push.service';
 import { AuthRequest } from '@/types';
 
 export class NotificationsController {
@@ -46,6 +47,26 @@ export class NotificationsController {
       sendSuccess(res, { unread_count });
     } catch (error: any) {
       sendError(res, 'NOTIFICATIONS_UNREAD_COUNT_ERROR', error.message || 'Failed to fetch unread count', 400);
+    }
+  }
+
+  /**
+   * Register or refresh current device push token
+   * POST /api/v1/notifications/push-token
+   */
+  async registerPushToken(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const { token, platform } = req.body;
+      const row = await pushService.upsertToken(userId, token, platform || 'unknown');
+      sendSuccess(res, {
+        push_token_id: row.push_token_id,
+        token: row.token,
+        platform: row.platform,
+        is_active: row.is_active,
+      });
+    } catch (error: any) {
+      sendError(res, 'PUSH_TOKEN_REGISTER_ERROR', error.message || 'Failed to register push token', 400);
     }
   }
 }

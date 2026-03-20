@@ -1,5 +1,6 @@
 import prisma from "@/config/database";
 import { logger } from "@/utils/logger";
+import pushService from "@/services/push.service";
 import { Prisma, MessageType } from "@prisma/client";
 import {
   normalizePagination,
@@ -257,6 +258,17 @@ export class MessagingService {
           message_id: message.message_id,
         },
       });
+
+      await pushService.sendToUsers(
+        [data.recipientId],
+        "New message",
+        (data.content || "").slice(0, 120) || "You received a new message",
+        {
+          type: "message",
+          conversationId: conversation.conversation_id,
+          messageId: message.message_id,
+        },
+      );
 
       logger.info(
         `Message sent: ${message.message_id} from ${senderId} to ${data.recipientId}`,

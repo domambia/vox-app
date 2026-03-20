@@ -8,13 +8,14 @@ import {
   getProfileSchema,
   deleteProfileSchema,
   uploadVoiceBioSchema,
+  uploadProfileImageSchema,
 } from '@/validations/profile.validation';
 import {
   likeProfileSchema,
   unlikeProfileSchema,
 } from '@/validations/discovery.validation';
 import { authenticate } from '@/middleware/auth.middleware';
-import { uploadVoiceBio } from '@/utils/fileUpload';
+import { uploadVoiceBio, uploadProfilePicture } from '@/utils/fileUpload';
 
 const router = Router();
 
@@ -314,6 +315,19 @@ router.post(
   uploadVoiceBio,
   validate(uploadVoiceBioSchema),
   profileController.uploadVoiceBio.bind(profileController)
+);
+
+/**
+ * @route   POST /api/v1/profile/image
+ * @desc    Upload profile image
+ * @access  Private (Authenticated)
+ */
+router.post(
+  '/image',
+  authenticate,
+  uploadProfilePicture,
+  validate(uploadProfileImageSchema),
+  profileController.uploadProfileImage.bind(profileController)
 );
 
 /**

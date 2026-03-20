@@ -67,6 +67,7 @@ model User {
     calls_received          VoiceCall[]          @relation("Receiver")
     posts                   Post[]
     post_likes              PostLike[]
+    push_tokens             PushToken[]
 
     @@index([phone_number])
     @@index([verified])
@@ -120,6 +121,7 @@ model Profile {
     profile_id    String     @id @default(uuid())
     user_id       String     @unique
     bio           String?
+    profile_image_url String?
     interests     Json       @default("[]")
     location      String?
     looking_for   LookingFor @default(ALL)
@@ -144,6 +146,7 @@ model Group {
     category             String
     member_count         Int       @default(0)
     is_public            Boolean   @default(true)
+    is_active            Boolean   @default(true)
     last_message_at      DateTime?
     last_message_preview String?
     created_at           DateTime  @default(now())
@@ -157,6 +160,7 @@ model Group {
     @@index([category])
     @@index([creator_id])
     @@index([is_public])
+    @@index([is_active])
     @@index([last_message_at])
     @@map("groups")
 }
@@ -560,4 +564,21 @@ model Notification {
     @@index([user_id, read_at])
     @@index([type])
     @@map("notifications")
+}
+
+model PushToken {
+    push_token_id String   @id @default(uuid())
+    user_id       String
+    token         String   @unique
+    platform      String
+    is_active     Boolean  @default(true)
+    last_seen_at  DateTime @default(now())
+    created_at    DateTime @default(now())
+    updated_at    DateTime @updatedAt
+
+    user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+    @@index([user_id])
+    @@index([is_active])
+    @@map("push_tokens")
 }

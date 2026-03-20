@@ -27,6 +27,7 @@ export const createProfileSchema = z.object({
       .or(z.literal('')),
     lookingFor: lookingForEnum.default('ALL'),
     voiceBioUrl: z.string().url('Invalid voice bio URL').optional().or(z.literal('')),
+    profileImageUrl: z.string().url('Invalid profile image URL').optional().or(z.literal('')),
   }),
 });
 
@@ -54,6 +55,7 @@ export const updateProfileSchema = z.object({
       .or(z.literal('')),
     lookingFor: lookingForEnum.optional(),
     voiceBioUrl: z.string().url('Invalid voice bio URL').optional().or(z.literal('')),
+    profileImageUrl: z.string().url('Invalid profile image URL').optional().or(z.literal('')),
   }),
 });
 
@@ -74,6 +76,10 @@ export const deleteProfileSchema = z.object({
 // Voice bio upload schema
 export const uploadVoiceBioSchema = z.object({
   body: z.object({}).optional(), // File comes from multipart/form-data
+});
+
+export const uploadProfileImageSchema = z.object({
+  body: z.object({}).optional(),
 });
 
 // Export types

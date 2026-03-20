@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../../core/api_client.dart';
 import '../../core/api_parsing.dart';
 import '../../core/pagination.dart';
@@ -119,6 +121,16 @@ class GroupsService {
     required String filename,
     String? mimeType,
   }) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception('Selected attachment no longer exists');
+    }
+    const maxUploadBytes = 15 * 1024 * 1024;
+    final fileSize = await file.length();
+    if (fileSize > maxUploadBytes) {
+      throw Exception('Selected attachment is too large');
+    }
+
     final form = FormData.fromMap({
       'messageAttachment': await MultipartFile.fromFile(
         filePath,
@@ -198,6 +210,10 @@ class GroupsService {
   }
 
   Future<void> deleteGroup(String groupId) async {
+    await _apiClient.dio.delete('/groups/$groupId');
+  }
+
+  Future<void> deactivateGroup(String groupId) async {
     await _apiClient.dio.delete('/groups/$groupId');
   }
 }

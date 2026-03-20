@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -46,6 +47,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
   final _refreshManager = RefreshManager();
 
   Timer? _pollTimer;
+  final ImagePicker _imagePicker = ImagePicker();
   final AudioPlayer _player = AudioPlayer();
   final AudioRecorder _recorder = AudioRecorder();
   bool _recording = false;
@@ -313,6 +315,29 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
       showToast(context, context.l10n.voiceBioDeleted);
     } finally {
       if (mounted) setState(() => _busyVoice = false);
+    }
+  }
+
+  Future<void> _pickAndUploadProfileImage() async {
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 2048,
+    );
+    final path = picked?.path;
+    if (path == null || path.isEmpty) return;
+
+    try {
+      await _service.uploadProfileImage(filePath: path);
+      await _refresh();
+      if (!mounted) return;
+      showToast(context, context.l10n.phrase('Profile image updated'));
+    } on DioException catch (e) {
+      if (!mounted) return;
+      showToast(context, messageFromDioException(e), isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, '${context.l10n.phrase('Failed to update profile image')}: $e', isError: true);
     }
   }
 
@@ -649,6 +674,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
         final location = (p['location'] ?? '').toString();
         final voiceBioUrl = (p['voice_bio_url'] ?? p['voiceBioUrl'] ?? '').toString();
         final interests = (p['interests'] is List ? (p['interests'] as List).whereType<String>().toList() : <String>[]);
+        final profileImageUrl = (p['profile_image_url'] ?? p['profileImageUrl'] ?? '').toString();
         final completeness = (() {
           var total = 3;
           var done = 0;
@@ -674,16 +700,11 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
                   ),
                   Row(
                     children: [
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pushNamed(NotificationsScreen.routeName),
-                        icon: const Icon(Icons.notifications_outlined),
-                        tooltip: l10n.notifications,
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pushNamed(SettingsScreen.routeName),
-                        icon: const Icon(Icons.settings_outlined),
-                        tooltip: l10n.settings,
-                      ),
+                      // IconButton(
+                      //   onPressed: () => Navigator.of(context).pushNamed(SettingsScreen.routeName),
+                      //   icon: const Icon(Icons.settings_outlined),
+                      //   tooltip: l10n.settings,
+                      // ),
                       OutlinedButton(
                         onPressed: () async {
                           final ok = await Navigator.of(context).pushNamed(
@@ -716,14 +737,49 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
                   children: [
                     Row(
                       children: [
-                        CircleAvatar(
-                          radius: 34,
-                          backgroundColor: colorScheme.primary,
-                          foregroundColor: colorScheme.onPrimary,
-                          child: Text(
-                            initials,
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
-                          ),
+                        Stack(
+                          children: [
+                            FutureBuilder<String?>(
+                              future: Provider.of<ApiClient>(context, listen: false).readAccessToken(),
+                              builder: (context, snapshot) {
+                                final token = snapshot.data;
+                                final headers = <String, String>{};
+                                if (token != null && token.isNotEmpty) {
+                                  headers['Authorization'] = 'Bearer $token';
+                                }
+                                final absoluteImage = profileImageUrl.trim().isEmpty
+                                    ? ''
+                                    : _absoluteUrl(profileImageUrl.trim());
+                                return CircleAvatar(
+                                  radius: 34,
+                                  backgroundColor: colorScheme.primary,
+                                  foregroundColor: colorScheme.onPrimary,
+                                  backgroundImage: absoluteImage.isEmpty
+                                      ? null
+                                      : NetworkImage(
+                                          absoluteImage,
+                                          headers: headers.isNotEmpty ? headers : null,
+                                        ),
+                                  child: absoluteImage.isEmpty
+                                      ? Text(
+                                          initials,
+                                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
+                                        )
+                                      : null,
+                                );
+                              },
+                            ),
+                            Positioned(
+                              right: -2,
+                              bottom: -2,
+                              child: IconButton.filledTonal(
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _pickAndUploadProfileImage,
+                                icon: const Icon(Icons.camera_alt, size: 18),
+                                tooltip: context.l10n.phrase('Update profile image'),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(width: 14),
                         Expanded(

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
+import '../../core/refresh_manager.dart';
 import 'groups_service.dart';
 
 class NewGroupScreen extends StatefulWidget {
@@ -20,9 +21,17 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
   final _descController = TextEditingController();
 
   bool _submitting = false;
+  bool _didTriggerRefresh = false;
+
+  void _triggerGroupsRefresh() {
+    if (_didTriggerRefresh) return;
+    _didTriggerRefresh = true;
+    RefreshManager().triggerRefresh('groups');
+  }
 
   @override
   void dispose() {
+    _triggerGroupsRefresh();
     _nameController.dispose();
     _descController.dispose();
     super.dispose();
@@ -47,6 +56,7 @@ class _NewGroupScreenState extends State<NewGroupScreen> {
       final name = (group['name'] ?? _nameController.text.trim()).toString();
 
       if (!mounted) return;
+      _triggerGroupsRefresh();
       Navigator.of(context).pushReplacementNamed(
         '/groups/chat',
         arguments: {

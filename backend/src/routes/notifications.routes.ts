@@ -2,7 +2,7 @@ import { Router } from 'express';
 import notificationsController from '@/controllers/notifications.controller';
 import { authenticate } from '@/middleware/auth.middleware';
 import { validate } from '@/middleware/validation.middleware';
-import { markNotificationsReadSchema } from '@/validations/notifications.validation';
+import { markNotificationsReadSchema, registerPushTokenSchema } from '@/validations/notifications.validation';
 
 const router = Router();
 
@@ -38,6 +38,18 @@ router.post(
   authenticate,
   validate(markNotificationsReadSchema),
   notificationsController.markAsRead.bind(notificationsController)
+);
+
+/**
+ * @route   POST /api/v1/notifications/push-token
+ * @desc    Register current device push token
+ * @access  Private (Authenticated)
+ */
+router.post(
+  '/push-token',
+  authenticate,
+  validate(registerPushTokenSchema),
+  notificationsController.registerPushToken.bind(notificationsController),
 );
 
 export default router;

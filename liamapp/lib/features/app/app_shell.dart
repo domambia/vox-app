@@ -345,12 +345,19 @@ class _AppShellState extends State<AppShell> {
           onDestinationSelected: (i) {
             if (i == _index) {
               _keys[i].currentState?.popUntil((r) => r.isFirst);
+              _tabIndex.value = i;
+              setState(() {
+                _forceRefetchForTab(i);
+              });
+              return;
             }
+
+            // Update tab notifier first so destination screens read active tab immediately.
+            _tabIndex.value = i;
             setState(() {
               _index = i;
               _forceRefetchForTab(i);
             });
-            _tabIndex.value = i;
           },
           destinations: [
             NavigationDestination(

@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
@@ -21,8 +21,10 @@ class CreatePostScreen extends StatefulWidget {
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
   final _contentController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
   File? _selectedImage;
   bool _isPosting = false;
+  static const int _previewDecodeSize = 1440;
 
   @override
   void dispose() {
@@ -31,16 +33,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 2048,
     );
-    if (result != null && result.files.isNotEmpty) {
-      final path = result.files.first.path;
-      if (path != null) {
-        setState(() => _selectedImage = File(path));
-      }
-    }
+    if (picked == null) return;
+    setState(() => _selectedImage = File(picked.path));
   }
 
   void _removeImage() {
@@ -69,6 +68,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     } on DioException catch (e) {
       if (!mounted) return;
       showToast(context, messageFromDioException(e), isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      showToast(context, context.l10n.phrase('Failed to create post'), isError: true);
     } finally {
       if (mounted) setState(() => _isPosting = false);
     }
@@ -131,11 +133,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            _selectedImage!,
+                          child: Image(
+                            image: ResizeImage(
+                              FileImage(_selectedImage!),
+                              width: _previewDecodeSize,
+                              height: _previewDecodeSize,
+                            ),
                             width: double.infinity,
                             height: 200,
                             fit: BoxFit.cover,
+                            filterQuality: FilterQuality.low,
                           ),
                         ),
                         Positioned(

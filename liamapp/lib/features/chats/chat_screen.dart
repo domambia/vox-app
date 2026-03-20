@@ -471,6 +471,11 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _openAttachment(ChatAttachment a) async {
     final url = _absoluteUrl(a.fileUrl);
     if (a.fileType.startsWith('image/')) {
+      final token = await Provider.of<ApiClient>(context, listen: false).readAccessToken();
+      final headers = <String, String>{};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -478,7 +483,11 @@ class _ChatScreenState extends State<ChatScreen> {
           return Dialog(
             insetPadding: const EdgeInsets.all(16),
             child: InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain),
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                headers: headers.isNotEmpty ? headers : null,
+              ),
             ),
           );
         },
@@ -492,6 +501,47 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  Widget _buildImageAttachmentPreview({
+    required ChatAttachment attachment,
+    required Color textColor,
+  }) {
+    final url = _absoluteUrl(attachment.fileUrl);
+    return FutureBuilder<String?>(
+      future: Provider.of<ApiClient>(context, listen: false).readAccessToken(),
+      builder: (context, snapshot) {
+        final token = snapshot.data;
+        final headers = <String, String>{};
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+        return InkWell(
+          onTap: () => _openAttachment(attachment),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
+              color: Colors.black12,
+              child: Image.network(
+                url,
+                headers: headers.isNotEmpty ? headers : null,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return SizedBox(
+                    width: 200,
+                    height: 120,
+                    child: Center(
+                      child: Icon(Icons.broken_image_outlined, color: textColor),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildVoiceMessagePlayer(ChatAttachment a, Color textColor, Color bubbleColor) {
@@ -757,6 +807,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
                         final attachments = m.attachments;
                         final hasAttachments = attachments.isNotEmpty;
+                        final isImageMessage = m.messageType.toUpperCase() == 'IMAGE';
 
                         return Align(
                           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -776,13 +827,22 @@ class _ChatScreenState extends State<ChatScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      m.isDeleted ? 'Message deleted' : content,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        color: textColor,
-                                        fontStyle: m.isDeleted ? FontStyle.italic : FontStyle.normal,
+                                    if (!m.isDeleted && !(isImageMessage && hasAttachments))
+                                      Text(
+                                        content,
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          color: textColor,
+                                          fontStyle: FontStyle.normal,
+                                        ),
                                       ),
-                                    ),
+                                    if (m.isDeleted)
+                                      Text(
+                                        'Message deleted',
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          color: textColor,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
                                     if (timestamp.isNotEmpty) ...[
                                       const SizedBox(height: 4),
                                       Align(
@@ -809,6 +869,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                           padding: const EdgeInsets.only(bottom: 6),
                                           child: a.fileType.startsWith('audio/')
                                               ? _buildVoiceMessagePlayer(a, textColor, bubbleColor)
+                                              : a.fileType.startsWith('image/')
+                                                  ? _buildImageAttachmentPreview(
+                                                      attachment: a,
+                                                      textColor: textColor,
+                                                    )
                                               : InkWell(
                                                   onTap: () => _openAttachment(a),
                                                   child: Row(

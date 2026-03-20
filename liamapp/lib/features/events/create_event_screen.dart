@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
+import '../../core/refresh_manager.dart';
 import 'events_service.dart';
 
 class CreateEventScreen extends StatefulWidget {
@@ -24,9 +25,17 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   DateTime _startTime = DateTime.now().add(const Duration(hours: 2));
 
   bool _submitting = false;
+  bool _didTriggerRefresh = false;
+
+  void _triggerEventsRefresh() {
+    if (_didTriggerRefresh) return;
+    _didTriggerRefresh = true;
+    RefreshManager().triggerRefresh('events');
+  }
 
   @override
   void dispose() {
+    _triggerEventsRefresh();
     _titleController.dispose();
     _locationController.dispose();
     _descriptionController.dispose();
@@ -73,6 +82,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       final eventId = (created['event_id'] ?? created['eventId'] ?? created['id'] ?? '').toString();
 
       if (!mounted) return;
+      _triggerEventsRefresh();
       Navigator.of(context).pushReplacementNamed(
         '/events/detail',
         arguments: {

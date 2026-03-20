@@ -1,5 +1,6 @@
 import prisma from "@/config/database";
 import { logger } from "@/utils/logger";
+import pushService from "@/services/push.service";
 import { Prisma, GroupRole, MessageType } from "@prisma/client";
 import {
   normalizePagination,
@@ -62,6 +63,7 @@ export class GroupService {
           creator_id: creatorId,
           category: data.category,
           is_public: data.isPublic ?? true,
+          is_active: true,
           member_count: 1, // Creator is first member
         },
         include: {
@@ -122,9 +124,9 @@ export class GroupService {
     try {
       const group = await prisma.group.findUnique({
         where: { group_id: groupId },
-        select: { group_id: true },
+        select: { group_id: true, is_active: true } as any,
       });
-      if (!group) {
+      if (!group || !(group as any).is_active) {
         throw new Error("Group not found");
       }
 
@@ -273,7 +275,7 @@ export class GroupService {
         },
       });
 
-      if (!group) {
+      if (!group || !(group as any).is_active) {
         throw new Error("Group not found");
       }
 
@@ -320,7 +322,9 @@ export class GroupService {
       const { category, search, isPublic, memberOnly, userId } = params;
 
       // Build where clause
-      const where: Prisma.GroupWhereInput = {};
+      const where: Prisma.GroupWhereInput = {
+        ...( { is_active: true } as any),
+      };
 
       if (category) {
         where.category = category;
@@ -468,14 +472,15 @@ export class GroupService {
         throw new Error("Only group admins can delete the group");
       }
 
-      // Delete group (cascade will handle members)
-      await prisma.group.delete({
+      // Soft-delete group so historical data remains available.
+      await prisma.group.update({
         where: { group_id: groupId },
+        data: { is_active: false } as any,
       });
 
-      logger.info(`Group ${groupId} deleted by user ${userId}`);
+      logger.info(`Group ${groupId} deactivated by user ${userId}`);
 
-      return { message: "Group deleted successfully" };
+      return { message: "Group deactivated successfully" };
     } catch (error) {
       logger.error("Error deleting group", error);
       throw error;
@@ -492,7 +497,7 @@ export class GroupService {
         where: { group_id: groupId },
       });
 
-      if (!group) {
+      if (!group || !(group as any).is_active) {
         throw new Error("Group not found");
       }
 
@@ -616,7 +621,7 @@ export class GroupService {
         where: { group_id: groupId },
       });
 
-      if (!group) {
+      if (!group || !(group as any).is_active) {
         throw new Error("Group not found");
       }
 
@@ -857,6 +862,14 @@ export class GroupService {
     limit: number = 50,
     offset: number = 0,
   ) {
+    const group = await prisma.group.findUnique({
+      where: { group_id: groupId },
+      select: { group_id: true, is_active: true } as any,
+    });
+    if (!group || !(group as any).is_active) {
+      throw new Error("Group not found");
+    }
+
     const membership = await prisma.groupMember.findUnique({
       where: {
         group_id_user_id: { group_id: groupId, user_id: userId },
@@ -904,6 +917,14 @@ export class GroupService {
     messageType: MessageType = "TEXT",
     attachmentIds?: string[],
   ) {
+    const groupState = await prisma.group.findUnique({
+      where: { group_id: groupId },
+      select: { group_id: true, is_active: true } as any,
+    });
+    if (!groupState || !(groupState as any).is_active) {
+      throw new Error("Group not found");
+    }
+
     const membership = await prisma.groupMember.findUnique({
       where: {
         group_id_user_id: { group_id: groupId, user_id: userId },
@@ -980,6 +1001,17 @@ export class GroupService {
           emitToUser(io, rid, "notification:new", { type: "message" });
         }
       }
+
+      await pushService.sendToUsers(
+        recipientIds,
+        "New group message",
+        `${group?.name ? `[${group.name}] ` : ""}${preview}` || "You received a new group message",
+        {
+          type: "group_message",
+          groupId: groupId,
+          messageId: message.message_id,
+        },
+      );
     }
 
     logger.info(`Group message sent in ${groupId} by ${userId}`);

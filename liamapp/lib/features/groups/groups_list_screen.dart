@@ -30,8 +30,110 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
   final _refreshManager = RefreshManager();
 
   Timer? _pollTimer;
+  StreamSubscription<void>? _refreshSubscription;
   ValueNotifier<int>? _tabIndex;
   bool _isActive = false;
+
+  Future<void> _openCreateGroup() async {
+    await Navigator.of(context).pushNamed(NewGroupScreen.routeName);
+    if (!mounted) return;
+    await _refresh();
+  }
+
+  Future<void> _editGroup(Group group) async {
+    final nameController = TextEditingController(text: group.name);
+    final descController = TextEditingController(text: group.description ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(context.l10n.phrase('Edit group')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(labelText: context.l10n.phrase('Group name')),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descController,
+                decoration: InputDecoration(labelText: context.l10n.phrase('Description')),
+                minLines: 2,
+                maxLines: 4,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(context.l10n.phrase('Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(context.l10n.phrase('Save')),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true) return;
+
+    final name = nameController.text.trim();
+    final description = descController.text.trim();
+    if (name.isEmpty) {
+      if (!mounted) return;
+      showToast(context, context.l10n.phrase('Group name is required'), isError: true);
+      return;
+    }
+
+    try {
+      await _service.updateGroup(
+        groupId: group.groupId,
+        name: name,
+        description: description,
+      );
+      if (!mounted) return;
+      showToast(context, context.l10n.phrase('Group updated'));
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, '${context.l10n.phrase('Failed to update group')}: $e', isError: true);
+    }
+  }
+
+  Future<void> _deactivateGroup(Group group) async {
+    final shouldDeactivate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.phrase('Deactivate group')),
+        content: Text(
+          context.l10n.phrase('This group will be hidden from active lists. You can keep its history.'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.l10n.phrase('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.l10n.phrase('Deactivate')),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDeactivate != true) return;
+    try {
+      await _service.deactivateGroup(group.groupId);
+      if (!mounted) return;
+      showToast(context, context.l10n.phrase('Group deactivated'));
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      showToast(context, '${context.l10n.phrase('Failed to deactivate group')}: $e', isError: true);
+    }
+  }
 
   Future<String?> _pickUserToAdd({required String groupId, required String groupName}) async {
     final queryController = TextEditingController();
@@ -144,6 +246,11 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
     _tabIndex = Provider.of<ValueNotifier<int>>(context, listen: false);
     _isActive = _tabIndex?.value == 2;
     _tabIndex?.addListener(_onTabChanged);
+    _refreshSubscription = _refreshManager.getRefreshStream(_refreshKey).listen((_) {
+      if (mounted) {
+        _refresh();
+      }
+    });
 
     _startPolling();
   }
@@ -172,6 +279,7 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _refreshSubscription?.cancel();
     _tabIndex?.removeListener(_onTabChanged);
     super.dispose();
   }
@@ -207,7 +315,7 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
 
         if (items.isEmpty) {
           return _EmptyGroups(onNewGroup: () {
-            Navigator.of(context).pushNamed(NewGroupScreen.routeName);
+            _openCreateGroup();
           });
         }
 
@@ -229,22 +337,43 @@ class _GroupsListScreenState extends State<GroupsListScreen> {
                 subtitle: description.isEmpty
                     ? null
                     : Text(description, maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: IconButton(
-                  icon: const Icon(Icons.person_add_alt_1),
-                  tooltip: context.l10n.phrase('Add member'),
-                  onPressed: () async {
-                    final userId = await _pickUserToAdd(groupId: groupId, groupName: name);
-                    if (userId == null || userId.isEmpty) return;
-
-                    try {
-                      await _service.addMemberToGroup(groupId: groupId, userId: userId);
-                      if (!context.mounted) return;
-                      showToast(context, context.l10n.phrase('Member added'));
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      showToast(context, '${context.l10n.phrase('Failed to add member')}: $e', isError: true);
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) async {
+                    if (value == 'add') {
+                      final userId = await _pickUserToAdd(groupId: groupId, groupName: name);
+                      if (userId == null || userId.isEmpty) return;
+                      try {
+                        await _service.addMemberToGroup(groupId: groupId, userId: userId);
+                        if (!context.mounted) return;
+                        showToast(context, context.l10n.phrase('Member added'));
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        showToast(context, '${context.l10n.phrase('Failed to add member')}: $e', isError: true);
+                      }
+                      return;
+                    }
+                    if (value == 'edit') {
+                      await _editGroup(g);
+                      return;
+                    }
+                    if (value == 'deactivate') {
+                      await _deactivateGroup(g);
                     }
                   },
+                  itemBuilder: (context) => [
+                    PopupMenuItem<String>(
+                      value: 'add',
+                      child: Text(context.l10n.phrase('Add member')),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'edit',
+                      child: Text(context.l10n.phrase('Edit group')),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'deactivate',
+                      child: Text(context.l10n.phrase('Deactivate group')),
+                    ),
+                  ],
                 ),
                 onTap: () async {
                   await Navigator.of(context).pushNamed(
