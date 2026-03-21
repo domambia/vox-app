@@ -18,6 +18,17 @@ function maskFcmToken(token: string): string {
   return `${t.slice(0, 8)}…${t.slice(-6)} (${t.length} chars)`;
 }
 
+/**
+ * FCM `analyticsLabel` must be 1–50 chars: letters, digits, underscores only.
+ * Helps Firebase / GA attribute messages sent via Admin SDK (not only Console campaigns).
+ * @see https://firebase.google.com/docs/reference/admin/node/firebase-admin.messaging.fcmoptions
+ */
+function fcmAnalyticsLabel(dataPayload: Record<string, string>): string {
+  const raw = (dataPayload.type || "backend_push").replace(/[^a-zA-Z0-9_]/g, "_");
+  const trimmed = raw.slice(0, 50);
+  return trimmed.length > 0 ? trimmed : "backend_push";
+}
+
 class PushService {
   /** Avoid spamming logs when every message tries to push without Firebase configured. */
   private _loggedMissingFirebase = false;
@@ -296,10 +307,14 @@ class PushService {
           notificationType: dataPayload.type ?? null,
           titlePreview: title.slice(0, 80),
         });
+        const analyticsLabel = fcmAnalyticsLabel(dataPayload);
         const response = await messaging.sendEachForMulticast({
           tokens: batch,
           notification: { title, body },
           data: dataPayload,
+          fcmOptions: {
+            analyticsLabel,
+          },
           android: {
             priority: "high",
             notification: {

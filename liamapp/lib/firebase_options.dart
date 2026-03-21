@@ -1,16 +1,13 @@
 // Generated from android/app/google-services.json (project liamapp-c4895).
-// For iOS: add GoogleService-Info.plist to Xcode, then run:
-//   dart pub global activate flutterfire_cli && flutterfire configure
+// Push / FCM is Android-only in this app; iOS does not use [FirebaseOptions] here.
 // ignore_for_file: lines_longer_than_80_chars, avoid_classes_with_only_static_members
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Same pattern as pushnoti_firebase: explicit [FirebaseOptions] for Android.
-/// Other platforms use [Firebase.initializeApp] without options when native
-/// config files are present.
+/// Explicit [FirebaseOptions] for Android only ([NotificationService] skips FCM on iOS).
 class DefaultFirebaseOptions {
-  /// Android: always use bundled options. iOS/desktop: null → default native init.
+  /// Android: bundled options. Non-Android: null (FCM not initialized).
   static FirebaseOptions? get forCurrentPlatform {
     if (kIsWeb) return null;
     if (defaultTargetPlatform == TargetPlatform.android) {

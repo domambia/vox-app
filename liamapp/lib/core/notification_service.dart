@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -15,9 +14,11 @@ import 'app_navigator.dart';
 import 'in_app_push_banner.dart';
 import 'push_notification_router.dart';
 
-/// Same init as [NotificationService.initialize] / pushnoti_firebase pattern:
-/// explicit [FirebaseOptions] on Android from `firebase_options.dart`.
+bool get _fcmEnabled => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+/// FCM / Firebase init — Android only.
 Future<void> _ensureFirebaseInitialized() async {
+  if (!_fcmEnabled) return;
   if (Firebase.apps.isNotEmpty) return;
   final opts = DefaultFirebaseOptions.forCurrentPlatform;
   if (opts != null) {
@@ -29,6 +30,7 @@ Future<void> _ensureFirebaseInitialized() async {
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (!_fcmEnabled) return;
   await _ensureFirebaseInitialized();
 }
 
@@ -83,38 +85,26 @@ class NotificationService {
     importance: Importance.max,
   );
 
-  /// Requests notification permission when missing: Android 13+ (`POST_NOTIFICATIONS`)
-  /// via [Permission.notification], iOS via FCM. Safe to call again after login.
+  /// Android 13+ (`POST_NOTIFICATIONS`) via [Permission.notification]. FCM is Android-only.
   Future<void> ensureNotificationPermission() async {
     if (kIsWeb) return;
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!_fcmEnabled) return;
 
-    if (Platform.isAndroid) {
-      var status = await Permission.notification.status;
-      if (status.isGranted) return;
-      status = await Permission.notification.request();
-      if (!status.isGranted && !status.isPermanentlyDenied) {
-        await Permission.notification.request();
-      }
-      return;
+    var status = await Permission.notification.status;
+    if (status.isGranted) return;
+    status = await Permission.notification.request();
+    if (!status.isGranted && !status.isPermanentlyDenied) {
+      await Permission.notification.request();
     }
-
-    // iOS — align FCM / APNs authorization
-    final before = await FirebaseMessaging.instance.getNotificationSettings();
-    if (before.authorizationStatus == AuthorizationStatus.authorized ||
-        before.authorizationStatus == AuthorizationStatus.provisional) {
-      return;
-    }
-    await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
   }
 
   Future<void> initialize() async {
     if (_initialized) return;
+
+    if (!_fcmEnabled) {
+      _initialized = true;
+      return;
+    }
 
     await _ensureFirebaseInitialized();
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -231,6 +221,7 @@ class NotificationService {
   }
 
   Future<void> syncTokenWithBackend(ApiClient apiClient) async {
+    if (!_fcmEnabled) return;
     final token = _currentToken ?? await FirebaseMessaging.instance.getToken();
     if (token == null || token.isEmpty) return;
     _currentToken = token;

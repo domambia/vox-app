@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -163,7 +162,7 @@ class _NotificationFeedbackRegistrarState extends State<_NotificationFeedbackReg
 
   void _playForegroundPushFeedback() {
     if (kIsWeb) return;
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (defaultTargetPlatform != TargetPlatform.android) return;
     final ctx = appRootNavigatorKey.currentContext;
     if (ctx == null || !ctx.mounted) return;
     final settings = Provider.of<SettingsController>(ctx, listen: false).notifications;
