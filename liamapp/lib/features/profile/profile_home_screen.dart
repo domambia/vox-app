@@ -17,7 +17,7 @@ import 'dart:io';
 
 import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
-import '../../core/config.dart';
+import '../../core/media_url.dart';
 import '../../core/refresh_manager.dart';
 import '../../core/toast.dart';
 import '../auth/auth_controller.dart';
@@ -174,11 +174,7 @@ class _ProfileHomeScreenState extends State<ProfileHomeScreen> {
   }
 
   String _absoluteUrl(String fileUrl) {
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
-    final base = AppConfig.apiBaseUrl;
-    final idx = base.indexOf('/api/');
-    final origin = idx == -1 ? base : base.substring(0, idx);
-    return '$origin$fileUrl';
+    return resolveMediaUrl(fileUrl);
   }
 
   Future<bool> _ensureMicPermission() async {

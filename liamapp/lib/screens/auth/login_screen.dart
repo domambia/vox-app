@@ -1,6 +1,12 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
+import '../../core/notification_service.dart';
+import '../../core/toast.dart';
+import '../../features/auth/auth_controller.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,11 +38,31 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!isValid) return;
 
     setState(() => _isSubmitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
+    try {
+      final auth = Provider.of<AuthController>(context, listen: false);
+      try {
+        await auth.login(
+          phoneOrEmail: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+      } on DioException catch (e) {
+        final text = messageFromDioException(e);
+        if (!mounted) return;
+        showToast(context, text, isError: true);
+        return;
+      }
 
-    setState(() => _isSubmitting = false);
-    Navigator.of(context).pushReplacementNamed('/profile');
+      if (!mounted) return;
+      final apiClient = Provider.of<ApiClient>(context, listen: false);
+      NotificationService.instance.attachTokenSync(apiClient);
+      await NotificationService.instance.syncTokenWithBackend(apiClient);
+
+      if (!mounted) return;
+      showToast(context, context.l10n.phrase('Logged in successfully'));
+      Navigator.of(context).pushNamedAndRemoveUntil('/app', (r) => false);
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override

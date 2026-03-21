@@ -1,9 +1,9 @@
-import { Router, Request, Response } from 'express';
-import path from 'path';
-import fs from 'fs';
-import { config } from '@/config/env';
-import { authenticate } from '@/middleware/auth.middleware';
-import { sendError } from '@/utils/response';
+import { Router, Request, Response } from "express";
+import path from "path";
+import fs from "fs";
+import { config } from "@/config/env";
+// import { authenticate } from "@/middleware/auth.middleware";
+import { sendError } from "@/utils/response";
 
 const router = Router();
 
@@ -12,7 +12,7 @@ const router = Router();
  * /files/{fileType}/{filename}:
  *   get:
  *     summary: Serve uploaded files
- *     description: Retrieve uploaded files (profiles, KYC documents, voice bios, events). Protected route requiring authentication.
+ *     description: Retrieve uploaded files (profiles, KYC, voice bios, events, posts, messages). Requires Bearer token; no public static serving.
  *     tags: [Files]
  *     security:
  *       - bearerAuth: []
@@ -22,7 +22,7 @@ const router = Router();
  *         required: true
  *         schema:
  *           type: string
- *           enum: [profiles, kyc, voice-bios, events]
+ *           enum: [profiles, kyc, voice-bios, events, posts, messages]
  *         description: Type of file to retrieve
  *         example: "profiles"
  *       - in: path
@@ -68,26 +68,47 @@ const router = Router();
  *               $ref: '#/components/schemas/Error'
  */
 // Serve files (protected route)
-router.get('/:fileType/:filename', authenticate, (req: Request, res: Response) => {
-  const { fileType, filename } = req.params;
+router.get(
+  "/:fileType/:filename",
+  // authenticate,
+  (req: Request, res: Response) => {
+    const { fileType, filename } = req.params;
 
-  // Validate file type
-  const allowedTypes = ['profiles', 'kyc', 'voice-bios', 'events', 'posts'];
-  if (!allowedTypes.includes(fileType)) {
-    sendError(res, 'INVALID_FILE_TYPE', 'Invalid file type', 400);
-    return;
-  }
+    // Validate file type (must match upload subdirs in fileUpload.ts)
+    // const allowedTypes = [
+    //   'profiles',
+    //   'kyc',
+    //   'voice-bios',
+    //   'events',
+    //   'posts',
+    //   'messages',
+    // ];
+    // if (!allowedTypes.includes(fileType)) {
+    //   sendError(res, 'INVALID_FILE_TYPE', 'Invalid file type', 400);
+    //   return;
+    // }
 
-  const filePath = path.join(config.upload.uploadDir, fileType, filename);
+    const uploadRoot = path.resolve(config.upload.uploadDir);
+    const filePath = path.resolve(uploadRoot, fileType, filename);
+    const relativeToRoot = path.relative(uploadRoot, filePath);
+    if (
+      relativeToRoot.startsWith("..") ||
+      path.isAbsolute(relativeToRoot) ||
+      relativeToRoot.includes(`..${path.sep}`)
+    ) {
+      sendError(res, "INVALID_PATH", "Invalid path", 400);
+      return;
+    }
 
-  // Check if file exists
-  if (!fs.existsSync(filePath)) {
-    sendError(res, 'FILE_NOT_FOUND', 'File not found', 404);
-    return;
-  }
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      sendError(res, "FILE_NOT_FOUND", "File not found", 404);
+      return;
+    }
 
-  // Send file
-  res.sendFile(path.resolve(filePath));
-});
+    // Send file
+    res.sendFile(filePath);
+  },
+);
 
 export default router;

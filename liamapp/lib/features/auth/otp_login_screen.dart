@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
 
+import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
+import '../../core/notification_service.dart';
 import '../../core/toast.dart';
 import 'auth_controller.dart';
 
@@ -54,6 +56,11 @@ class _OtpLoginScreenState extends State<OtpLoginScreen> {
         showToast(context, text, isError: true);
         return;
       }
+
+      if (!mounted) return;
+      final apiClient = Provider.of<ApiClient>(context, listen: false);
+      NotificationService.instance.attachTokenSync(apiClient);
+      await NotificationService.instance.syncTokenWithBackend(apiClient);
 
       if (!mounted) return;
       showToast(context, context.l10n.phrase('Logged in successfully'));

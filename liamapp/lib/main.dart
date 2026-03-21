@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_localizations.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/splash_screen.dart';
 import 'core/api_client.dart';
@@ -120,6 +121,7 @@ class MyApp extends StatelessWidget {
               AppGate.routeName: (_) => const AppGate(),
               '/': (_) => const LandingScreen(),
               AppShell.routeName: (_) => const AppShell(),
+              LoginScreen.routeName: (_) => const LoginScreen(),
               OtpLoginScreen.routeName: (_) => const OtpLoginScreen(),
               OtpRegisterScreen.routeName: (_) => const OtpRegisterScreen(),
             },
@@ -202,7 +204,10 @@ class _SocketAuthBinderState extends State<_SocketAuthBinder> {
     Provider.of<SocketService>(context, listen: false).syncAuth(current);
     if (current) {
       final apiClient = Provider.of<ApiClient>(context, listen: false);
+      NotificationService.instance.attachTokenSync(apiClient);
       NotificationService.instance.syncTokenWithBackend(apiClient);
+    } else {
+      NotificationService.instance.detachTokenSync();
     }
 
     _incomingCallSub?.cancel();

@@ -335,13 +335,24 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           fit: StackFit.expand,
           children: [
             if (post.imageUrl != null && post.imageUrl!.isNotEmpty)
-              Image.network(
-                _absoluteUrl(post.imageUrl!),
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: colorScheme.surfaceContainerHighest,
-                  child: Icon(Icons.broken_image_outlined, color: colorScheme.onSurfaceVariant),
-                ),
+              FutureBuilder<String?>(
+                future: Provider.of<ApiClient>(context, listen: false).readAccessToken(),
+                builder: (context, snapshot) {
+                  final token = snapshot.data;
+                  final headers = <String, String>{};
+                  if (token != null && token.isNotEmpty) {
+                    headers['Authorization'] = 'Bearer $token';
+                  }
+                  return Image.network(
+                    _absoluteUrl(post.imageUrl!),
+                    headers: headers.isNotEmpty ? headers : null,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: colorScheme.surfaceContainerHighest,
+                      child: Icon(Icons.broken_image_outlined, color: colorScheme.onSurfaceVariant),
+                    ),
+                  );
+                },
               )
             else
               Container(

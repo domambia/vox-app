@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -20,12 +21,14 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
   String? _currentToken;
+  ApiClient? _apiClientForTokenSync;
+  StreamSubscription<String>? _tokenRefreshSub;
 
   static const AndroidNotificationChannel _defaultChannel = AndroidNotificationChannel(
     'liamapp_messages',
     'Messages & Notifications',
     description: 'Message and app notifications',
-    importance: Importance.high,
+    importance: Importance.max,
   );
 
   Future<void> initialize() async {
@@ -79,12 +82,26 @@ class NotificationService {
       debugPrint('[NotificationService] FCM token: $token');
     }
 
-    messaging.onTokenRefresh.listen((token) {
+    _tokenRefreshSub?.cancel();
+    _tokenRefreshSub = messaging.onTokenRefresh.listen((token) async {
       _currentToken = token;
       debugPrint('[NotificationService] FCM token refreshed: $token');
+      final client = _apiClientForTokenSync;
+      if (client != null) {
+        await syncTokenWithBackend(client);
+      }
     });
 
     _initialized = true;
+  }
+
+  /// Call when the user logs in so refreshed tokens are registered; call [detachTokenSync] on logout.
+  void attachTokenSync(ApiClient apiClient) {
+    _apiClientForTokenSync = apiClient;
+  }
+
+  void detachTokenSync() {
+    _apiClientForTokenSync = null;
   }
 
   Future<void> _showFromRemoteMessage(RemoteMessage message) async {
@@ -139,17 +156,24 @@ class NotificationService {
         break;
     }
 
-    try {
-      await apiClient.dio.post(
-        '/notifications/push-token',
-        data: {
-          'token': token,
-          'platform': platform,
-        },
-      );
-      debugPrint('[NotificationService] Push token synced');
-    } catch (e) {
-      debugPrint('[NotificationService] Push token sync failed: $e');
+    const maxAttempts = 4;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await apiClient.dio.post(
+          '/notifications/push-token',
+          data: {
+            'token': token,
+            'platform': platform,
+          },
+        );
+        debugPrint('[NotificationService] Push token synced');
+        return;
+      } catch (e) {
+        debugPrint('[NotificationService] Push token sync failed (attempt $attempt/$maxAttempts): $e');
+        if (attempt < maxAttempts) {
+          await Future<void>.delayed(Duration(milliseconds: 400 * attempt));
+        }
+      }
     }
   }
 }

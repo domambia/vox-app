@@ -2,6 +2,7 @@ import app from './app';
 import { config } from './config/env';
 import { logger } from './utils/logger';
 import prisma from './config/database';
+import pushService from './services/push.service';
 import { initializeWebSocket } from './utils/websocket';
 import { Server as HTTPServer } from 'http';
 
@@ -17,6 +18,7 @@ const server: HTTPServer = app.listen(PORT, async () => {
   try {
     await prisma.$connect();
     logger.info('✅ Database connected successfully');
+    pushService.logConfigurationStatus();
   } catch (error) {
     logger.error('❌ Database connection failed', error);
     process.exit(1);

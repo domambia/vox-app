@@ -15,7 +15,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
-import '../../core/config.dart';
+import '../../core/media_url.dart';
 import '../../core/socket_service.dart';
 import '../../core/pagination.dart';
 import '../../core/toast.dart';
@@ -393,6 +393,10 @@ class _ChatScreenState extends State<ChatScreen> {
         attachmentIds: [attachmentId],
       );
       await _forceRefresh();
+      // Production can return message before attachment relation is fully visible;
+      // a quick second refresh makes image preview appear reliably.
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _forceRefresh();
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -461,16 +465,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   String _absoluteUrl(String fileUrl) {
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
-    final base = AppConfig.apiBaseUrl;
-    final idx = base.indexOf('/api/');
-    final origin = idx == -1 ? base : base.substring(0, idx);
-    return '$origin$fileUrl';
+    return resolveMediaUrl(fileUrl);
   }
 
   Future<void> _openAttachment(ChatAttachment a) async {
     final url = _absoluteUrl(a.fileUrl);
-    if (a.fileType.startsWith('image/')) {
+    if (a.isImage) {
       final token = await Provider.of<ApiClient>(context, listen: false).readAccessToken();
       final headers = <String, String>{};
       if (token != null && token.isNotEmpty) {
@@ -495,7 +495,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    if (a.fileType.startsWith('audio/')) {
+    if (a.isAudio) {
       await _togglePlayback(url);
       return;
     }
@@ -511,7 +511,26 @@ class _ChatScreenState extends State<ChatScreen> {
     return FutureBuilder<String?>(
       future: Provider.of<ApiClient>(context, listen: false).readAccessToken(),
       builder: (context, snapshot) {
-        final token = snapshot.data;
+        // Do not load until token resolution finishes. A first paint without
+        // Authorization can 401; NetworkImage keys by URL only (ignores headers),
+        // so a failed unauthenticated load may stay cached when headers arrive.
+        if (snapshot.connectionState != ConnectionState.done) {
+          return SizedBox(
+            width: 200,
+            height: 120,
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: textColor.withOpacity(0.5),
+                ),
+              ),
+            ),
+          );
+        }
+        final token = snapshot.hasError ? null : snapshot.data;
         final headers = <String, String>{};
         if (token != null && token.isNotEmpty) {
           headers['Authorization'] = 'Bearer $token';
@@ -525,6 +544,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Colors.black12,
               child: Image.network(
                 url,
+                key: ValueKey('preview-$url-${token ?? ''}'),
                 headers: headers.isNotEmpty ? headers : null,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
@@ -807,7 +827,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
                         final attachments = m.attachments;
                         final hasAttachments = attachments.isNotEmpty;
-                        final isImageMessage = m.messageType.toUpperCase() == 'IMAGE';
+                        final isImageMessage =
+                            m.messageType.toUpperCase() == 'IMAGE' ||
+                            attachments.any((a) => a.isImage);
 
                         return Align(
                           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -867,9 +889,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                       for (final a in attachments)
                                         Padding(
                                           padding: const EdgeInsets.only(bottom: 6),
-                                          child: a.fileType.startsWith('audio/')
+                                          child: a.isAudio
                                               ? _buildVoiceMessagePlayer(a, textColor, bubbleColor)
-                                              : a.fileType.startsWith('image/')
+                                              : a.isImage
                                                   ? _buildImageAttachmentPreview(
                                                       attachment: a,
                                                       textColor: textColor,
@@ -880,7 +902,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                     mainAxisSize: MainAxisSize.min,
                                                     children: [
                                                       Icon(
-                                                        a.fileType.startsWith('image/')
+                                                        a.isImage
                                                             ? Icons.image_outlined
                                                             : Icons.attach_file,
                                                         size: 18,

@@ -11,6 +11,21 @@ class ChatsService {
 
   final ApiClient _apiClient;
 
+  String? _inferMimeType(String filePathOrName) {
+    final lower = filePathOrName.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.m4a') || lower.endsWith('.mp4')) return 'audio/mp4';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.txt')) return 'text/plain';
+    return null;
+  }
+
   Future<Paginated<Conversation>> listConversationsTyped({int page = 1, int limit = 20}) async {
     final resp = await _apiClient.dio.get(
       '/conversations',
@@ -108,11 +123,17 @@ class ChatsService {
   }
 
   Future<Map<String, dynamic>> uploadAttachment({required String filePath, required String filename, String? mimeType}) async {
+    final resolvedMimeType =
+        (mimeType != null && mimeType.trim().isNotEmpty)
+            ? mimeType.trim().toLowerCase()
+            : (_inferMimeType(filename) ?? _inferMimeType(filePath));
+
     final form = FormData.fromMap({
       'messageAttachment': await MultipartFile.fromFile(
         filePath,
         filename: filename,
-        contentType: mimeType == null ? null : MediaType.parse(mimeType),
+        contentType:
+            resolvedMimeType == null ? null : MediaType.parse(resolvedMimeType),
       ),
     });
 

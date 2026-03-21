@@ -13,7 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
-import '../../core/config.dart';
+import '../../core/media_url.dart';
 import '../../core/pagination.dart';
 import '../../core/refresh_manager.dart';
 import '../../core/toast.dart';
@@ -422,6 +422,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         attachmentIds: [attachmentId],
       );
       await _refresh();
+      // Production can surface attachments a moment later than message row creation.
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await _refresh();
     } catch (e) {
       if (!mounted) return;
       showToast(context, '${context.l10n.phrase('Failed to send attachment')}: $e', isError: true);
@@ -489,11 +492,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   }
 
   String _absoluteUrl(String fileUrl) {
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
-    final base = AppConfig.apiBaseUrl;
-    final idx = base.indexOf('/api/');
-    final origin = idx == -1 ? base : base.substring(0, idx);
-    return '$origin$fileUrl';
+    return resolveMediaUrl(fileUrl);
   }
 
   Future<void> _togglePlayback(String url) async {
@@ -528,7 +527,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
   Future<void> _openAttachment(GroupAttachment a) async {
     final url = _absoluteUrl(a.fileUrl);
-    if (a.fileType.startsWith('image/')) {
+    if (a.isImage) {
       final token = await Provider.of<ApiClient>(context, listen: false).readAccessToken();
       final headers = <String, String>{};
       if (token != null && token.isNotEmpty) {
@@ -555,7 +554,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       return;
     }
 
-    if (a.fileType.startsWith('audio/')) {
+    if (a.isAudio) {
       await _togglePlayback(url);
       return;
     }
@@ -571,7 +570,23 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     return FutureBuilder<String?>(
       future: Provider.of<ApiClient>(context, listen: false).readAccessToken(),
       builder: (context, snapshot) {
-        final token = snapshot.data;
+        if (snapshot.connectionState != ConnectionState.done) {
+          return SizedBox(
+            width: 200,
+            height: 120,
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: textColor.withOpacity(0.5),
+                ),
+              ),
+            ),
+          );
+        }
+        final token = snapshot.hasError ? null : snapshot.data;
         final headers = <String, String>{};
         if (token != null && token.isNotEmpty) {
           headers['Authorization'] = 'Bearer $token';
@@ -586,6 +601,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
               color: Colors.black12,
               child: Image.network(
                 url,
+                key: ValueKey('preview-$url-${token ?? ''}'),
                 headers: headers.isNotEmpty ? headers : null,
                 fit: BoxFit.cover,
                 cacheWidth: 1400,
@@ -722,7 +738,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
                         final attachments = m.attachments;
                         final hasAttachments = attachments.isNotEmpty;
-                        final hasImageAttachment = attachments.any((a) => a.fileType.startsWith('image/'));
+                        final hasImageAttachment = attachments.any((a) => a.isImage);
                         final isImageMessage = m.messageType.toUpperCase() == 'IMAGE';
                         final isImageBubble = isImageMessage && hasImageAttachment;
                         final bubbleBackground = isImageBubble ? Colors.transparent : bubbleColor;
@@ -775,7 +791,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                   for (final a in attachments)
                                     Padding(
                                       padding: EdgeInsets.only(bottom: isImageBubble ? 2 : 6),
-                                      child: a.fileType.startsWith('image/')
+                                      child: a.isImage
                                           ? _buildImageAttachmentPreview(
                                               attachment: a,
                                               textColor: textColor,
@@ -786,7 +802,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
                                                   Icon(
-                                                    a.fileType.startsWith('audio/')
+                                                    a.isAudio
                                                         ? Icons.play_arrow
                                                         : Icons.attach_file,
                                                     size: 18,

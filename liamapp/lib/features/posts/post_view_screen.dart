@@ -102,17 +102,37 @@ class _PostViewScreenState extends State<PostViewScreen> {
           children: [
             if (_post.imageUrl != null && _post.imageUrl!.isNotEmpty)
               Center(
-                child: InteractiveViewer(
-                  child: Image.network(
-                    _absoluteUrl(_post.imageUrl!),
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: colorScheme.surfaceContainerHighest,
-                      child: const Center(
-                        child: Icon(Icons.broken_image_outlined, size: 64, color: Colors.white54),
+                child: FutureBuilder<String?>(
+                  future: Provider.of<ApiClient>(context, listen: false).readAccessToken(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return Center(
+                        child: CircularProgressIndicator(
+                          color: colorScheme.onPrimary.withOpacity(0.85),
+                        ),
+                      );
+                    }
+                    final token = snapshot.hasError ? null : snapshot.data;
+                    final headers = <String, String>{};
+                    if (token != null && token.isNotEmpty) {
+                      headers['Authorization'] = 'Bearer $token';
+                    }
+                    final imageUrl = _absoluteUrl(_post.imageUrl!);
+                    return InteractiveViewer(
+                      child: Image.network(
+                        imageUrl,
+                        key: ValueKey('post-$imageUrl-${token ?? ''}'),
+                        headers: headers.isNotEmpty ? headers : null,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: colorScheme.surfaceContainerHighest,
+                          child: const Center(
+                            child: Icon(Icons.broken_image_outlined, size: 64, color: Colors.white54),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               )
             else
