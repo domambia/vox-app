@@ -1,6 +1,18 @@
+import fs from 'fs';
+import path from 'path';
 import dotenv from 'dotenv';
 
-dotenv.config();
+/**
+ * Load `.env` from the backend package root (`backend/.env`), not from `process.cwd()`.
+ * Otherwise Firebase and other vars are missing when the process is started from the
+ * monorepo root, Docker, or PM2 with a different working directory.
+ */
+const backendEnvPath = path.resolve(__dirname, '../../.env');
+if (fs.existsSync(backendEnvPath)) {
+  dotenv.config({ path: backendEnvPath });
+} else {
+  dotenv.config();
+}
 
 export const config = {
   // Server

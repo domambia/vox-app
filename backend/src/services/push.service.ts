@@ -21,6 +21,7 @@ function maskFcmToken(token: string): string {
 class PushService {
   /** Avoid spamming logs when every message tries to push without Firebase configured. */
   private _loggedMissingFirebase = false;
+  private _loggedIncompleteFirebaseCredentials = false;
 
   private _normalizePrivateKey(privateKeyRaw: string): string {
     if (!privateKeyRaw) return "";
@@ -78,9 +79,18 @@ class PushService {
 
     const { projectId, clientEmail, privateKey } = this._readFirebaseConfig();
     if (!projectId || !clientEmail || !privateKey) {
-      logger.warn(
-        "Firebase Admin credentials incomplete; set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY",
-      );
+      if (!this._loggedIncompleteFirebaseCredentials) {
+        this._loggedIncompleteFirebaseCredentials = true;
+        logger.warn(
+          "Firebase Admin credentials incomplete; set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in backend/.env (or ensure the process cwd loads that file).",
+          {
+            hasProjectId: Boolean(projectId),
+            hasClientEmail: Boolean(clientEmail),
+            hasPrivateKey: Boolean(privateKey),
+            privateKeyLength: privateKey.length,
+          },
+        );
+      }
       return null;
     }
 
@@ -191,11 +201,18 @@ class PushService {
     const { projectId, clientEmail, privateKey } = this._readFirebaseConfig();
     if (!projectId || !clientEmail || !privateKey) {
       logger.warn(
-        "Push notifications are DISABLED: set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY (service account JSON fields) in the backend environment.",
+        "Push notifications are DISABLED: set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY (service account JSON fields) in backend/.env (or pass env into the process).",
+        {
+          hasProjectId: Boolean(projectId),
+          hasClientEmail: Boolean(clientEmail),
+          hasPrivateKey: Boolean(privateKey),
+          privateKeyLength: privateKey.length,
+        },
       );
     } else {
       logger.info(
         "Firebase push: Admin credentials present; FCM will be used when sending.",
+        { projectId },
       );
     }
   }
