@@ -265,14 +265,19 @@ class PushService {
 
     const batchSize = 500;
     const batchTotal = Math.ceil(uniqueTokens.length / batchSize) || 0;
+    let totalSuccess = 0;
+    let totalFailure = 0;
+
     for (let i = 0; i < uniqueTokens.length; i += batchSize) {
       const batch = uniqueTokens.slice(i, i + batchSize);
       const batchIndex = Math.floor(i / batchSize) + 1;
       try {
-        logger.info("FCM: sending multicast batch", {
+        logger.info("FCM: sending push notification batch to Firebase", {
           batchIndex,
           batchTotal,
           batchSize: batch.length,
+          notificationType: dataPayload.type ?? null,
+          titlePreview: title.slice(0, 80),
         });
         const response = await messaging.sendEachForMulticast({
           tokens: batch,
@@ -296,12 +301,16 @@ class PushService {
           },
         });
 
-        logger.info("FCM multicast result", {
+        totalSuccess += response.successCount;
+        totalFailure += response.failureCount;
+
+        logger.info("FCM: push notifications sent to Firebase (batch result)", {
           batchIndex,
           batchTotal,
           successCount: response.successCount,
           failureCount: response.failureCount,
           tokenBatchSize: batch.length,
+          notificationType: dataPayload.type ?? null,
         });
 
         if (response.failureCount > 0) {
@@ -329,6 +338,16 @@ class PushService {
         });
       }
     }
+
+    logger.info(`FCM: sendToUsers finished — push notifications dispatched (${totalSuccess} delivered, ${totalFailure} failed)`, {
+      totalSuccess,
+      totalFailure,
+      deviceCount: uniqueTokens.length,
+      batchCount: batchTotal,
+      notificationType: dataPayload.type ?? null,
+      targetUserIds: userIds,
+      titlePreview: title.slice(0, 120),
+    });
   }
 }
 

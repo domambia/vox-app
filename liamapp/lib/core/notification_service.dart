@@ -5,11 +5,14 @@ import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../firebase_options.dart';
 import 'api_client.dart';
+import 'app_navigator.dart';
+import 'in_app_push_banner.dart';
 import 'push_notification_router.dart';
 
 /// Same init as [NotificationService.initialize] / pushnoti_firebase pattern:
@@ -71,6 +74,7 @@ class NotificationService {
   String? _currentToken;
   ApiClient? _apiClientForTokenSync;
   StreamSubscription<String>? _tokenRefreshSub;
+  VoidCallback? _foregroundFeedback;
 
   static const AndroidNotificationChannel _defaultChannel = AndroidNotificationChannel(
     'liamapp_messages',
@@ -135,15 +139,14 @@ class NotificationService {
     final messaging = FirebaseMessaging.instance;
     await ensureNotificationPermission();
 
+    // Foreground: we show a WhatsApp-style in-app banner; avoid iOS system banner + local duplicate.
     await messaging.setForegroundNotificationPresentationOptions(
-      alert: true,
+      alert: false,
       badge: true,
-      sound: true,
+      sound: false,
     );
 
-    FirebaseMessaging.onMessage.listen((message) async {
-      await _showFromRemoteMessage(message);
-    });
+    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
     FirebaseMessaging.onMessageOpenedApp.listen(_dispatchFromRemoteMessage);
 
@@ -186,29 +189,45 @@ class NotificationService {
     _apiClientForTokenSync = null;
   }
 
-  Future<void> _showFromRemoteMessage(RemoteMessage message) async {
-    final notification = message.notification;
-    final title = notification?.title ?? 'Notification';
-    final body = notification?.body ?? '';
-    final payload = jsonEncode(message.data);
+  /// Set from [MyApp] so foreground pushes can play sound/haptic per [SettingsController].
+  void setForegroundFeedback(VoidCallback? callback) {
+    _foregroundFeedback = callback;
+  }
 
-    await _local.show(
-      message.hashCode,
-      title,
-      body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _defaultChannel.id,
-          _defaultChannel.name,
-          channelDescription: _defaultChannel.description,
-          importance: Importance.high,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: const DarwinNotificationDetails(),
-      ),
-      payload: payload,
-    );
+  void _onForegroundMessage(RemoteMessage message) {
+    _foregroundFeedback?.call();
+    final parts = _titleBodyAndDataFromMessage(message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = appRootNavigatorKey.currentContext;
+      if (ctx == null || !ctx.mounted) return;
+      showInAppPushBanner(
+        context: ctx,
+        title: parts.$1,
+        body: parts.$2,
+        data: parts.$3,
+      );
+    });
+  }
+
+  /// Resolves title/body from FCM `notification` and/or `data` (data-only messages).
+  (String, String, Map<String, String>) _titleBodyAndDataFromMessage(RemoteMessage message) {
+    final m = <String, String>{};
+    message.data.forEach((k, v) {
+      m[k] = v?.toString() ?? '';
+    });
+
+    var title = message.notification?.title?.trim() ?? '';
+    var body = message.notification?.body?.trim() ?? '';
+    if (title.isEmpty) {
+      title = m['title'] ?? '';
+    }
+    if (body.isEmpty) {
+      body = m['message'] ?? m['body'] ?? '';
+    }
+    if (title.isEmpty) {
+      title = 'Notification';
+    }
+    return (title, body, m);
   }
 
   Future<void> syncTokenWithBackend(ApiClient apiClient) async {

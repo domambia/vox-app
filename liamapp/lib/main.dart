@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +14,7 @@ import 'screens/landing_screen.dart';
 import 'screens/splash_screen.dart';
 import 'core/api_client.dart';
 import 'core/config.dart';
+import 'core/app_navigator.dart';
 import 'core/notification_service.dart';
 import 'core/push_notification_router.dart';
 import 'core/socket_service.dart';
@@ -46,8 +49,6 @@ Future<void> main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  static final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
@@ -84,10 +85,11 @@ class MyApp extends StatelessWidget {
           },
         ),
       ],
-      child: Consumer<SettingsController>(
-        builder: (context, settings, _) {
-          return MaterialApp(
-            navigatorKey: MyApp.rootNavigatorKey,
+      child: _NotificationFeedbackRegistrar(
+        child: Consumer<SettingsController>(
+          builder: (context, settings, _) {
+            return MaterialApp(
+            navigatorKey: appRootNavigatorKey,
             title: AppLocalizations.forLocale(settings.locale).appTitle,
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
@@ -127,10 +129,54 @@ class MyApp extends StatelessWidget {
               OtpRegisterScreen.routeName: (_) => const OtpRegisterScreen(),
             },
           );
-        },
+          },
+        ),
       ),
     );
   }
+}
+
+/// Wires [NotificationService.setForegroundFeedback] to match [AppShell] socket feedback (sound/haptic toggles).
+class _NotificationFeedbackRegistrar extends StatefulWidget {
+  const _NotificationFeedbackRegistrar({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_NotificationFeedbackRegistrar> createState() => _NotificationFeedbackRegistrarState();
+}
+
+class _NotificationFeedbackRegistrarState extends State<_NotificationFeedbackRegistrar> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.instance.setForegroundFeedback(_playForegroundPushFeedback);
+    });
+  }
+
+  @override
+  void dispose() {
+    NotificationService.instance.setForegroundFeedback(null);
+    super.dispose();
+  }
+
+  void _playForegroundPushFeedback() {
+    if (kIsWeb) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    final ctx = appRootNavigatorKey.currentContext;
+    if (ctx == null || !ctx.mounted) return;
+    final settings = Provider.of<SettingsController>(ctx, listen: false).notifications;
+    if (settings.soundEnabled) {
+      unawaited(SystemSound.play(SystemSoundType.alert));
+    }
+    if (settings.vibrationEnabled) {
+      HapticFeedback.mediumImpact();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _AuthExpiryListener extends StatefulWidget {
@@ -161,10 +207,10 @@ class _AuthExpiryListenerState extends State<_AuthExpiryListener> {
         if (!mounted) return;
         authController.logout().whenComplete(() {
           socket.disconnect();
-          MyApp.rootNavigatorKey.currentState?.pushNamedAndRemoveUntil('/', (r) => false);
+          appRootNavigatorKey.currentState?.pushNamedAndRemoveUntil('/', (r) => false);
           _navigated = false;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            final ctx = MyApp.rootNavigatorKey.currentContext;
+            final ctx = appRootNavigatorKey.currentContext;
             if (ctx != null && ctx.mounted) {
               showToast(ctx, ctx.l10n.sessionExpiredSignIn, isError: true);
             }
@@ -225,7 +271,7 @@ class _SocketAuthBinderState extends State<_SocketAuthBinder> {
   }
 
   void _handleIncomingCall(IncomingCallData data) {
-    final navState = MyApp.rootNavigatorKey.currentState;
+    final navState = appRootNavigatorKey.currentState;
     if (navState == null) return;
 
     navState.push(

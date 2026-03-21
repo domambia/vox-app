@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import notificationsService from '@/services/notifications.service';
 import pushService from '@/services/push.service';
+import { logger } from '@/utils/logger';
 import { AuthRequest } from '@/types';
 
 export class NotificationsController {
@@ -58,6 +59,10 @@ export class NotificationsController {
     try {
       const userId = req.user!.userId;
       const { token, platform } = req.body;
+      logger.info('Push token received from client (POST /notifications/push-token)', {
+        userId,
+        platform: platform || 'unknown',
+      });
       const row = await pushService.upsertToken(userId, token, platform || 'unknown');
       sendSuccess(res, {
         push_token_id: row.push_token_id,
