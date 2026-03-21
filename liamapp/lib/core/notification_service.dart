@@ -6,7 +6,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../firebase_options.dart';
 import 'api_client.dart';
@@ -85,17 +84,17 @@ class NotificationService {
     importance: Importance.max,
   );
 
-  /// Android 13+ (`POST_NOTIFICATIONS`) via [Permission.notification]. FCM is Android-only.
+  /// Android 13+ notification permission and iOS alert permission when FCM is enabled.
+  /// Uses [FirebaseMessaging.requestPermission] (recommended for FCM) after Firebase init.
   Future<void> ensureNotificationPermission() async {
     if (kIsWeb) return;
     if (!_fcmEnabled) return;
-
-    var status = await Permission.notification.status;
-    if (status.isGranted) return;
-    status = await Permission.notification.request();
-    if (!status.isGranted && !status.isPermanentlyDenied) {
-      await Permission.notification.request();
-    }
+    await _ensureFirebaseInitialized();
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
   }
 
   Future<void> initialize() async {
@@ -106,8 +105,9 @@ class NotificationService {
       return;
     }
 
-    await _ensureFirebaseInitialized();
+    // Must register before Firebase.initializeApp — see FlutterFire messaging docs.
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await _ensureFirebaseInitialized();
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings();
