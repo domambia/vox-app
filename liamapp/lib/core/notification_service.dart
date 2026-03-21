@@ -4,13 +4,10 @@ import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../firebase_options.dart';
 import 'api_client.dart';
-import 'app_navigator.dart';
-import 'in_app_push_banner.dart';
 import 'push_notification_router.dart';
 
 bool get _fcmEnabled => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -184,19 +181,47 @@ class NotificationService {
     _foregroundFeedback = callback;
   }
 
+  /// While the app is in the **foreground**, Android does not show FCM "notification"
+  /// payloads in the status bar. Post a high-importance local notification so the push
+  /// is visible like a normal message; tap handling still goes through [_local] → payload.
+  Future<void> _showForegroundSystemNotification(
+    RemoteMessage message,
+    (String, String, Map<String, String>) parts,
+  ) async {
+    final payloadMap = Map<String, String>.from(parts.$3);
+    if (payloadMap.isEmpty) {
+      message.data.forEach((k, v) {
+        payloadMap[k] = v?.toString() ?? '';
+      });
+    }
+    final payload =
+        payloadMap.isEmpty ? null : jsonEncode(payloadMap);
+
+    final androidDetails = AndroidNotificationDetails(
+      _defaultChannel.id,
+      _defaultChannel.name,
+      channelDescription: _defaultChannel.description,
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const iosDetails = DarwinNotificationDetails();
+    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+
+    final id = DateTime.now().millisecondsSinceEpoch.remainder(2147483647);
+    await _local.show(
+      id,
+      parts.$1,
+      parts.$2,
+      details,
+      payload: payload,
+    );
+  }
+
   void _onForegroundMessage(RemoteMessage message) {
     _foregroundFeedback?.call();
     final parts = _titleBodyAndDataFromMessage(message);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = appRootNavigatorKey.currentContext;
-      if (ctx == null || !ctx.mounted) return;
-      showInAppPushBanner(
-        context: ctx,
-        title: parts.$1,
-        body: parts.$2,
-        data: parts.$3,
-      );
-    });
+    // Tray + heads-up while app is open (see [_showForegroundSystemNotification] doc).
+    unawaited(_showForegroundSystemNotification(message, parts));
   }
 
   /// Resolves title/body from FCM `notification` and/or `data` (data-only messages).
