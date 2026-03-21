@@ -91,6 +91,10 @@ services:
       dockerfile: Dockerfile
     container_name: vox-backend
     restart: unless-stopped
+    # Load host backend/.env into the container (not copied into the image — see .dockerignore).
+    # Keys listed in `environment:` below override env_file for the same name.
+    env_file:
+      - .env
     environment:
       # Server
       NODE_ENV: ${NODE_ENV:-production}
