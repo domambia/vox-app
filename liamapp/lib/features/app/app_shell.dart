@@ -8,16 +8,20 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_localizations.dart';
+import '../../core/push_notification_router.dart';
 import '../../core/toast.dart';
 import '../../core/socket_service.dart';
 import '../auth/auth_controller.dart';
+import '../chats/chat_screen.dart';
 import '../chats/chats_navigator.dart';
 import '../chats/new_chat_screen.dart';
+import '../groups/group_chat_screen.dart';
 import '../groups/groups_navigator.dart';
 import '../groups/new_group_screen.dart';
 import '../events/events_navigator.dart';
 import '../events/create_event_screen.dart';
 import '../discover/discover_navigator.dart';
+import '../posts/post_by_id_screen.dart';
 import '../discover/matches_screen.dart';
 import '../discover/likes_screen.dart';
 import '../profile/profile_navigator.dart';
@@ -92,6 +96,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    PushNotificationRouter.register(_onPushNotificationData);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
@@ -115,10 +120,74 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    PushNotificationRouter.unregister();
     _notificationSub?.cancel();
     _unreadTimer?.cancel();
     _tabIndex.dispose();
     super.dispose();
+  }
+
+  void _onPushNotificationData(Map<String, String> data) {
+    if (!mounted) return;
+    final auth = Provider.of<AuthController>(context, listen: false);
+    if (!auth.isAuthenticated) {
+      PushNotificationRouter.stashForLater(data);
+      return;
+    }
+    _openRouteFromPushData(data);
+  }
+
+  void _openRouteFromPushData(Map<String, String> data) {
+    final type = data['type'] ?? '';
+    switch (type) {
+      case 'message':
+        final cid = data['conversationId'] ?? '';
+        if (cid.isEmpty) return;
+        setState(() => _index = 1);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _chatsKey.currentState?.pushNamed(
+            ChatScreen.routeName,
+            arguments: {
+              'conversationId': cid,
+              'participantName': data['participantName'] ?? 'Chat',
+              'participantId': data['participantId'] ?? '',
+            },
+          );
+        });
+        return;
+      case 'group_message':
+      case 'group_created':
+      case 'group_member_added':
+        final gid = data['groupId'] ?? '';
+        if (gid.isEmpty) return;
+        setState(() => _index = 2);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _groupsKey.currentState?.pushNamed(
+            GroupChatScreen.routeName,
+            arguments: {
+              'groupId': gid,
+              'groupName': data['groupName'] ?? 'Group',
+            },
+          );
+        });
+        return;
+      case 'post_published':
+        final pid = data['postId'] ?? '';
+        if (pid.isEmpty) return;
+        setState(() => _index = 0);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _discoverKey.currentState?.pushNamed(
+            PostByIdScreen.routeName,
+            arguments: {'postId': pid},
+          );
+        });
+        return;
+      default:
+        return;
+    }
   }
 
   List<GlobalKey<NavigatorState>> get _keys => [

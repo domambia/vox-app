@@ -11,10 +11,16 @@ interface PushData {
   [key: string]: string | number | boolean | undefined | null;
 }
 
+/** Avoid logging full FCM registration tokens. */
+function maskFcmToken(token: string): string {
+  const t = token.trim();
+  if (t.length <= 14) return "(short token)";
+  return `${t.slice(0, 8)}…${t.slice(-6)} (${t.length} chars)`;
+}
+
 class PushService {
   /** Avoid spamming logs when every message tries to push without Firebase configured. */
   private _loggedMissingFirebase = false;
-  private _loggedNoTokensForUsers = false;
 
   private _normalizePrivateKey(privateKeyRaw: string): string {
     if (!privateKeyRaw) return "";
@@ -79,13 +85,18 @@ class PushService {
     }
 
     try {
-      return admin.initializeApp({
+      const app = admin.initializeApp({
         credential: admin.credential.cert({
           projectId,
           clientEmail,
           privateKey,
         }),
       });
+      logger.info("Firebase Admin SDK initialized for FCM", {
+        projectId,
+        clientEmail,
+      });
+      return app;
     } catch (error) {
       logger.error("Firebase Admin initialization failed", error);
       return null;
@@ -99,6 +110,9 @@ class PushService {
        WHERE token = $1`,
       token,
     );
+    logger.info("Push token deactivated (invalid/expired per FCM)", {
+      token: maskFcmToken(token),
+    });
   }
 
   private _shouldDeactivateToken(code: string): boolean {
@@ -143,17 +157,31 @@ class PushService {
        LIMIT 1`,
       cleanToken,
     );
-    return rows[0];
+    const row = rows[0];
+    logger.info("Push token registered or refreshed", {
+      userId,
+      platform: platform || "unknown",
+      token: maskFcmToken(cleanToken),
+      pushTokenId: row?.push_token_id,
+      isActive: row?.is_active,
+    });
+    return row;
   }
 
   async deactivateToken(userId: string, token: string) {
-    return prisma.$executeRawUnsafe(
+    const result = await prisma.$executeRawUnsafe(
       `UPDATE push_tokens
        SET is_active = false, updated_at = NOW()
        WHERE user_id = $1 AND token = $2`,
       userId,
       token,
     );
+    logger.info("Push token deactivate requested", {
+      userId,
+      token: maskFcmToken(token),
+      rowsAffected: result,
+    });
+    return result;
   }
 
   /**
@@ -178,6 +206,15 @@ class PushService {
     body: string,
     data?: PushData,
   ) {
+    const dataPayload = this._stringifyData(data);
+    logger.info("FCM sendToUsers invoked", {
+      targetUserCount: userIds.length,
+      targetUserIds: userIds,
+      title: title.slice(0, 120),
+      bodyPreview: body.slice(0, 160),
+      dataKeys: Object.keys(dataPayload),
+    });
+
     const app = this._ensureFirebaseApp();
     if (!app) {
       if (!this._loggedMissingFirebase) {
@@ -189,7 +226,10 @@ class PushService {
       return;
     }
 
-    if (userIds.length === 0) return;
+    if (userIds.length === 0) {
+      logger.info("FCM sendToUsers: no target user ids, skipping");
+      return;
+    }
 
     const rows = await prisma.$queryRaw<
       Array<{
@@ -204,13 +244,10 @@ class PushService {
     `;
 
     if (rows.length === 0) {
-      if (!this._loggedNoTokensForUsers) {
-        this._loggedNoTokensForUsers = true;
-        logger.warn(
-          "Push send skipped: no active FCM tokens in push_tokens for the target user(s). Ensure the app called POST /notifications/push-token after login.",
-          { userIds },
-        );
-      }
+      logger.info(
+        "FCM send skipped: no active rows in push_tokens for target user(s) (register device via POST /notifications/push-token)",
+        { userIds },
+      );
       return;
     }
 
@@ -218,13 +255,25 @@ class PushService {
       ...new Set(rows.map((r) => r.token).filter(Boolean)),
     ];
 
+    logger.info("FCM: resolved device tokens from DB", {
+      rowCount: rows.length,
+      uniqueTokenCount: uniqueTokens.length,
+      userIdsInRows: [...new Set(rows.map((r) => r.user_id))],
+    });
+
     const messaging = admin.messaging(app);
-    const dataPayload = this._stringifyData(data);
 
     const batchSize = 500;
+    const batchTotal = Math.ceil(uniqueTokens.length / batchSize) || 0;
     for (let i = 0; i < uniqueTokens.length; i += batchSize) {
       const batch = uniqueTokens.slice(i, i + batchSize);
+      const batchIndex = Math.floor(i / batchSize) + 1;
       try {
+        logger.info("FCM: sending multicast batch", {
+          batchIndex,
+          batchTotal,
+          batchSize: batch.length,
+        });
         const response = await messaging.sendEachForMulticast({
           tokens: batch,
           notification: { title, body },
@@ -248,6 +297,8 @@ class PushService {
         });
 
         logger.info("FCM multicast result", {
+          batchIndex,
+          batchTotal,
           successCount: response.successCount,
           failureCount: response.failureCount,
           tokenBatchSize: batch.length,
@@ -257,18 +308,25 @@ class PushService {
           response.responses.forEach((resp, idx) => {
             if (resp.success || !resp.error) return;
             const err = resp.error;
+            const token = batch[idx];
             logger.warn("FCM send failed for token batch item", {
+              batchIndex,
+              indexInBatch: idx,
               code: err.code,
               message: err.message,
+              token: token ? maskFcmToken(token) : undefined,
             });
-            const token = batch[idx];
             if (token && this._shouldDeactivateToken(err.code)) {
               void this._deactivateInvalidToken(token);
             }
           });
         }
       } catch (error) {
-        logger.error("FCM sendEachForMulticast error", error);
+        logger.error("FCM sendEachForMulticast error", {
+          batchIndex,
+          batchTotal,
+          error,
+        });
       }
     }
   }

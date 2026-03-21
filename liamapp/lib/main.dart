@@ -13,6 +13,7 @@ import 'screens/splash_screen.dart';
 import 'core/api_client.dart';
 import 'core/config.dart';
 import 'core/notification_service.dart';
+import 'core/push_notification_router.dart';
 import 'core/socket_service.dart';
 import 'core/startup_permissions.dart';
 import 'core/toast.dart';
@@ -57,10 +58,10 @@ class MyApp extends StatelessWidget {
         ),
         Provider<TokenStorage>(create: (_) => TokenStorage()),
         ProxyProvider<TokenStorage, SocketService>(
-          update: (_, tokenStorage, __) => SocketService(tokenStorage: tokenStorage),
+          update: (_, tokenStorage, previous) => SocketService(tokenStorage: tokenStorage),
         ),
         ProxyProvider<TokenStorage, ApiClient>(
-          update: (_, tokenStorage, __) => ApiClient(tokenStorage: tokenStorage),
+          update: (_, tokenStorage, previous) => ApiClient(tokenStorage: tokenStorage),
         ),
         ChangeNotifierProxyProvider2<ApiClient, TokenStorage, AuthController>(
           create: (ctx) => AuthController(
@@ -154,10 +155,12 @@ class _AuthExpiryListenerState extends State<_AuthExpiryListener> {
     _sub = apiClient.onAuthExpired.listen((_) {
       if (!mounted || _navigated) return;
       _navigated = true;
+      final authController = Provider.of<AuthController>(context, listen: false);
+      final socket = Provider.of<SocketService>(context, listen: false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        Provider.of<AuthController>(context, listen: false).logout().whenComplete(() {
-          Provider.of<SocketService>(context, listen: false).disconnect();
+        authController.logout().whenComplete(() {
+          socket.disconnect();
           MyApp.rootNavigatorKey.currentState?.pushNamedAndRemoveUntil('/', (r) => false);
           _navigated = false;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -205,7 +208,11 @@ class _SocketAuthBinderState extends State<_SocketAuthBinder> {
     if (current) {
       final apiClient = Provider.of<ApiClient>(context, listen: false);
       NotificationService.instance.attachTokenSync(apiClient);
-      NotificationService.instance.syncTokenWithBackend(apiClient);
+      unawaited(() async {
+        await NotificationService.instance.ensureNotificationPermission();
+        await NotificationService.instance.syncTokenWithBackend(apiClient);
+        PushNotificationRouter.retryPending();
+      }());
     } else {
       NotificationService.instance.detachTokenSync();
     }

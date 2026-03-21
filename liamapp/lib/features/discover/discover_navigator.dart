@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_localizations.dart';
 import '../posts/create_post_screen.dart';
+import '../posts/post_by_id_screen.dart';
 import 'discover_screen.dart';
 import 'likes_screen.dart';
 import 'matches_screen.dart';
@@ -48,6 +49,14 @@ class DiscoverNavigator extends StatelessWidget {
             return MaterialPageRoute(
               settings: settings,
               builder: (_) => const CreatePostScreen(),
+            );
+          case PostByIdScreen.routeName:
+            final args = (settings.arguments as Map?) ?? const {};
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => PostByIdScreen(
+                postId: (args['postId'] ?? '').toString(),
+              ),
             );
           default:
             return MaterialPageRoute(

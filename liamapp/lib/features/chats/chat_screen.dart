@@ -506,6 +506,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildImageAttachmentPreview({
     required ChatAttachment attachment,
     required Color textColor,
+    bool plainBackground = false,
   }) {
     final url = _absoluteUrl(attachment.fileUrl);
     return FutureBuilder<String?>(
@@ -541,7 +542,7 @@ class _ChatScreenState extends State<ChatScreen> {
             borderRadius: BorderRadius.circular(12),
             child: Container(
               constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
-              color: Colors.black12,
+              color: plainBackground ? Colors.transparent : Colors.black12,
               child: Image.network(
                 url,
                 key: ValueKey('preview-$url-${token ?? ''}'),
@@ -827,9 +828,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
                         final attachments = m.attachments;
                         final hasAttachments = attachments.isNotEmpty;
+                        final hasImageAttachment = attachments.any((a) => a.isImage);
                         final isImageMessage =
                             m.messageType.toUpperCase() == 'IMAGE' ||
                             attachments.any((a) => a.isImage);
+                        final isImageBubble =
+                            m.messageType.toUpperCase() == 'IMAGE' && hasImageAttachment && !m.isDeleted;
+                        final captionColor =
+                            isImageBubble ? theme.colorScheme.onSurfaceVariant : textColor;
 
                         return Align(
                           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -840,87 +846,155 @@ class _ChatScreenState extends State<ChatScreen> {
                               onLongPress: () => _showMessageActions(m),
                               child: Container(
                                 margin: const EdgeInsets.symmetric(vertical: 4),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                padding: isImageBubble
+                                    ? const EdgeInsets.all(4)
+                                    : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                 constraints: const BoxConstraints(maxWidth: 320),
                                 decoration: BoxDecoration(
-                                  color: bubbleColor,
+                                  color: isImageBubble ? Colors.transparent : bubbleColor,
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    if (!m.isDeleted && !(isImageMessage && hasAttachments))
-                                      Text(
-                                        content,
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          color: textColor,
-                                          fontStyle: FontStyle.normal,
-                                        ),
-                                      ),
-                                    if (m.isDeleted)
-                                      Text(
-                                        'Message deleted',
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          color: textColor,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    if (timestamp.isNotEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: Text(
-                                          timestamp,
-                                          style: theme.textTheme.labelSmall?.copyWith(
-                                            color: textColor.withOpacity(0.8),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    if (m.editedAt != null && !m.isDeleted) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Edited',
-                                        style: theme.textTheme.labelSmall?.copyWith(color: textColor.withOpacity(0.85)),
-                                      ),
-                                    ],
-                                    if (hasAttachments) ...[
-                                      const SizedBox(height: 8),
+                                    if (isImageBubble && hasAttachments) ...[
                                       for (final a in attachments)
                                         Padding(
-                                          padding: const EdgeInsets.only(bottom: 6),
+                                          padding: EdgeInsets.only(bottom: a.isImage ? 2 : 6),
                                           child: a.isAudio
                                               ? _buildVoiceMessagePlayer(a, textColor, bubbleColor)
                                               : a.isImage
                                                   ? _buildImageAttachmentPreview(
                                                       attachment: a,
                                                       textColor: textColor,
+                                                      plainBackground: true,
                                                     )
-                                              : InkWell(
-                                                  onTap: () => _openAttachment(a),
-                                                  child: Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        a.isImage
-                                                            ? Icons.image_outlined
-                                                            : Icons.attach_file,
-                                                        size: 18,
-                                                        color: textColor,
+                                                  : InkWell(
+                                                      onTap: () => _openAttachment(a),
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Icon(
+                                                            Icons.attach_file,
+                                                            size: 18,
+                                                            color: textColor,
+                                                          ),
+                                                          const SizedBox(width: 6),
+                                                          Flexible(
+                                                            child: Text(
+                                                              a.fileName,
+                                                              style: Theme.of(context)
+                                                                  .textTheme
+                                                                  .bodySmall
+                                                                  ?.copyWith(color: textColor),
+                                                              maxLines: 1,
+                                                              overflow: TextOverflow.ellipsis,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
-                                                      const SizedBox(width: 6),
-                                                      Flexible(
-                                                        child: Text(
-                                                          a.fileName,
-                                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textColor),
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow.ellipsis,
+                                                    ),
+                                        ),
+                                      if (timestamp.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: Text(
+                                            timestamp,
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              color: captionColor.withOpacity(0.9),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (m.editedAt != null) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Edited',
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: captionColor.withOpacity(0.85),
+                                          ),
+                                        ),
+                                      ],
+                                    ] else ...[
+                                      if (!m.isDeleted && !(isImageMessage && hasAttachments))
+                                        Text(
+                                          content,
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: textColor,
+                                            fontStyle: FontStyle.normal,
+                                          ),
+                                        ),
+                                      if (m.isDeleted)
+                                        Text(
+                                          'Message deleted',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: textColor,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      if (timestamp.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: Text(
+                                            timestamp,
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              color: textColor.withOpacity(0.8),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (m.editedAt != null && !m.isDeleted) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Edited',
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: textColor.withOpacity(0.85),
+                                          ),
+                                        ),
+                                      ],
+                                      if (hasAttachments) ...[
+                                        const SizedBox(height: 8),
+                                        for (final a in attachments)
+                                          Padding(
+                                            padding: const EdgeInsets.only(bottom: 6),
+                                            child: a.isAudio
+                                                ? _buildVoiceMessagePlayer(a, textColor, bubbleColor)
+                                                : a.isImage
+                                                    ? _buildImageAttachmentPreview(
+                                                        attachment: a,
+                                                        textColor: textColor,
+                                                      )
+                                                    : InkWell(
+                                                        onTap: () => _openAttachment(a),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Icon(
+                                                              a.isImage
+                                                                  ? Icons.image_outlined
+                                                                  : Icons.attach_file,
+                                                              size: 18,
+                                                              color: textColor,
+                                                            ),
+                                                            const SizedBox(width: 6),
+                                                            Flexible(
+                                                              child: Text(
+                                                                a.fileName,
+                                                                style: Theme.of(context)
+                                                                    .textTheme
+                                                                    .bodySmall
+                                                                    ?.copyWith(color: textColor),
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
+                                                              ),
+                                                            ),
+                                                          ],
                                                         ),
                                                       ),
-                                                    ],
-                                                  ),
-                                                ),
-                                        ),
+                                          ),
+                                      ],
                                     ],
                                   ],
                                 ),

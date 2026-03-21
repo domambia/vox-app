@@ -108,6 +108,16 @@ export class GroupService {
         });
       }
 
+      await pushService.sendToUsers(
+        [creatorId],
+        "Group created",
+        `Your group "${group.name}" is ready`,
+        {
+          type: "group_created",
+          groupId: group.group_id,
+        },
+      );
+
       logger.info(`Group created: ${group.group_id} by user ${creatorId}`);
 
       return group;
@@ -124,7 +134,7 @@ export class GroupService {
     try {
       const group = await prisma.group.findUnique({
         where: { group_id: groupId },
-        select: { group_id: true, is_active: true } as any,
+        select: { group_id: true, name: true, is_active: true } as any,
       });
       if (!group || !(group as any).is_active) {
         throw new Error("Group not found");
@@ -187,6 +197,36 @@ export class GroupService {
           },
         },
       });
+
+      const groupName = (group as { name?: string }).name ?? "a group";
+      const addedNotification = await prisma.notification.create({
+        data: {
+          user_id: userId,
+          type: "system",
+          title: "Added to group",
+          message: `You were added to "${groupName}"`,
+        },
+      });
+
+      const io = getIo();
+      if (io) {
+        emitToUser(io, userId, "notification:new", {
+          notification_id: addedNotification.notification_id,
+          type: addedNotification.type,
+          title: addedNotification.title,
+          message: addedNotification.message,
+        });
+      }
+
+      await pushService.sendToUsers(
+        [userId],
+        "Added to group",
+        `You were added to "${groupName}"`,
+        {
+          type: "group_member_added",
+          groupId,
+        },
+      );
 
       logger.info(`User ${userId} added to group ${groupId} by ${actorId}`);
       return membership;

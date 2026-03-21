@@ -7,7 +7,7 @@ Future<void> requestStartupPermissions() async {
   if (kIsWeb) return;
 
   final permissions = <Permission>{
-    Permission.notification,
+    // Notification permission is requested in [NotificationService.ensureNotificationPermission]
     Permission.camera,
     Permission.microphone,
     Permission.speech,

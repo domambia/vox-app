@@ -1,5 +1,6 @@
 import prisma from '@/config/database';
 import { logger } from '@/utils/logger';
+import pushService from '@/services/push.service';
 import { Prisma } from '@prisma/client';
 import {
   normalizePagination,
@@ -66,6 +67,16 @@ export class PostsService {
           post_id: post.post_id,
         },
       });
+
+      await pushService.sendToUsers(
+        [userId],
+        'Post published',
+        (data.content || '').slice(0, 120) || 'Your post is live',
+        {
+          type: 'post_published',
+          postId: post.post_id,
+        },
+      );
 
       const formattedPost = this.formatPost(post, userId);
       return {

@@ -565,6 +565,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   Widget _buildImageAttachmentPreview({
     required GroupAttachment attachment,
     required Color textColor,
+    bool plainBackground = false,
   }) {
     final url = _absoluteUrl(attachment.fileUrl);
     return FutureBuilder<String?>(
@@ -596,16 +597,15 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(maxHeight: 280),
-              color: Colors.black12,
+              constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
+              color: plainBackground ? Colors.transparent : Colors.black12,
               child: Image.network(
                 url,
                 key: ValueKey('preview-$url-${token ?? ''}'),
                 headers: headers.isNotEmpty ? headers : null,
                 fit: BoxFit.cover,
-                cacheWidth: 1400,
-                cacheHeight: 1400,
+                cacheWidth: 440,
+                cacheHeight: 440,
                 errorBuilder: (context, error, stackTrace) {
                   return SizedBox(
                     width: 200,
@@ -742,6 +742,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                         final isImageMessage = m.messageType.toUpperCase() == 'IMAGE';
                         final isImageBubble = isImageMessage && hasImageAttachment;
                         final bubbleBackground = isImageBubble ? Colors.transparent : bubbleColor;
+                        final captionColor =
+                            isImageBubble ? theme.colorScheme.onSurfaceVariant : textColor;
 
                         return Align(
                           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -758,43 +760,26 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (!isMine && senderName.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Text(
-                                      senderName,
-                                      style: theme.textTheme.labelMedium?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        color: textColor.withOpacity(0.9),
+                                if (isImageBubble && hasAttachments) ...[
+                                  if (!isMine && senderName.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Text(
+                                        senderName,
+                                        style: theme.textTheme.labelMedium?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: captionColor.withOpacity(0.95),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                if (!(isImageMessage && hasAttachments))
-                                  Text(
-                                    content,
-                                    style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-                                  ),
-                                if (timestamp.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: Text(
-                                      timestamp,
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: textColor.withOpacity(0.8),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                if (hasAttachments) ...[
-                                  SizedBox(height: isImageBubble ? 2 : 8),
                                   for (final a in attachments)
                                     Padding(
-                                      padding: EdgeInsets.only(bottom: isImageBubble ? 2 : 6),
+                                      padding: EdgeInsets.only(bottom: a.isImage ? 2 : 6),
                                       child: a.isImage
                                           ? _buildImageAttachmentPreview(
                                               attachment: a,
                                               textColor: textColor,
+                                              plainBackground: true,
                                             )
                                           : InkWell(
                                               onTap: () => _openAttachment(a),
@@ -821,6 +806,83 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                               ),
                                             ),
                                     ),
+                                  if (timestamp.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        timestamp,
+                                        style: theme.textTheme.labelSmall?.copyWith(
+                                          color: captionColor.withOpacity(0.9),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ] else ...[
+                                  if (!isMine && senderName.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Text(
+                                        senderName,
+                                        style: theme.textTheme.labelMedium?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: textColor.withOpacity(0.9),
+                                        ),
+                                      ),
+                                    ),
+                                  if (!(isImageMessage && hasAttachments))
+                                    Text(
+                                      content,
+                                      style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+                                    ),
+                                  if (timestamp.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        timestamp,
+                                        style: theme.textTheme.labelSmall?.copyWith(
+                                          color: textColor.withOpacity(0.8),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  if (hasAttachments) ...[
+                                    const SizedBox(height: 8),
+                                    for (final a in attachments)
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 6),
+                                        child: a.isImage
+                                            ? _buildImageAttachmentPreview(
+                                                attachment: a,
+                                                textColor: textColor,
+                                              )
+                                            : InkWell(
+                                                onTap: () => _openAttachment(a),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      a.isAudio
+                                                          ? Icons.play_arrow
+                                                          : Icons.attach_file,
+                                                      size: 18,
+                                                      color: textColor,
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Flexible(
+                                                      child: Text(
+                                                        a.fileName,
+                                                        style: theme.textTheme.bodySmall?.copyWith(color: textColor),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                      ),
+                                  ],
                                 ],
                               ],
                             ),
