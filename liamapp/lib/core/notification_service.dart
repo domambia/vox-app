@@ -28,6 +28,12 @@ Future<void> _ensureFirebaseInitialized() async {
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (!_fcmEnabled) return;
   await _ensureFirebaseInitialized();
+  // Data-only / high-priority data messages while app is backgrounded/killed.
+  // Notification+data messages are usually shown by the OS without invoking this on Android.
+  debugPrint(
+    '[FCM] background isolate: id=${message.messageId} '
+    'dataKeys=${message.data.keys.toList()}',
+  );
 }
 
 void _dispatchFromRemoteMessage(RemoteMessage message) {
@@ -133,7 +139,13 @@ class NotificationService {
       sound: false,
     );
 
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint(
+        '[FCM] onMessage (app foreground): id=${message.messageId} '
+        'notification=${message.notification != null} dataKeys=${message.data.keys.toList()}',
+      );
+      _onForegroundMessage(message);
+    });
 
     FirebaseMessaging.onMessageOpenedApp.listen(_dispatchFromRemoteMessage);
 

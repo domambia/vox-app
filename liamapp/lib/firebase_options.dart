@@ -1,4 +1,6 @@
-// Generated from android/app/google-services.json (project liamapp-c4895).
+// Android Firebase config: use android/app/google-services.json (Gradle). Do not rely on
+// duplicate JSON at repo root — only android/app is packaged into the APK.
+// Project: liamapp-c4895.
 // Push / FCM is Android-only in this app; iOS does not use [FirebaseOptions] here.
 // ignore_for_file: lines_longer_than_80_chars, avoid_classes_with_only_static_members
 
